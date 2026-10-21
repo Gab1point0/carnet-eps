@@ -6,6 +6,7 @@ import { activityOf, fieldOfActivity, lessonTotalMinutes } from '../store/select
 import { formatDM, formatDuration, formatShort } from '../lib/dates';
 import { Chip } from './ui';
 import { cls } from '../lib/util';
+import { EVAL_KINDS } from '../lib/levels';
 
 export function StatusIcon({ status, size = 18 }: { status: Lesson['status']; size?: number }) {
   if (status === 'done') return <CheckCircle2 size={size} color="var(--success)" aria-label="Faite" />;
@@ -77,7 +78,12 @@ export function LessonRow({
             )}
           </div>
         </div>
-        {lesson.rating ? <span title="Ressenti après la séance">{['', '😕', '🙂', '😀'][lesson.rating]}</span> : null}
+        {lesson.evalKind && (
+          <Chip>
+            {EVAL_KINDS[lesson.evalKind].emoji} {EVAL_KINDS[lesson.evalKind].label}
+          </Chip>
+        )}
+        {lesson.rating ?<span title="Ressenti après la séance">{['', '😕', '🙂', '😀'][lesson.rating]}</span> : null}
         {lesson.adjust && <span title="À ajuster">🔧</span>}
         {empty && <Chip className="chip-todo">À préparer</Chip>}
       </Link>

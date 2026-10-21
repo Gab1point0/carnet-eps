@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Library, Play, Plus, Printer, Trash2 } from 'lucide-react';
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import { ProposalsPanel } from '../components/ProposalsPanel';
+import { EVAL_KINDS } from '../lib/levels';
 import type { Block, BlockKind, ID, Lesson } from '../types';
 import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea } from '../components/ui';
 import { ClassDot } from '../components/cards';
@@ -184,6 +185,14 @@ export function LessonPage() {
           </Field>
           <Field label="Fin">
             <TimeField value={lesson.end} onChange={(v) => patch({ end: v })} />
+          </Field>
+          <Field label="Évaluation">
+            <Select
+              value={lesson.evalKind ?? ''}
+              placeholder="Aucune"
+              onChange={(v) => patch({ evalKind: v || null })}
+              options={(Object.keys(EVAL_KINDS) as Array<keyof typeof EVAL_KINDS>).map((k) => ({ value: k, label: `${EVAL_KINDS[k].emoji} ${EVAL_KINDS[k].label}` }))}
+            />
           </Field>
           {(isTemplate || !cycle) && (
             <Field label="Activité">

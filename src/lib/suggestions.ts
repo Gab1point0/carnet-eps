@@ -1,5 +1,6 @@
 import type { Block, Lesson } from '../types';
 import { normalize } from './util';
+import { EVAL_KINDS, highShare, latestMeasured, lowShare, total } from './levels';
 
 /** Modification concrète qu'une proposition applique à la séance suivante. */
 export type Change =
@@ -16,7 +17,7 @@ export interface Proposal {
   changes: Change[];
 }
 
-type Theme = 'time' | 'easy' | 'hard' | 'noise' | 'wait' | 'safety' | 'material' | 'absent';
+type Theme = 'hetero' | 'time' | 'easy' | 'hard' | 'noise' | 'wait' | 'safety' | 'material' | 'absent';
 
 /** Mots-clés (sans accents, en minuscules) → thème. Le bilan est dicté : on reste tolérant. */
 const THEMES: Record<Theme, RegExp> = {
@@ -27,6 +28,7 @@ const THEMES: Record<Theme, RegExp> = {
   wait: /(attente|file d|files d|inactif|regardent|temps mort|peu d'activite|peu actifs|trop d'eleves|trop nombreux|attendent)/,
   safety: /(blessure|blesse|chute|danger|accident|glissant|mal au|entorse|collision)/,
   material: /(manque de (materiel|ballon|plot|raquette|volant|chasuble|tapis|filet)|pas assez de (materiel|ballon|plot|raquette|volant|chasuble|tapis|filet)|materiel (insuffisant|casse|manquant))/,
+  hetero: /(heterogene|ecart de niveau|ecarts de niveau|niveaux? (tres )?(differents|varies|disparates)|groupes? de niveau|disparite)/,
   absent: /(absent|dispense|inapte|sans tenue|oubli de tenue|pas de tenue|retard)/,
 };
 
@@ -170,6 +172,15 @@ export function proposalsFor(prev: Lesson, next: Lesson): Proposal[] {
     });
   }
 
+  if (themes.has('hetero') && !prev.levels) {
+    out.push({
+      id: tag('hetero-text'),
+      title: 'Organiser des groupes de niveau',
+      why: `${quote} La classe est hétérogène : une même situation en trois variantes (aide, standard, défi).`,
+      changes: [{ type: 'append', field: 'safety', text: '👥 Groupes de niveau : situation aidée / standard / défi ; les élèves avancés peuvent tutorer. Groupes à ajuster à chaque séance.' }],
+    });
+  }
+
   if (themes.has('absent')) {
     out.push({
       id: tag('absent'),
@@ -186,6 +197,119 @@ export function proposalsFor(prev: Lesson, next: Lesson): Proposal[] {
       title: 'Garder la remarque du bilan sous les yeux',
       why: quote,
       changes: [{ type: 'append', field: 'objective', text: `📝 À retenir de la dernière séance : ${text}` }],
+    });
+  }
+
+  return out;
+}
+
+const pct = (x: number) => `${Math.round(x * 100)} %`;
+
+/**
+ * Propositions pour `next` d'après le niveau de la classe relevé lors de la dernière évaluation
+ * du cycle (diagnostique ou formative) : groupes de niveau, fondamentaux, défi, remédiation,
+ * entraînement avant l'évaluation finale. Concerne les 3 séances qui suivent l'évaluation.
+ */
+export function levelProposals(cycleLessons: Lesson[], next: Lesson): Proposal[] {
+  if (next.evalKind === 'summative' || next.evalKind === 'diagnostic') return [];
+  const ref = latestMeasured(cycleLessons, next.order);
+  if (!ref || !ref.levels) return [];
+  const L = ref.levels;
+  const T = total(L);
+  const low = lowShare(L);
+  const high = highShare(L);
+  const kind = ref.evalKind ? EVAL_KINDS[ref.evalKind].label.toLowerCase() : 'précédente';
+  const where = `évaluation ${kind} « ${ref.title || 'séance'} »`;
+  const counts = `${L[0]} débutant${L[0] > 1 ? 's' : ''}, ${L[1]} en cours, ${L[2]} acquis, ${L[3]} avancé${L[3] > 1 ? 's' : ''} (sur ${T})`;
+  const tag = (k: string) => `${ref.id}:lvl-${k}`;
+  const out: Proposal[] = [];
+  const longest = longestWork(next.blocks);
+  const firstWork = Math.max(0, next.blocks.findIndex((b) => WORK.includes(b.kind)));
+  const give = (m: number) => (longest && longest.minutes >= m + 10 ? { blockId: longest.id, minutes: m } : undefined);
+
+  // Profil : seulement pour les séances qui suivent directement l'évaluation.
+  const nearby = next.order - ref.order <= 3;
+
+  if (nearby && T > 0) {
+    if (low >= 0.35 && high >= 0.35) {
+      const socle = L[0] + L[1];
+      const appro = L[2] + L[3];
+      out.push({
+        id: tag('hetero'),
+        title: 'Organiser des groupes de niveau',
+        why: `${where} : ${counts}. La classe est hétérogène (${pct(low)} sans les bases, ${pct(high)} qui maîtrisent) : une même situation en trois variantes évite d'ennuyer les uns et de perdre les autres.`,
+        changes: [
+          { type: 'append', field: 'safety', text: `👥 Groupes de niveau (d'après l'évaluation ${kind}) : « socle » ≈ ${socle} élèves (situation aidée, critères réduits), « approfondissement » ≈ ${appro} élèves (situation standard puis défi). Les avancés peuvent tutorer. Groupes modifiables à chaque séance.` },
+          { type: 'append', field: 'objective', text: '🎚 Prévoir 3 variantes de la situation principale : aide / standard / défi.' },
+        ],
+      });
+    } else if (low >= 0.6) {
+      out.push({
+        id: tag('low'),
+        title: 'Recentrer sur les fondamentaux',
+        why: `${where} : ${counts}. ${pct(low)} de la classe n'a pas encore les bases : on consolide avant de complexifier.`,
+        changes: [
+          {
+            type: 'add-block', at: firstWork, kind: 'skill', title: 'Reprise des fondamentaux', minutes: 10,
+            text: 'Démonstration + 2 critères de réussite, travail en binômes ou petits groupes, situation simplifiée (espace réduit, sans opposition).',
+            takeFrom: give(10),
+          },
+          { type: 'append', field: 'objective', text: `🎯 Priorité aux fondamentaux : ${pct(low)} des élèves n'ont pas encore acquis les bases.` },
+        ],
+      });
+    } else if (high >= 0.6) {
+      out.push({
+        id: tag('high'),
+        title: 'Monter le niveau d\'exigence',
+        why: `${where} : ${counts}. ${pct(high)} de la classe maîtrise déjà l'essentiel : on peut aller plus vite vers des situations plus complexes.`,
+        changes: [{ type: 'append', field: 'objective', text: `⬆ Classe plutôt à l'aise (${pct(high)} acquis ou avancés) : réduire le temps de rappel et ajouter une contrainte (opposition, vitesse, précision ou enchaînement).` }],
+      });
+    }
+  }
+
+  // Progression entre le diagnostic et l'évaluation formative.
+  if (nearby && ref.evalKind === 'formative') {
+    const diag = cycleLessons.filter((l) => l.evalKind === 'diagnostic' && l.levels && total(l.levels) > 0 && l.order < ref.order).sort((a, b) => b.order - a.order)[0];
+    if (diag?.levels) {
+      const delta = Math.round((high - highShare(diag.levels)) * 100);
+      if (delta < 10) {
+        out.push({
+          id: tag('stagnation'),
+          title: `Remédiation ciblée (progression de ${delta >= 0 ? '+' : ''}${delta} pts)`,
+          why: `Entre le diagnostic (${pct(highShare(diag.levels))} acquis ou avancés) et l'évaluation formative (${pct(high)}), la progression est faible : les situations actuelles ne font peut-être pas progresser assez. 10 min ciblées sur le critère le moins réussi, avec un retour individuel.`,
+          changes: [
+            {
+              type: 'add-block', at: firstWork, kind: 'skill', title: 'Remédiation ciblée', minutes: 10,
+              text: 'Reprendre le critère le moins réussi à l\'évaluation formative : démonstration, 2 essais avec un camarade observateur, conseil ciblé.',
+              takeFrom: give(10),
+            },
+          ],
+        });
+      } else if (delta >= 25) {
+        out.push({
+          id: tag('progress'),
+          title: `Belle progression (+${delta} pts) : relever la difficulté`,
+          why: `Les élèves qui maîtrisent sont passés de ${pct(highShare(diag.levels))} à ${pct(high)} depuis le diagnostic : vous pouvez augmenter l'exigence pour les prochaines séances.`,
+          changes: [{ type: 'append', field: 'objective', text: `⬆ Progression nette depuis le diagnostic (+${delta} pts) : proposer des variantes plus exigeantes aux élèves acquis.` }],
+        });
+      }
+    }
+  }
+
+  // Séance juste avant l'évaluation finale : s'entraîner dans les conditions de l'évaluation.
+  const summative = cycleLessons.find((l) => l.evalKind === 'summative');
+  if (summative && summative.order - next.order === 1 && ref.order < next.order) {
+    out.push({
+      id: tag('pre-summative'),
+      title: 'S\'entraîner dans les conditions de l\'évaluation finale',
+      why: `La séance suivante est l'évaluation sommative : 10 min en conditions réelles (mêmes règles, même durée, même espace) rassurent les élèves et permettent de corriger les derniers points.`,
+      changes: [
+        {
+          type: 'add-block', at: Math.max(firstWork, next.blocks.length - 1), kind: 'evaluation', title: 'Essai dans les conditions de l\'évaluation', minutes: 10,
+          text: 'Mêmes règles et même organisation que l\'évaluation finale, sans note. Chaque élève repère le critère à retravailler.',
+          takeFrom: give(10),
+        },
+      ],
     });
   }
 

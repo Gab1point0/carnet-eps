@@ -110,6 +110,8 @@ export interface Block {
   animation: Animation | null;
 }
 
+export type EvalKind = 'diagnostic' | 'formative' | 'summative';
+
 export interface Lesson extends Meta {
   /** `null` = séance modèle de la bibliothèque. */
   classId: ID | null;
@@ -132,6 +134,10 @@ export interface Lesson extends Meta {
   rating: number | null;
   /** Séance à ajuster ou à refaire l'an prochain. */
   adjust: boolean;
+  /** Séance d'évaluation : diagnostique (début de cycle), formative (milieu) ou sommative (fin). */
+  evalKind: EvalKind | null;
+  /** Niveau observé de la classe lors d'une évaluation : nombre d'élèves par degré (débutant, en cours, acquis, avancé). Aucun nom d'élève. */
+  levels: [number, number, number, number] | null;
   /** Propositions d'ajustement (issues du bilan précédent) déjà acceptées ou refusées. */
   proposalsDone: string[];
   tags: string[];

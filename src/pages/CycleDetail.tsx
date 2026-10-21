@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, BookmarkPlus, CalendarClock, ChevronLeft, Copy, Plu
 import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
+import { EvalPath } from '../components/EvalPath';
 import { CopyCycleModal, RedateModal } from '../components/CycleModals';
 import { useData } from '../store/data';
 import { cycleLessons } from '../store/selectors';
@@ -132,6 +133,8 @@ export function CycleDetailPage() {
           <TextArea value={cycle.notes} onChange={(v) => patch({ notes: v })} minRows={4} placeholder="Matériel à réserver, installations, rappels…" />
         </Field>
       </div>
+
+      <EvalPath lessons={lessons} />
 
       <Section
         title={`Séances (${lessons.length})`}

@@ -345,3 +345,14 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .proposal-text { flex: 1 1 260px; min-width: 0; }
 .proposal-text p { margin: 4px 0 0; }
 .proposal-actions { display: flex; gap: 6px; }
+
+.levels-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.level-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 12px; border: 2px solid var(--lv, var(--border)); text-align: center; }
+.stepper { display: flex; align-items: center; gap: 10px; }
+.stepper button { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); font-size: 1.3rem; font-weight: 700; cursor: pointer; color: var(--text); }
+.stepper span { min-width: 1.6em; font-size: 1.4rem; font-weight: 800; }
+.level-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--border); }
+.level-bar > i { display: block; }
+.eval-path { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.eval-step { padding: 12px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+.eval-step.eval-todo { border-style: dashed; }

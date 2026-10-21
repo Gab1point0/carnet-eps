@@ -79,6 +79,7 @@ export function duplicateYear(fromId: ID, o: DuplicateYearOptions): ID {
             bilan: '',
             rating: null,
             adjust: false,
+            levels: null,
             proposalsDone: [],
             blocks: cloneBlocks(l.blocks),
           };
@@ -234,6 +235,7 @@ export function duplicateLesson(lessonId: ID, o: DuplicateLessonOptions = {}): I
       bilan: '',
             rating: null,
             adjust: false,
+            levels: null,
             proposalsDone: [],
       blocks: cloneBlocks(src.blocks),
     };
@@ -283,6 +285,7 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
         bilan: '',
             rating: null,
             adjust: false,
+            levels: null,
             proposalsDone: [],
         blocks: cloneBlocks(l.blocks),
       });

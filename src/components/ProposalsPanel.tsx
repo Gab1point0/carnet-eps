@@ -4,22 +4,23 @@ import type { Lesson } from '../types';
 import { Button, Card, Section } from './ui';
 import { useData } from '../store/data';
 import { cycleLessons } from '../store/selectors';
-import { applyChanges, proposalsFor } from '../lib/suggestions';
+import { applyChanges, levelProposals, proposalsFor } from '../lib/suggestions';
 import { uid } from '../lib/util';
 import { toast } from '../store/ui';
 
 /** Dernière séance du même cycle qui a reçu un bilan (texte, ressenti ou « à ajuster »). */
 export function previousReviewed(lessons: Lesson[], lesson: Lesson): Lesson | undefined {
   return lessons
-    .filter((l) => l.order < lesson.order && l.status !== 'cancelled' && (l.bilan.trim() || l.rating !== null || l.adjust))
+    .filter((l) => l.order < lesson.order && l.status !== 'cancelled' && (l.bilan.trim() || l.rating !== null || l.adjust || l.levels))
     .sort((a, b) => b.order - a.order)[0];
 }
 
 export function pendingProposals(lessons: Lesson[], lesson: Lesson) {
   if (lesson.status !== 'planned' || !lesson.cycleId) return { prev: undefined, list: [] };
   const prev = previousReviewed(lessons, lesson);
-  if (!prev) return { prev: undefined, list: [] };
-  const list = proposalsFor(prev, lesson).filter((p) => !lesson.proposalsDone.includes(p.id));
+  const all = [...(prev ? proposalsFor(prev, lesson) : []), ...levelProposals(lessons, lesson)];
+  const seen = new Set<string>();
+  const list = all.filter((p) => !lesson.proposalsDone.includes(p.id) && !seen.has(p.id) && seen.add(p.id));
   return { prev, list };
 }
 
@@ -27,12 +28,12 @@ export function pendingProposals(lessons: Lesson[], lesson: Lesson) {
 export function ProposalsPanel({ lesson }: { lesson: Lesson }) {
   const data = useData((s) => s.data);
   const { prev, list } = useMemo(() => pendingProposals(lesson.cycleId ? cycleLessons(data, lesson.cycleId) : [], lesson), [data, lesson]);
-  if (!prev || list.length === 0) return null;
+  if (list.length === 0) return null;
 
   const mark = (id: string, extra: Partial<Lesson> = {}) => useData.getState().patch('lessons', lesson.id, { ...extra, proposalsDone: [...lesson.proposalsDone, id] });
 
   return (
-    <Section title={<span><Lightbulb size={18} style={{ verticalAlign: '-3px' }} /> Propositions d'après le bilan de « {prev.title || 'la séance précédente'} »</span>}>
+    <Section title={<span><Lightbulb size={18} style={{ verticalAlign: '-3px' }} /> Propositions d'après {prev ? `le bilan de « ${prev.title || 'la séance précédente'} »` : 'les évaluations'}</span>}>
       <Card className="proposals">
         {list.map((p) => (
           <div key={p.id} className="proposal">

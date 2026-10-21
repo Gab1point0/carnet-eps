@@ -3,6 +3,7 @@ import { Mic, MicOff } from 'lucide-react';
 import type { Lesson } from '../types';
 import { useDictation } from '../lib/dictation';
 import { sentimentOf, themesOf } from '../lib/suggestions';
+import { EVAL_KINDS, LEVELS, parseLevels, total, type Levels } from '../lib/levels';
 import { Button, Modal, TextArea } from './ui';
 import { useData } from '../store/data';
 import { cls } from '../lib/util';
@@ -21,6 +22,10 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
   const [adjust, setAdjust] = useState(lesson.adjust);
   const [bilan, setBilan] = useState(lesson.bilan);
 
+  const [evalKind, setEvalKind] = useState<Lesson['evalKind']>(lesson.evalKind);
+  const [levels, setLevels] = useState<Levels>(lesson.levels ?? [0, 0, 0, 0]);
+  const evalRef = useRef(evalKind);
+  evalRef.current = evalKind;
   const bilanRef = useRef(bilan);
   bilanRef.current = bilan;
   const ratingRef = useRef(rating);
@@ -34,6 +39,10 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
       const s = sentimentOf(next);
       if (s) setRating(s);
     }
+    if (evalRef.current) {
+      const parsed = parseLevels(next);
+      if (parsed) setLevels(parsed);
+    }
     const themes = themesOf(next);
     if ([...themes].some((x) => x !== 'absent')) setAdjust(true);
   });
@@ -41,7 +50,14 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
 
   const save = () => {
     dictation.stop();
-    useData.getState().patch('lessons', lesson.id, { status, rating: status === 'cancelled' ? null : rating, adjust, bilan });
+    useData.getState().patch('lessons', lesson.id, {
+      status,
+      rating: status === 'cancelled' ? null : rating,
+      adjust,
+      bilan,
+      evalKind,
+      levels: evalKind && total(levels) > 0 ? levels : null,
+    });
     toast('Bilan enregistré', { tone: 'success' });
     onClose();
   };
@@ -88,6 +104,44 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
               </button>
             ))}
           </div>
+        </div>
+      )}
+      <div className="field">
+        <span className="field-label">Séance d'évaluation ?</span>
+        <div className="ae-modes" role="group">
+          <button type="button" className={cls('seg', evalKind === null && 'seg-on')} onClick={() => setEvalKind(null)}>
+            Non
+          </button>
+          {(Object.keys(EVAL_KINDS) as Array<keyof typeof EVAL_KINDS>).map((k) => (
+            <button key={k} type="button" className={cls('seg', evalKind === k && 'seg-on')} onClick={() => setEvalKind(k)}>
+              {EVAL_KINDS[k].emoji} {EVAL_KINDS[k].label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {evalKind && (
+        <div className="field">
+          <span className="field-label">Niveau de la classe : combien d'élèves à chaque degré ? (sans noms)</span>
+          <div className="levels-grid">
+            {LEVELS.map((lv, i) => (
+              <div key={lv.label} className="level-cell" style={{ ['--lv' as string]: lv.color }}>
+                <strong>{lv.label}</strong>
+                <div className="stepper">
+                  <button type="button" aria-label={`Moins de ${lv.short}`} onClick={() => setLevels((c) => c.map((n, j) => (j === i ? Math.max(0, n - 1) : n)) as Levels)}>
+                    −
+                  </button>
+                  <span>{levels[i]}</span>
+                  <button type="button" aria-label={`Plus de ${lv.short}`} onClick={() => setLevels((c) => c.map((n, j) => (j === i ? n + 1 : n)) as Levels)}>
+                    +
+                  </button>
+                </div>
+                <span className="muted small">{lv.hint}</span>
+              </div>
+            ))}
+          </div>
+          <p className="muted small">
+            Vous pouvez le dicter : « six débutants, dix en cours, huit acquis, deux avancés. » Les séances suivantes seront adaptées à ce niveau (propositions à accepter ou refuser).
+          </p>
         </div>
       )}
       <label className="check">
