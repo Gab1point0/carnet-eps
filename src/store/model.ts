@@ -76,7 +76,7 @@ export function newCycle(classId: ID | null, order: number, title = ''): Cycle {
 }
 
 export function newBlock(kind: BlockKind = 'situation', title = '', minutes = 15): Block {
-  return { id: uid(), kind, title, minutes, text: '', materials: '', animation: null };
+  return { id: uid(), kind, title, minutes, text: '', materials: '', animation: null, sheets: [] };
 }
 
 export function newLesson(classId: ID | null, cycleId: ID | null, order: number, title = ''): Lesson {
@@ -181,7 +181,7 @@ export function normalizeData(raw: unknown): AppData {
     c.slotIds = Array.isArray(c.slotIds) ? c.slotIds : [];
   });
   out.lessons = fill<Lesson>(r.lessons, () => newLesson(null, null, 0), (l) => {
-    l.blocks = withIds(l.blocks).map((b) => ({ ...newBlock(), ...b }));
+    l.blocks = withIds(l.blocks).map((b) => ({ ...newBlock(), ...b, sheets: Array.isArray(b.sheets) ? b.sheets : [] }));
     l.tags = Array.isArray(l.tags) ? l.tags : [];
     l.proposalsDone = Array.isArray(l.proposalsDone) ? l.proposalsDone : [];
     l.tasksDone = Array.isArray(l.tasksDone) ? l.tasksDone : [];

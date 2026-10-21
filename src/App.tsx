@@ -16,6 +16,7 @@ import { SearchPage } from './pages/Search';
 import { SettingsPage } from './pages/Settings';
 import { PreparationPage } from './pages/Preparation';
 import { FichesPage } from './pages/Fiches';
+import { FichePage, FichesHubPage } from './pages/Fiche';
 
 export function App() {
   const loaded = useData((s) => s.loaded);
@@ -28,11 +29,13 @@ export function App() {
         <Route path="/lessons/:id/run" element={<LessonRunPage />} />
         <Route path="/lessons/:id/print" element={<LessonPrintPage />} />
         <Route path="/cycles/:id/fiches" element={<FichesPage />} />
+        <Route path="/fiches/:id" element={<FichePage />} />
 
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
           <Route path="planning" element={<PlanningPage />} />
           <Route path="preparation" element={<PreparationPage />} />
+          <Route path="fiches" element={<FichesHubPage />} />
           <Route path="classes" element={<ClassesPage />} />
           <Route path="classes/:id" element={<ClassDetailPage />} />
           <Route path="cycles/:id" element={<CycleDetailPage />} />

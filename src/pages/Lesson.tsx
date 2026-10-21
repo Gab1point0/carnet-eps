@@ -237,6 +237,7 @@ export function LessonPage() {
             <BlockEditor
               key={b.id}
               block={b}
+              cycleId={lesson.cycleId}
               index={i}
               count={lesson.blocks.length}
               court={court}

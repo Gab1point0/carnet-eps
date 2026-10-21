@@ -46,6 +46,7 @@ Animation  { court,tokens:[{id,kind,label,color,size}],frames:[{id,caption,holdM
 - Un ballon « porté » : `carry:<id du joueur>` + `dx,dy` (décalage en %) → il suit ce joueur et voyage avec lui entre les étapes.
 - Chaque étape doit avoir une position pour **chaque** jeton (`validate` le vérifie ; l'appli répare sinon).
 - **Matériel** : Block.materials = une ligne `- 12 plots (usage)` par objet ; Lesson.materials = ligne `🏟 Installation : …` puis `- 15 ballons — bloc 2 (passes) ; bloc 3 (match)` (quantité max sur la séance, blocs où l'objet sert). L'application ne totalise que ces lignes (lessonMaterialTexts). Le générateur est outils/materiel-par-bloc.mjs du dépôt de données (effectif de la classe → quantités).
+- **Fiches** : Block.sheets = identifiants de fiches imprimables (src/lib/fiches.ts, ~40 fiches : observation, score, contrat, composition…). Page /fiches (liste), /fiches/:id?cycle=&copies= (impression). Les blocs affichent des boutons « Fiches à imprimer ». Les textes des situations suivent le plan **Organisation / Déroulé / Rotations et rôles / Séries et durée / Critères de réussite / Pour adapter** (générés par outils/contextualiser-situations.mjs du dépôt de données).
 - Les textes (`text`, `objective`…) acceptent un mini-Markdown : `**gras**`, `*italique*`, `- liste`, `## titre`.
 
 ## Modifier l'application

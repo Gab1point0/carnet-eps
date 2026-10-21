@@ -4,6 +4,7 @@ import { useData } from '../store/data';
 import { activityOf, lessonTotalMinutes } from '../store/selectors';
 import { FrameThumb } from '../animation/Player';
 import { Markdown } from '../components/Markdown';
+import { FICHE_BY_ID } from '../lib/fiches';
 import { Button } from '../components/ui';
 import { BLOCK_KINDS } from '../lib/defaults';
 import { formatDuration, formatLong } from '../lib/dates';
@@ -82,6 +83,7 @@ export function LessonPrintPage() {
               <div className={anim ? 'sheet-block-grid' : undefined}>
                 <div>
                   {b.text && <Markdown text={b.text} />}
+                  {b.sheets?.length > 0 && <p className="small"><strong>Fiches à imprimer :</strong> {b.sheets.map((s) => FICHE_BY_ID.get(s)?.title ?? s).join(' · ')}</p>}
                   {b.materials && (
                     <div className="small">
                       <strong>Matériel :</strong>

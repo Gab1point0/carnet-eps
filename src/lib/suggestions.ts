@@ -325,7 +325,7 @@ export function applyChanges(lesson: Lesson, changes: Change[], newId: () => str
       blocks = blocks.map((b) => (b.id === c.blockId ? { ...b, minutes: c.minutes } : b));
     } else if (c.type === 'add-block') {
       if (c.takeFrom) blocks = blocks.map((b) => (b.id === c.takeFrom!.blockId ? { ...b, minutes: Math.max(5, b.minutes - c.takeFrom!.minutes) } : b));
-      const nb: Block = { id: newId(), kind: c.kind, title: c.title, minutes: c.minutes, text: c.text, materials: '', animation: null };
+      const nb: Block = { id: newId(), kind: c.kind, title: c.title, minutes: c.minutes, text: c.text, materials: '', animation: null, sheets: [] };
       blocks.splice(Math.min(c.at, blocks.length), 0, nb);
     } else {
       text[c.field] = text[c.field].trim() ? `${text[c.field].trim()}\n${c.text}` : c.text;

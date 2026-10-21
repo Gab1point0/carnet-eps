@@ -108,6 +108,8 @@ export interface Block {
   text: string;
   materials: string;
   animation: Animation | null;
+  /** Fiches imprimables utilisées dans ce bloc (identifiants de `src/lib/fiches.ts`). */
+  sheets: string[];
 }
 
 export interface Todo {

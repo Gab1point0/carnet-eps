@@ -4,6 +4,8 @@ import type { Block, BlockKind, CourtId, ID } from '../types';
 import { IconButton, Menu, NumberInput, Select, TextArea, TextInput } from './ui';
 import { AnimationField } from './AnimationField';
 import { Markdown } from './Markdown';
+import { SheetLinks } from '../pages/Fiche';
+import { FICHES } from '../lib/fiches';
 import { BLOCK_KINDS, BLOCK_KIND_ORDER } from '../lib/defaults';
 import { cls, uid } from '../lib/util';
 
@@ -29,6 +31,7 @@ export function BlockEditor({
   onDelete,
   onDuplicate,
   onSaveToLibrary,
+  cycleId,
 }: {
   block: Block;
   index: number;
@@ -40,6 +43,7 @@ export function BlockEditor({
   onDelete: () => void;
   onDuplicate: () => void;
   onSaveToLibrary: () => void;
+  cycleId?: ID | null;
 }) {
   const [open, setOpen] = useState(true);
   const kind = BLOCK_KINDS[block.kind];
@@ -86,7 +90,7 @@ export function BlockEditor({
         <div className="block-body">
           <TextArea
             value={block.text}
-            minRows={4}
+            minRows={8}
             placeholder={'Organisation, consignes, critères de réussite, variables…\n- une ligne par idée\n**gras** pour insister'}
             onChange={(v) => onChange({ text: v })}
           />
@@ -96,6 +100,23 @@ export function BlockEditor({
             placeholder={'🧰 Matériel pour ce bloc, une ligne par objet\n- 12 plots (couloirs de passe)\n- 6 ballons (1 par groupe)'}
             onChange={(v) => onChange({ materials: v })}
           />
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <SheetLinks sheets={block.sheets ?? []} cycleId={cycleId} />
+            <select
+              className="input"
+              style={{ width: 'auto', maxWidth: 260 }}
+              value=""
+              aria-label="Ajouter une fiche à imprimer"
+              onChange={(e) => e.target.value && onChange({ sheets: [...new Set([...(block.sheets ?? []), e.target.value])] })}
+            >
+              <option value="">+ Fiche à imprimer…</option>
+              {FICHES.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.group} — {f.title}
+                </option>
+              ))}
+            </select>
+          </div>
           <AnimationField
             value={block.animation}
             onChange={(a) => onChange({ animation: a })}

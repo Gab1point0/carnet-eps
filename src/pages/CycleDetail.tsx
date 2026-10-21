@@ -143,6 +143,9 @@ export function CycleDetailPage() {
             <Button size="sm" icon={<Printer size={16} />} onClick={() => navigate(`/cycles/${cycle.id}/fiches`)}>
               Fiches élèves
             </Button>
+            <Button size="sm" icon={<Printer size={16} />} onClick={() => navigate(`/fiches?cycle=${cycle.id}`)}>
+              Toutes les fiches
+            </Button>
             {!isTemplate && klass && klass.slots.length > 0 && (
               <Button size="sm" icon={<CalendarClock size={16} />} onClick={() => setRedating(true)}>
                 Recalculer les dates

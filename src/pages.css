@@ -368,3 +368,20 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .todo-add .input { flex: 1 1 200px; }
 .todo-empty { margin: 4px 0; }
 .link-btn { background: none; border: 0; color: var(--primary); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+
+/* Fiches imprimables (bibliothèque) */
+.fiche-fields { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 8px 0; }
+.fiche-line { height: 26px; border-bottom: 1px solid #cbd5e1; }
+.fiche-checks { list-style: none; padding: 0; margin: 4px 0 8px; display: grid; gap: 6px; }
+.fiche-copies { display: flex; flex-direction: column; align-items: center; }
+.fiche-copies .sheet { width: 100%; max-width: 900px; }
+.fiche-half { min-height: 0; padding: 14px 18px; }
+.fiche-half .fiche-table tr.tall td { height: 38px; }
+.fiche-half .fiche-id { min-width: 200px; font-size: 0.85rem; gap: 4px; }
+.fiche-half h1 { font-size: 1.15rem; }
+.sheet-links { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+@media print {
+  .fiche-half { break-inside: avoid; break-after: auto; height: 48%; margin: 0 0 4mm; overflow: hidden; }
+  .fiche-copies-half { display: block; }
+  .fiche-copies-half .fiche-half:nth-child(2n) { break-after: page; }
+}

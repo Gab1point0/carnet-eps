@@ -7,6 +7,7 @@ import { useData } from '../store/data';
 import { activityOf } from '../store/selectors';
 import { AnimationPlayer } from '../animation/Player';
 import { Markdown } from '../components/Markdown';
+import { SheetLinks } from './Fiche';
 import { Button, IconButton } from '../components/ui';
 import { BLOCK_KINDS } from '../lib/defaults';
 import { cls } from '../lib/util';
@@ -246,6 +247,7 @@ export function LessonRunPage() {
 
             {block.animation && <AnimationPlayer animation={block.animation} autoPlay maxHeight="50vh" />}
             {block.text && <Markdown text={block.text} className="md-big" />}
+            <SheetLinks sheets={block.sheets ?? []} cycleId={lesson.cycleId} />
             {block.materials && (
               <div className="callout">
                 🧰 <strong>Matériel de ce bloc :</strong>
