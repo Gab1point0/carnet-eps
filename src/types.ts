@@ -128,6 +128,10 @@ export interface Lesson extends Meta {
   blocks: Block[];
   /** Bilan après la séance : ce qui a marché, à retravailler… */
   bilan: string;
+  /** Retour rapide : 1 = à revoir, 2 = correct, 3 = très bien ; `null` = pas encore de retour. */
+  rating: number | null;
+  /** Séance à ajuster ou à refaire l'an prochain. */
+  adjust: boolean;
   tags: string[];
 }
 

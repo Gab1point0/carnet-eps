@@ -77,6 +77,8 @@ export function duplicateYear(fromId: ID, o: DuplicateYearOptions): ID {
             date: moveDate(l.date),
             status: 'planned',
             bilan: '',
+            rating: null,
+            adjust: false,
             blocks: cloneBlocks(l.blocks),
           };
           tx.put('lessons', nl);
@@ -229,6 +231,8 @@ export function duplicateLesson(lessonId: ID, o: DuplicateLessonOptions = {}): I
       order,
       status: 'planned',
       bilan: '',
+            rating: null,
+            adjust: false,
       blocks: cloneBlocks(src.blocks),
     };
     tx.put('lessons', copy);
@@ -275,6 +279,8 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
         end: occ[i]?.slot.end ?? l.end,
         status: 'planned',
         bilan: '',
+            rating: null,
+            adjust: false,
         blocks: cloneBlocks(l.blocks),
       });
     });
@@ -314,6 +320,135 @@ export function insertExerciseInLesson(lessonId: ID, exerciseId: ID): void {
     if (!l || !ex) return;
     tx.patch('lessons', lessonId, { blocks: [...l.blocks, blockFromExercise(ex)] });
   });
+}
+
+// ── Imprévus : reporter, annuler, jour sans cours ──────────────────────────
+
+export interface RescheduleResult {
+  /** Nombre de séances dont la date a changé. */
+  moved: number;
+  /** Annule la modification (restaure les séances et le calendrier d'origine). */
+  undo: () => void;
+}
+
+const isOpen = (l: Lesson) => l.status === 'planned' && !!l.date;
+
+/** Replace `lessons` (dans l'ordre) sur les prochains créneaux du cycle à partir de `fromDate` (inclus). */
+function redate(tx: Tx, cycle: Cycle, lessons: Lesson[], fromDate: ISODate): number {
+  const klass = cycle.classId ? tx.get('classes', cycle.classId) : undefined;
+  if (!klass || !lessons.length) return 0;
+  const year = tx.get('years', klass.yearId);
+  const occ = nextOccurrences(slotsForCycle(klass.slots, cycle.slotIds), fromDate, year?.holidays ?? [], { count: lessons.length });
+  let moved = 0;
+  lessons.forEach((l, i) => {
+    const o = occ[i];
+    const patch = o ? { date: o.date, start: o.slot.start, end: o.slot.end } : { date: null };
+    if (l.date !== patch.date || (o && (l.start !== o.slot.start || l.end !== o.slot.end))) moved++;
+    tx.patch('lessons', l.id, patch);
+  });
+  return moved;
+}
+
+function refreshCycleBounds(tx: Tx, cycleId: ID): void {
+  const dates = tx
+    .all('lessons')
+    .filter((l) => l.cycleId === cycleId && l.status !== 'cancelled' && l.date)
+    .map((l) => l.date as ISODate)
+    .sort();
+  tx.patch('cycles', cycleId, { startDate: dates[0] ?? null, endDate: dates[dates.length - 1] ?? null });
+}
+
+/** Mémorise l'état d'origine de séances, de cycles et d'une année pour pouvoir annuler. */
+function snapshot(tx: Tx, lessonIds: ID[], cycleIds: ID[], yearId?: ID): () => void {
+  const lessons = lessonIds.map((id) => tx.get('lessons', id)).filter((x): x is Lesson => !!x).map((l) => deepClone(l));
+  const cycles = cycleIds.map((id) => tx.get('cycles', id)).filter((x): x is Cycle => !!x).map((c) => deepClone(c));
+  const year = yearId ? tx.get('years', yearId) : undefined;
+  const yearCopy = year ? deepClone(year) : undefined;
+  return () => {
+    st().transact((t) => {
+      for (const l of lessons) t.put('lessons', l);
+      for (const c of cycles) t.put('cycles', c);
+      if (yearCopy) t.put('years', yearCopy);
+    });
+  };
+}
+
+/** Reporte la séance au prochain créneau et décale toute la suite du cycle d'autant. */
+export function postponeLesson(lessonId: ID): RescheduleResult | null {
+  let result: RescheduleResult | null = null;
+  st().transact((tx) => {
+    const target = tx.get('lessons', lessonId);
+    const cycle = target?.cycleId ? tx.get('cycles', target.cycleId) : undefined;
+    if (!target || !cycle || !target.date) return;
+    const chain = sortLessons(tx.all('lessons').filter((l) => l.cycleId === cycle.id)).filter((l) => l.order >= target.order && isOpen(l));
+    const undo = snapshot(tx, chain.map((l) => l.id), [cycle.id]);
+    const moved = redate(tx, cycle, chain, addDays(target.date, 1));
+    refreshCycleBounds(tx, cycle.id);
+    result = { moved, undo };
+  });
+  return result;
+}
+
+/** Annule la séance (elle reste visible, barrée) et fait remonter la suite du cycle sur son créneau. */
+export function cancelAndShift(lessonId: ID): RescheduleResult | null {
+  let result: RescheduleResult | null = null;
+  st().transact((tx) => {
+    const target = tx.get('lessons', lessonId);
+    const cycle = target?.cycleId ? tx.get('cycles', target.cycleId) : undefined;
+    if (!target || !cycle || !target.date) return;
+    const chain = sortLessons(tx.all('lessons').filter((l) => l.cycleId === cycle.id)).filter((l) => l.order > target.order && isOpen(l));
+    const undo = snapshot(tx, [target.id, ...chain.map((l) => l.id)], [cycle.id]);
+    tx.patch('lessons', target.id, { status: 'cancelled' });
+    const moved = redate(tx, cycle, chain, target.date);
+    refreshCycleBounds(tx, cycle.id);
+    result = { moved: moved + 1, undo };
+  });
+  return result;
+}
+
+export interface ClosurePreview {
+  cycles: number;
+  lessons: number;
+  /** Séances isolées (hors cycle) tombant sur la période : à traiter à la main. */
+  standalone: number;
+}
+
+/** Séances concernées par une période sans cours (pour l'aperçu avant validation). */
+export function previewClosure(yearId: ID, start: ISODate, end: ISODate): ClosurePreview {
+  const data = st().data;
+  const classIds = new Set(Object.values(data.classes).filter((k) => k.yearId === yearId).map((k) => k.id));
+  const inRange = Object.values(data.lessons).filter((l) => l.classId && classIds.has(l.classId) && isOpen(l) && l.date! >= start && l.date! <= end);
+  const cycles = new Set(inRange.filter((l) => l.cycleId).map((l) => l.cycleId));
+  return { cycles: cycles.size, lessons: inRange.length, standalone: inRange.filter((l) => !l.cycleId).length };
+}
+
+/**
+ * Déclare une période sans cours (sortie, grève, intempéries…) : elle est ajoutée au calendrier
+ * de l'année et les séances de chaque cycle concerné glissent sur les créneaux suivants.
+ */
+export function closeDays(yearId: ID, start: ISODate, end: ISODate, label: string): RescheduleResult {
+  let result: RescheduleResult = { moved: 0, undo: () => {} };
+  st().transact((tx) => {
+    const year = tx.get('years', yearId);
+    if (!year) return;
+    const classIds = new Set(tx.all('classes').filter((k) => k.yearId === yearId).map((k) => k.id));
+    const affected = tx.all('cycles').filter((c) => c.classId && classIds.has(c.classId));
+    const plan: Array<{ cycle: Cycle; chain: Lesson[] }> = [];
+    for (const cycle of affected) {
+      const all = sortLessons(tx.all('lessons').filter((l) => l.cycleId === cycle.id));
+      if (!all.some((l) => isOpen(l) && l.date! >= start && l.date! <= end)) continue;
+      plan.push({ cycle, chain: all.filter((l) => isOpen(l) && l.date! >= start) });
+    }
+    const undo = snapshot(tx, plan.flatMap((p) => p.chain.map((l) => l.id)), plan.map((p) => p.cycle.id), yearId);
+    tx.patch('years', yearId, { holidays: [...year.holidays, { id: uid(), label: label || 'Journée sans cours', start, end, kind: 'autre' }] });
+    let moved = 0;
+    for (const { cycle, chain } of plan) {
+      moved += redate(tx, cycle, chain, start);
+      refreshCycleBounds(tx, cycle.id);
+    }
+    result = { moved, undo };
+  });
+  return result;
 }
 
 /** Crée une séance isolée (hors cycle) sur un créneau de la classe. */

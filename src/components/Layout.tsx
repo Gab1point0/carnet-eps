@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Cloud, CloudAlert, CloudCheck, CloudUpload, Home, CalendarDays, Library, Search, Settings, Users } from 'lucide-react';
+import { ClipboardList, Cloud, CloudAlert, CloudCheck, CloudUpload, Home, CalendarDays, Library, Search, Settings, Users } from 'lucide-react';
 import { useEffect } from 'react';
 import { useCurrentYear, useYears } from '../store/selectors';
 import { useUi } from '../store/ui';
@@ -59,7 +59,7 @@ export function Layout() {
           <span className="brand-mark">🏐</span> Carnet EPS
         </NavLink>
         <nav aria-label="Navigation principale">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
+          {[...NAV.slice(0, 2), { to: '/preparation', label: 'Préparation', icon: ClipboardList, end: false }, ...NAV.slice(2)].map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={({ isActive }) => cls('navlink', isActive && 'active')}>
               <Icon size={20} /> {label}
             </NavLink>

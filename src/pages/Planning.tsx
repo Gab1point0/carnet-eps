@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { CalendarOff, ChevronLeft, ChevronRight, ClipboardList, Plus } from 'lucide-react';
+import { ClosureModal } from '../components/ClosureModal';
 import type { Holiday, Klass, Lesson, SchoolYear, Slot } from '../types';
 import { Button, EmptyState, PageHeader, Tabs } from '../components/ui';
 import { StatusIcon } from '../components/cards';
@@ -93,6 +94,7 @@ export function PlanningPage() {
   const classes = useYearClasses();
   const lessons = useYearLessons();
   const cycles = useYearCycles();
+  const [closing, setClosing] = useState(false);
 
   const go = (v: View, d: string) => setParams({ view: v, d }, { replace: true });
 
@@ -136,6 +138,14 @@ export function PlanningPage() {
                 <Button size="sm" onClick={() => shift(1)} aria-label="Suivant" icon={<ChevronRight size={18} />} />
               </div>
             )}
+            <Button size="sm" icon={<CalendarOff size={16} />} onClick={() => setClosing(true)}>
+              Jour sans cours
+            </Button>
+            <Link to={`/preparation?d=${date}`}>
+              <Button size="sm" icon={<ClipboardList size={16} />}>
+                Préparation
+              </Button>
+            </Link>
             <Tabs
               value={view}
               onChange={(v) => go(v, date)}
@@ -160,6 +170,7 @@ export function PlanningPage() {
       ) : (
         <YearView year={year} classes={classes} cycles={cycles} />
       )}
+      {closing && <ClosureModal yearId={year.id} initialDate={view === 'week' || view === 'month' ? date : undefined} onClose={() => setClosing(false)} />}
     </>
   );
 }

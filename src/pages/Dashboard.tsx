@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarPlus, ClipboardList, Play, Plus, Sparkles, Users } from 'lucide-react';
+import { CalendarOff, CalendarPlus, ClipboardCheck, ClipboardList, Play, Plus, Sparkles, Users } from 'lucide-react';
 import { Button, Card, EmptyState, PageHeader, Section } from '../components/ui';
+import { ReviewModal } from '../components/ReviewModal';
+import { ClosureModal } from '../components/ClosureModal';
 import { ClassDot, LessonRow, StatusIcon } from '../components/cards';
 import { NewYearModal } from '../components/YearModals';
 import { useData } from '../store/data';
@@ -12,7 +14,7 @@ import { toast } from '../store/ui';
 import { holidayOn } from '../lib/holidays';
 import { addDays, formatDay, todayISO, weekdayOf } from '../lib/dates';
 import { plural } from '../lib/util';
-import type { Klass, Slot } from '../types';
+import type { Klass, Lesson, Slot } from '../types';
 
 export function DashboardPage() {
   const year = useCurrentYear();
@@ -22,12 +24,19 @@ export function DashboardPage() {
   const exercisesCount = useData((s) => Object.keys(s.data.exercises).length);
   const navigate = useNavigate();
   const [newYear, setNewYear] = useState(false);
+  const [reviewing, setReviewing] = useState<Lesson | null>(null);
+  const [closing, setClosing] = useState(false);
   const today = todayISO();
+  const nowHM = new Date().toTimeString().slice(0, 5);
 
   const classById = useMemo(() => new Map(classes.map((k) => [k.id, k])), [classes]);
 
   const todayLessons = lessons.filter((l) => l.date === today && l.status !== 'cancelled');
   const upcoming = lessons.filter((l) => l.date && l.date > today && l.date <= addDays(today, 7) && l.status !== 'cancelled');
+  // Séances passées sans bilan (les plus récentes d'abord).
+  const toReview = lessons
+    .filter((l) => l.status === 'planned' && l.date && (l.date < today || (l.date === today && l.end < nowHM)) && year && l.date >= year.start)
+    .reverse();
   const toPrepare = lessons.filter((l) => l.date && l.date >= today && l.date <= addDays(today, 14) && l.blocks.length === 0 && l.status !== 'cancelled');
 
   // Créneaux d'aujourd'hui qui n'ont pas encore de séance.
@@ -102,6 +111,12 @@ export function DashboardPage() {
         subtitle={<span className="cap-first">{formatDay(today)}</span>}
         actions={
           <>
+            <Button icon={<ClipboardList size={17} />} onClick={() => navigate('/preparation')}>
+              Préparation
+            </Button>
+            <Button icon={<CalendarOff size={17} />} onClick={() => setClosing(true)}>
+              Jour sans cours
+            </Button>
             <Button icon={<Users size={17} />} onClick={() => navigate('/classes')}>
               Mes classes
             </Button>
@@ -176,6 +191,35 @@ export function DashboardPage() {
             </div>
           </Section>
 
+          {toReview.length > 0 && (
+            <Section title={`Bilans à faire (${toReview.length})`} actions={<span className="muted small">30 secondes par séance</span>}>
+              <Card style={{ padding: 6 }} className="lesson-list">
+                {toReview.slice(0, 5).map((l) => {
+                  const k = l.classId ? classById.get(l.classId) : undefined;
+                  return (
+                    <div key={l.id} className="lesson-row">
+                      <Link to={`/lessons/${l.id}`} className="lesson-row-main">
+                        {k && <ClassDot color={k.color} size={12} />}
+                        <div className="lesson-row-text">
+                          <div className="lesson-row-title">
+                            <strong>{k?.name}</strong> <span>{l.title || 'Séance sans titre'}</span>
+                          </div>
+                          <div className="lesson-row-meta muted small">
+                            {l.date} · {l.start}–{l.end}
+                          </div>
+                        </div>
+                      </Link>
+                      <Button size="sm" icon={<ClipboardCheck size={15} />} onClick={() => setReviewing(l)}>
+                        Bilan
+                      </Button>
+                    </div>
+                  );
+                })}
+              </Card>
+              {toReview.length > 5 && <p className="muted small">… et {toReview.length - 5} autres séances passées sans bilan.</p>}
+            </Section>
+          )}
+
           {toPrepare.length > 0 && (
             <Section title={`À préparer (${toPrepare.length})`} actions={<span className="muted small">dans les 14 jours</span>}>
               <Card style={{ padding: 6 }} className="lesson-list">
@@ -224,6 +268,8 @@ export function DashboardPage() {
           </div>
         </>
       )}
+      {reviewing && <ReviewModal lesson={reviewing} onClose={() => setReviewing(null)} />}
+      {closing && year && <ClosureModal yearId={year.id} onClose={() => setClosing(false)} />}
     </>
   );
 }

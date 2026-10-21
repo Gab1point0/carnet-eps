@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowDown, ArrowUp, BookmarkPlus, CalendarClock, ChevronLeft, Copy, Plus, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookmarkPlus, CalendarClock, ChevronLeft, Copy, Plus, Printer, Trash2, X } from 'lucide-react';
 import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
@@ -137,6 +137,9 @@ export function CycleDetailPage() {
         title={`Séances (${lessons.length})`}
         actions={
           <>
+            <Button size="sm" icon={<Printer size={16} />} onClick={() => navigate(`/cycles/${cycle.id}/fiches`)}>
+              Fiches élèves
+            </Button>
             {!isTemplate && klass && klass.slots.length > 0 && (
               <Button size="sm" icon={<CalendarClock size={16} />} onClick={() => setRedating(true)}>
                 Recalculer les dates

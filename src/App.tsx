@@ -14,6 +14,8 @@ import { LibraryPage } from './pages/Library';
 import { ExerciseEditorPage } from './pages/ExerciseEditor';
 import { SearchPage } from './pages/Search';
 import { SettingsPage } from './pages/Settings';
+import { PreparationPage } from './pages/Preparation';
+import { FichesPage } from './pages/Fiches';
 
 export function App() {
   const loaded = useData((s) => s.loaded);
@@ -25,10 +27,12 @@ export function App() {
         {/* Écrans plein écran, sans barre de navigation */}
         <Route path="/lessons/:id/run" element={<LessonRunPage />} />
         <Route path="/lessons/:id/print" element={<LessonPrintPage />} />
+        <Route path="/cycles/:id/fiches" element={<FichesPage />} />
 
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
           <Route path="planning" element={<PlanningPage />} />
+          <Route path="preparation" element={<PreparationPage />} />
           <Route path="classes" element={<ClassesPage />} />
           <Route path="classes/:id" element={<ClassDetailPage />} />
           <Route path="cycles/:id" element={<CycleDetailPage />} />

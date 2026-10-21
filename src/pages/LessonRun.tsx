@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ListChecks, Pause, Play, RotateCcw, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListChecks, Pause, Play, RotateCcw, SkipForward, Timer, X } from 'lucide-react';
+import { ReviewModal } from '../components/ReviewModal';
+import { lessonMaterialTexts, mergeMaterials } from '../lib/materials';
 import { useData } from '../store/data';
 import { activityOf } from '../store/selectors';
 import { AnimationPlayer } from '../animation/Player';
@@ -43,7 +45,11 @@ export function LessonRunPage() {
   const [step, setStep] = useState(-1); // -1 : aperçu, 0..n-1 : blocs
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [showRotation, setShowRotation] = useState(false);
+  const [gearChecked, setGearChecked] = useState<Set<string>>(new Set());
   const beeped = useRef(false);
+  const gear = useMemo(() => (lesson ? mergeMaterials(lessonMaterialTexts(lesson)) : []), [lesson]);
 
   // Garde l'écran allumé pendant le cours.
   useEffect(() => {
@@ -142,10 +148,31 @@ export function LessonRunPage() {
                 <Markdown text={lesson.objective} />
               </section>
             )}
-            {lesson.materials && (
+            {gear.length > 0 && (
               <section>
-                <h3>🧰 Matériel</h3>
-                <Markdown text={lesson.materials} />
+                <h3>🧰 Matériel à sortir</h3>
+                <div className="mat-list">
+                  {gear.map((m) => (
+                    <label key={m.name} className={cls('check', 'mat-item', gearChecked.has(m.name) && 'mat-done')}>
+                      <input
+                        type="checkbox"
+                        checked={gearChecked.has(m.name)}
+                        onChange={() =>
+                          setGearChecked((cur) => {
+                            const next = new Set(cur);
+                            if (next.has(m.name)) next.delete(m.name);
+                            else next.add(m.name);
+                            return next;
+                          })
+                        }
+                      />
+                      <span>
+                        {m.qty !== null && <strong>{m.qty} × </strong>}
+                        {m.name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </section>
             )}
             {lesson.safety && (
@@ -209,6 +236,14 @@ export function LessonRunPage() {
               </div>
             </div>
 
+            {showRotation ? (
+              <RotationTimer onClose={() => setShowRotation(false)} />
+            ) : (
+              <Button size="sm" icon={<Timer size={16} />} onClick={() => setShowRotation(true)}>
+                Chrono d'ateliers (rotations)
+              </Button>
+            )}
+
             {block.animation && <AnimationPlayer animation={block.animation} autoPlay maxHeight="50vh" />}
             {block.text && <Markdown text={block.text} className="md-big" />}
             {block.materials && (
@@ -222,12 +257,15 @@ export function LessonRunPage() {
         {step >= blocks.length && blocks.length > 0 && (
           <div className="run-card">
             <h1>Séance terminée 🎉</h1>
-            <p className="muted">Pensez à noter votre bilan pendant que c'est frais.</p>
+            <p className="muted">Notez votre bilan pendant que c'est frais : 30 secondes suffisent.</p>
             <div className="row">
-              <Button variant="primary" onClick={() => navigate(`/lessons/${lesson.id}`)}>
-                Ouvrir la séance pour le bilan
+              <Button variant="primary" onClick={() => setReviewing(true)}>
+                Faire le bilan rapide
               </Button>
-              <Button onClick={() => go(-1)}>Revoir le déroulé</Button>
+              <Button onClick={() => navigate(`/lessons/${lesson.id}`)}>Ouvrir la séance</Button>
+              <Button variant="ghost" onClick={() => go(-1)}>
+                Revoir le déroulé
+              </Button>
             </div>
           </div>
         )}
@@ -246,6 +284,124 @@ export function LessonRunPage() {
           Suivant <ChevronRight size={20} />
         </Button>
       </footer>
+      {reviewing && <ReviewModal lesson={lesson} onClose={() => setReviewing(false)} />}
+    </div>
+  );
+}
+
+const ROTATION_PRESETS = [
+  { label: '30 s', s: 30 },
+  { label: '45 s', s: 45 },
+  { label: '1 min', s: 60 },
+  { label: '1 min 30', s: 90 },
+  { label: '2 min', s: 120 },
+  { label: '3 min', s: 180 },
+  { label: '5 min', s: 300 },
+];
+
+/** Chrono d'ateliers : N rotations de durée fixe, bip et message « Rotation ! » à chaque changement. */
+function RotationTimer({ onClose }: { onClose: () => void }) {
+  const [duration, setDuration] = useState(120);
+  const [rounds, setRounds] = useState(4);
+  const [round, setRound] = useState(1);
+  const [left, setLeft] = useState(120);
+  const [running, setRunning] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => setLeft((l) => l - 1), 1000);
+    return () => clearInterval(t);
+  }, [running]);
+
+  useEffect(() => {
+    if (!running || left > 0) return;
+    beep();
+    setFlash(true);
+    setTimeout(() => setFlash(false), 2500);
+    if (round >= rounds) {
+      setRunning(false);
+      setDone(true);
+    } else {
+      setRound(round + 1);
+      setLeft(duration);
+    }
+  }, [left, running, round, rounds, duration]);
+
+  const reset = (d = duration) => {
+    setRunning(false);
+    setDone(false);
+    setRound(1);
+    setLeft(d);
+  };
+  const skip = () => {
+    if (round >= rounds) return;
+    setRound(round + 1);
+    setLeft(duration);
+  };
+  const mm = String(Math.floor(Math.max(0, left) / 60)).padStart(2, '0');
+  const ss = String(Math.max(0, left) % 60).padStart(2, '0');
+
+  return (
+    <div className={cls('rotation', flash && 'rotation-flash')}>
+      <div className="row-between">
+        <strong>⏱️ Chrono d'ateliers</strong>
+        <IconButton label="Fermer le chrono" onClick={onClose}>
+          <X size={18} />
+        </IconButton>
+      </div>
+      <div className="rotation-presets">
+        {ROTATION_PRESETS.map((p) => (
+          <button
+            key={p.s}
+            type="button"
+            className={cls('chip chip-btn', duration === p.s && 'chip-active')}
+            onClick={() => {
+              setDuration(p.s);
+              reset(p.s);
+            }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div className="row">
+        <span className="muted small">Ateliers / rotations :</span>
+        {[2, 3, 4, 5, 6, 8].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={cls('chip chip-btn', rounds === n && 'chip-active')}
+            onClick={() => {
+              setRounds(n);
+              setRound(1);
+              setDone(false);
+              setLeft(duration);
+              setRunning(false);
+            }}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      <div className="rotation-display">
+        {flash && !done ? <span className="rotation-go">Rotation !</span> : done ? <span className="rotation-go">Terminé</span> : <span className="run-time">{mm}:{ss}</span>}
+        <span className="muted">
+          Atelier {Math.min(round, rounds)} / {rounds}
+        </span>
+      </div>
+      <div className="row">
+        <Button variant={running ? 'secondary' : 'primary'} icon={running ? <Pause size={18} /> : <Play size={18} />} onClick={() => setRunning(!running)} disabled={done}>
+          {running ? 'Pause' : left < duration || round > 1 ? 'Reprendre' : 'Lancer'}
+        </Button>
+        <IconButton label="Passer à l'atelier suivant" onClick={skip} disabled={round >= rounds}>
+          <SkipForward size={18} />
+        </IconButton>
+        <IconButton label="Remettre à zéro" onClick={() => reset()}>
+          <RotateCcw size={18} />
+        </IconButton>
+      </div>
     </div>
   );
 }

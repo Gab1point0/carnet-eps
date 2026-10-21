@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { BookmarkPlus, ChevronLeft, Copy, Library, Play, Plus, Printer, Trash2 } from 'lucide-react';
+import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Library, Play, Plus, Printer, Trash2 } from 'lucide-react';
+import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import type { Block, BlockKind, ID, Lesson } from '../types';
 import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea } from '../components/ui';
 import { ClassDot } from '../components/cards';
@@ -9,7 +10,7 @@ import { BlockEditor, DEFAULT_MINUTES, cloneBlockWithNewId } from '../components
 import { ExercisePicker } from '../components/ExercisePicker';
 import { useData } from '../store/data';
 import { activityOf, classCycles, lessonTotalMinutes, useYearClasses } from '../store/selectors';
-import { blockFromExercise, duplicateLesson, saveBlockAsExercise, saveLessonAsTemplate } from '../store/actions';
+import { blockFromExercise, cancelAndShift, duplicateLesson, postponeLesson, saveBlockAsExercise, saveLessonAsTemplate } from '../store/actions';
 import { newBlock } from '../store/model';
 import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { BLOCK_KINDS, BLOCK_KIND_ORDER } from '../lib/defaults';
@@ -23,6 +24,7 @@ export function LessonPage() {
   const navigate = useNavigate();
   const [picker, setPicker] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   if (!lesson) return <Navigate to="/classes" replace />;
 
@@ -97,8 +99,31 @@ export function LessonPage() {
             <Button variant="primary" icon={<Play size={17} />} onClick={() => navigate(`/lessons/${lesson.id}/run`)}>
               Mode cours
             </Button>
+            {!isTemplate && (
+              <Button icon={<ClipboardCheck size={17} />} onClick={() => setReviewing(true)}>
+                Bilan {lesson.rating ? RATINGS.find((r) => r.value === lesson.rating)?.emoji : ''}
+              </Button>
+            )}
             <Menu
               items={[
+                {
+                  label: 'Reporter la séance (décaler la suite du cycle)',
+                  icon: <CalendarClock size={16} />,
+                  hidden: isTemplate || !lesson.cycleId || !lesson.date || lesson.status !== 'planned',
+                  onClick: () => {
+                    const r = postponeLesson(lesson.id);
+                    if (r) toast(`Séance reportée : ${r.moved} séance${r.moved > 1 ? 's' : ''} décalée${r.moved > 1 ? 's' : ''}.`, { tone: 'success', ms: 10000, action: { label: 'Annuler', run: r.undo } });
+                  },
+                },
+                {
+                  label: 'Annuler la séance et décaler la suite',
+                  icon: <Ban size={16} />,
+                  hidden: isTemplate || !lesson.cycleId || !lesson.date || lesson.status !== 'planned',
+                  onClick: () => {
+                    const r = cancelAndShift(lesson.id);
+                    if (r) toast('Séance annulée, la suite du cycle remonte sur les créneaux.', { tone: 'success', ms: 10000, action: { label: 'Annuler', run: r.undo } });
+                  },
+                },
                 { label: 'Imprimer / PDF', icon: <Printer size={16} />, onClick: () => navigate(`/lessons/${lesson.id}/print`) },
                 { label: 'Dupliquer vers une classe / une date…', icon: <Copy size={16} />, onClick: () => setDuplicating(true) },
                 {
@@ -259,6 +284,7 @@ export function LessonPage() {
           }}
         />
       )}
+      {reviewing && <ReviewModal lesson={lesson} onClose={() => setReviewing(false)} />}
       {duplicating && (
         <DuplicateLessonModal
           lesson={lesson}

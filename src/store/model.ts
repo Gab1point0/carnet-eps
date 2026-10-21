@@ -95,6 +95,8 @@ export function newLesson(classId: ID | null, cycleId: ID | null, order: number,
     safety: '',
     blocks: [],
     bilan: '',
+    rating: null,
+    adjust: false,
     tags: [],
   };
 }

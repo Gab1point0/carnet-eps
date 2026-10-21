@@ -247,6 +247,63 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .run-dotp { width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); }
 .run-dotp.on { transform: scale(1.4); }
 
+/* ── Bilan rapide, préparation, matériel, chrono ────────────────────────── */
+
+.rating { display: flex; gap: 8px; flex-wrap: wrap; }
+.rating-btn { flex: 1 1 90px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 12px; border: 2px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 650; font-size: 0.85rem; }
+.rating-btn:hover { border-color: var(--border-strong); }
+.rating-on { border-color: var(--primary); background: var(--primary-soft); }
+.rating-emoji { font-size: 1.8rem; line-height: 1.1; }
+
+.prep-row { text-decoration: none; }
+.prep-chip { white-space: nowrap; }
+.prep-empty { background: #fef3c7; color: #92400e; }
+.prep-partial { background: #dbeafe; color: #1e40af; }
+.prep-ready { background: #dcfce7; color: #166534; }
+:root[data-theme='dark'] .prep-empty { background: #4a3410; color: #fcd34d; }
+:root[data-theme='dark'] .prep-partial { background: #1e3a8a; color: #bfdbfe; }
+:root[data-theme='dark'] .prep-ready { background: #14532d; color: #bbf7d0; }
+.ahead { display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; color: inherit; width: 100%; }
+
+.mat-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px 16px; }
+.mat-item { padding: 6px 4px; border-radius: 8px; }
+.mat-done span { text-decoration: line-through; color: var(--muted); }
+.mat-inline { margin: 0; padding-left: 1.2em; columns: 2 220px; font-size: 0.93rem; }
+
+.rotation { background: var(--surface); border: 2px solid var(--border); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.rotation-flash { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); animation: pulse 0.5s ease 3; }
+@keyframes pulse { 50% { transform: scale(1.015); } }
+.rotation-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.rotation-display { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 64px; }
+.rotation-go { font-size: 2.4rem; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+
+/* ── Fiches élèves ──────────────────────────────────────────────────────── */
+
+.fiches-choose { max-width: 900px; margin: 0 auto 14px; display: flex; flex-direction: column; gap: 8px; }
+.fiche-choice { display: flex; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; }
+.fiche { margin-bottom: 14px; min-height: 250mm; }
+.fiche-head { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid #111827; padding-bottom: 10px; flex-wrap: wrap; }
+.fiche-cycle { color: #475569; margin-top: 2px; }
+.fiche-id { font-size: 0.95rem; display: flex; flex-direction: column; gap: 8px; min-width: 260px; }
+.blank { display: inline-block; border-bottom: 1px solid #111827; min-width: 140px; height: 1em; }
+.blank.short { min-width: 70px; }
+.fiche-obj { margin: 4px 0; }
+.fiche-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.92rem; }
+.fiche-table th, .fiche-table td { border: 1px solid #94a3b8; padding: 6px 8px; vertical-align: top; text-align: left; }
+.fiche-table th { background: #f1f5f9; font-size: 0.82rem; }
+.fiche-table tr.tall td { height: 62px; }
+.fiche-table .box { text-align: center; font-size: 1.3rem; vertical-align: middle; }
+.fiche-table .pts { width: 70px; text-align: center; vertical-align: middle; font-weight: 700; }
+.fiche-table .total { text-align: right; font-weight: 700; }
+.crit { font-weight: 650; }
+.fiche-q { font-weight: 650; margin-top: 10px; }
+.fiche-lines { height: 80px; background: repeating-linear-gradient(to bottom, transparent 0 25px, #cbd5e1 25px 26px); }
+@media print {
+  .fiche { break-after: page; min-height: 0; margin: 0; }
+  .fiche:last-child { break-after: auto; }
+  .no-print { display: none !important; }
+}
+
 /* ── Fiche imprimable ───────────────────────────────────────────────────── */
 
 .print-page { background: var(--bg); min-height: 100dvh; padding: 12px; }

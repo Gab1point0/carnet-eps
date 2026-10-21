@@ -77,6 +77,8 @@ export function LessonRow({
             )}
           </div>
         </div>
+        {lesson.rating ? <span title="Ressenti après la séance">{['', '😕', '🙂', '😀'][lesson.rating]}</span> : null}
+        {lesson.adjust && <span title="À ajuster">🔧</span>}
         {empty && <Chip className="chip-todo">À préparer</Chip>}
       </Link>
       {actions}
