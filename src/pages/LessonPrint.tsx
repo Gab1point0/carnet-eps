@@ -83,9 +83,10 @@ export function LessonPrintPage() {
                 <div>
                   {b.text && <Markdown text={b.text} />}
                   {b.materials && (
-                    <p className="small">
-                      <strong>Matériel :</strong> {b.materials}
-                    </p>
+                    <div className="small">
+                      <strong>Matériel :</strong>
+                      <Markdown text={b.materials} />
+                    </div>
                   )}
                 </div>
                 {anim && (

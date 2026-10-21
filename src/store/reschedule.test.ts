@@ -3,7 +3,7 @@ import { useData } from './data';
 import { cancelAndShift, closeDays, postponeLesson, previewClosure } from './actions';
 import { emptyData, newCycle, newKlass, newLesson, newSlot, newYear } from './model';
 import { cycleLessons } from './selectors';
-import { criteriaOf, mergeMaterials, splitMaterials } from '../lib/materials';
+import { criteriaOf, lessonMaterialTexts, mergeMaterials, splitMaterials } from '../lib/materials';
 
 const MONDAYS = ['2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23'];
 
@@ -82,6 +82,16 @@ describe('matériel et fiches', () => {
     const items = mergeMaterials(['12 plots, ballons', '6 plots, Ballon, 4 chasubles']);
     expect(items.find((i) => i.name.toLowerCase().startsWith('plot'))?.qty).toBe(18);
     expect(items.filter((i) => /ballon/i.test(i.name))).toHaveLength(1);
+  });
+  it('matériel structuré : une ligne par objet, sans compter deux fois un objet resservi', () => {
+    const l = {
+      materials: '🏟 Installation : Gymnase (2 terrains)\n- 12 plots — bloc 1 (échauffement) ; bloc 2 (couloirs)\n- 15 ballons — bloc 2 (passes)',
+      blocks: [{ materials: '- 8 plots (échauffement)' }, { materials: '- 12 plots (couloirs)\n- 15 ballons (passes)' }],
+    };
+    const items = mergeMaterials(lessonMaterialTexts(l));
+    expect(items.find((i) => /plots/.test(i.name))?.qty).toBe(12);
+    expect(items.find((i) => /ballons/.test(i.name))?.qty).toBe(15);
+    expect(items.find((i) => /gymnase/i.test(i.name))?.venue).toBe(true);
   });
   it('extrait les critères d’évaluation d’un cycle', () => {
     const ev = 'Course de 8 min.\nCritères proposés : distance · régularité (écart) · précision du contrat · observation.\nBarème indicatif /20.';

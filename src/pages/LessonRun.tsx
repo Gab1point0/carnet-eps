@@ -247,9 +247,10 @@ export function LessonRunPage() {
             {block.animation && <AnimationPlayer animation={block.animation} autoPlay maxHeight="50vh" />}
             {block.text && <Markdown text={block.text} className="md-big" />}
             {block.materials && (
-              <p className="callout">
-                🧰 <strong>Matériel :</strong> {block.materials}
-              </p>
+              <div className="callout">
+                🧰 <strong>Matériel de ce bloc :</strong>
+                <Markdown text={block.materials} />
+              </div>
             )}
           </div>
         )}

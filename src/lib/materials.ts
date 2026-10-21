@@ -53,6 +53,14 @@ export function mergeMaterials(texts: string[]): MaterialItem[] {
 
 /** Texte de matériel d'une séance : matériel général + celui de chaque bloc. */
 export function lessonMaterialTexts(l: { materials: string; blocks: Array<{ materials: string }> }): string[] {
+  // Matériel structuré : une ligne « - 15 ballons — bloc 2 (passes) » par objet, déjà totalisé pour la séance
+  // (un même objet resservi dans plusieurs blocs n'est compté qu'une fois).
+  if (l.materials.split('\n').some((x) => /^- /.test(x))) {
+    return l.materials
+      .split('\n')
+      .map((x) => x.replace(/^🏟 Installation : /, '').replace(/^- /, '').replace(/\s+—\s+.*$/, '').trim())
+      .filter(Boolean);
+  }
   return [l.materials, ...l.blocks.map((b) => b.materials)].filter(Boolean);
 }
 

@@ -206,8 +206,8 @@ export function LessonPage() {
         <Field label="🎯 Objectif de la séance">
           <TextArea value={lesson.objective} onChange={(v) => patch({ objective: v })} minRows={3} placeholder="Ce que les élèves doivent savoir faire à la fin de la séance." />
         </Field>
-        <Field label="🧰 Matériel">
-          <TextArea value={lesson.materials} onChange={(v) => patch({ materials: v })} minRows={3} placeholder="Ballons, plots, chasubles, filets, sono…" />
+        <Field label="🧰 Matériel de la séance (objet — bloc où il sert)">
+          <TextArea value={lesson.materials} onChange={(v) => patch({ materials: v })} minRows={6} placeholder={'Une ligne par objet, avec le bloc où il sert :\n- 15 ballons — bloc 2 (passes) ; bloc 3 (match)'} />
         </Field>
       </div>
       <Field label="⚠️ Sécurité / organisation">

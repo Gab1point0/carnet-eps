@@ -45,6 +45,7 @@ Animation  { court,tokens:[{id,kind,label,color,size}],frames:[{id,caption,holdM
 - Positions d'animation en **% du terrain** (0–100). Terrains : `blank basket basket-half volley badminton hand foot rugby ultimate tennis tt track`. Jetons : `player coach ball cone hoop goal mat bench text`.
 - Un ballon « porté » : `carry:<id du joueur>` + `dx,dy` (décalage en %) → il suit ce joueur et voyage avec lui entre les étapes.
 - Chaque étape doit avoir une position pour **chaque** jeton (`validate` le vérifie ; l'appli répare sinon).
+- **Matériel** : Block.materials = une ligne `- 12 plots (usage)` par objet ; Lesson.materials = ligne `🏟 Installation : …` puis `- 15 ballons — bloc 2 (passes) ; bloc 3 (match)` (quantité max sur la séance, blocs où l'objet sert). L'application ne totalise que ces lignes (lessonMaterialTexts). Le générateur est outils/materiel-par-bloc.mjs du dépôt de données (effectif de la classe → quantités).
 - Les textes (`text`, `objective`…) acceptent un mini-Markdown : `**gras**`, `*italique*`, `- liste`, `## titre`.
 
 ## Modifier l'application

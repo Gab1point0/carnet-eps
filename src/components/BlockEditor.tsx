@@ -90,9 +90,12 @@ export function BlockEditor({
             placeholder={'Organisation, consignes, critères de réussite, variables…\n- une ligne par idée\n**gras** pour insister'}
             onChange={(v) => onChange({ text: v })}
           />
-          <div className="grid grid-2">
-            <TextInput value={block.materials} placeholder="Matériel pour ce bloc (ex. 12 plots, 6 ballons)" onChange={(v) => onChange({ materials: v })} />
-          </div>
+          <TextArea
+            value={block.materials}
+            minRows={2}
+            placeholder={'🧰 Matériel pour ce bloc, une ligne par objet\n- 12 plots (couloirs de passe)\n- 6 ballons (1 par groupe)'}
+            onChange={(v) => onChange({ materials: v })}
+          />
           <AnimationField
             value={block.animation}
             onChange={(a) => onChange({ animation: a })}
