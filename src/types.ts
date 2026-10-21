@@ -110,6 +110,12 @@ export interface Block {
   animation: Animation | null;
 }
 
+export interface Todo {
+  id: ID;
+  text: string;
+  done: boolean;
+}
+
 export type EvalKind = 'diagnostic' | 'formative' | 'summative';
 
 export interface Lesson extends Meta {
@@ -140,6 +146,10 @@ export interface Lesson extends Meta {
   levels: [number, number, number, number] | null;
   /** Propositions d'ajustement (issues du bilan précédent) déjà acceptées ou refusées. */
   proposalsDone: string[];
+  /** Tâches à faire avant cette séance, ajoutées à la main. */
+  todos: Todo[];
+  /** Identifiants des tâches automatiques déjà faites pour cette séance. */
+  tasksDone: string[];
   tags: string[];
 }
 

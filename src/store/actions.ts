@@ -81,6 +81,8 @@ export function duplicateYear(fromId: ID, o: DuplicateYearOptions): ID {
             adjust: false,
             levels: null,
             proposalsDone: [],
+            todos: [],
+            tasksDone: [],
             blocks: cloneBlocks(l.blocks),
           };
           tx.put('lessons', nl);
@@ -237,6 +239,8 @@ export function duplicateLesson(lessonId: ID, o: DuplicateLessonOptions = {}): I
             adjust: false,
             levels: null,
             proposalsDone: [],
+            todos: [],
+            tasksDone: [],
       blocks: cloneBlocks(src.blocks),
     };
     tx.put('lessons', copy);
@@ -287,6 +291,8 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
             adjust: false,
             levels: null,
             proposalsDone: [],
+            todos: [],
+            tasksDone: [],
         blocks: cloneBlocks(l.blocks),
       });
     });

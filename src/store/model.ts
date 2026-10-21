@@ -9,6 +9,7 @@ import type {
   Lesson,
   SchoolYear,
   Slot,
+  Todo,
 } from '../types';
 import { COLLECTIONS } from '../types';
 import { defaultSettings, CLASS_COLORS } from '../lib/defaults';
@@ -100,7 +101,9 @@ export function newLesson(classId: ID | null, cycleId: ID | null, order: number,
     evalKind: null,
     levels: null,
     proposalsDone: [],
-    tags: [],
+    todos: [],
+    tasksDone: [],
+tags: [],
   };
 }
 
@@ -181,6 +184,8 @@ export function normalizeData(raw: unknown): AppData {
     l.blocks = withIds(l.blocks).map((b) => ({ ...newBlock(), ...b }));
     l.tags = Array.isArray(l.tags) ? l.tags : [];
     l.proposalsDone = Array.isArray(l.proposalsDone) ? l.proposalsDone : [];
+    l.tasksDone = Array.isArray(l.tasksDone) ? l.tasksDone : [];
+    l.todos = withIds<Partial<Todo>>(l.todos).map((t) => ({ id: t.id as ID, text: t.text ?? '', done: !!t.done }));
     l.evalKind = l.evalKind === 'diagnostic' || l.evalKind === 'formative' || l.evalKind === 'summative' ? l.evalKind : null;
     l.levels = Array.isArray(l.levels) && l.levels.length === 4 ? (l.levels.map((n) => Math.max(0, Number(n) || 0)) as [number, number, number, number]) : null;
   });

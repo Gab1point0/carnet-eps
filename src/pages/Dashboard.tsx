@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CalendarOff, CalendarPlus, ClipboardCheck, ClipboardList, Play, Plus, Sparkles, Users } from 'lucide-react';
 import { Button, Card, EmptyState, PageHeader, Section } from '../components/ui';
 import { ReviewModal } from '../components/ReviewModal';
+import { TodoSection } from '../components/TodoSection';
 import { ClosureModal } from '../components/ClosureModal';
 import { ClassDot, LessonRow, StatusIcon } from '../components/cards';
 import { NewYearModal } from '../components/YearModals';
@@ -190,6 +191,8 @@ export function DashboardPage() {
               ))}
             </div>
           </Section>
+
+          <TodoSection lessons={lessons} today={today} />
 
           {toReview.length > 0 && (
             <Section title={`Bilans à faire (${toReview.length})`} actions={<span className="muted small">30 secondes par séance</span>}>
