@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { Cycle, ID, Klass } from '../types';
 import { Button, Field, Modal, NumberInput, Select, Tabs, TextInput } from './ui';
-import { ActivitySelect, DateField } from './forms';
+import { ActivitySelect, DateField, SlotPicker } from './forms';
 import { useData } from '../store/data';
 import { activityOf, classCycles, cycleLessons, useCurrentYear, useYearClasses } from '../store/selectors';
 import { copyCycle, createCycleWithLessons, regenerateDates } from '../store/actions';
-import { nextOccurrences } from '../lib/schedule';
+import { nextOccurrences, slotsForCycle } from '../lib/schedule';
 import { addDays, formatDM, todayISO } from '../lib/dates';
 import { toast } from '../store/ui';
 
@@ -39,6 +39,7 @@ export function NewCycleModal({
   const [count, setCount] = useState<number | null>(8);
   const [start, setStart] = useState<string | null>(() => (year ? suggestedStart(klass, year.start, year.end) : todayISO()));
   const [templateId, setTemplateId] = useState<ID | ''>('');
+  const [slotIds, setSlotIds] = useState<ID[]>([]);
 
   const templates = useMemo(
     () => Object.values(data.cycles).filter((c) => c.classId === null).sort((a, b) => a.title.localeCompare(b.title, 'fr')),
@@ -50,9 +51,10 @@ export function NewCycleModal({
 
   const preview = useMemo(() => {
     if (!start || !n || !klass.slots.length) return null;
-    const occ = nextOccurrences(klass.slots, start, year?.holidays ?? [], { count: n });
+    const slots = tab === 'new' ? slotsForCycle(klass.slots, slotIds) : klass.slots;
+    const occ = nextOccurrences(slots, start, year?.holidays ?? [], { count: n });
     return occ.length ? { first: occ[0].date, last: occ[occ.length - 1].date, found: occ.length } : null;
-  }, [start, n, klass.slots, year?.holidays]);
+  }, [start, n, klass.slots, slotIds, tab, year?.holidays]);
 
   const create = () => {
     if (tab === 'new') {
@@ -62,6 +64,7 @@ export function NewCycleModal({
         activityId,
         startDate: start,
         count: Math.max(1, count ?? 1),
+        slotIds,
       });
       toast('Cycle créé avec ses séances', { tone: 'success' });
       onCreated(id);
@@ -119,6 +122,13 @@ export function NewCycleModal({
               <DateField value={start} onChange={setStart} />
             </Field>
           </div>
+          {klass.slots.length > 1 && (
+            <div className="field">
+              <span className="field-label">Créneaux utilisés par ce cycle</span>
+              <SlotPicker slots={klass.slots} value={slotIds} onChange={setSlotIds} />
+              <span className="field-hint">Décochez un créneau s'il est réservé à un autre cycle de la classe (ex. 2 h de badminton le jeudi, 1 h de demi-fond le lundi).</span>
+            </div>
+          )}
         </>
       ) : templates.length === 0 ? (
         <p className="muted">

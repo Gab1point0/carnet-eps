@@ -18,6 +18,7 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .progress > div { height: 100%; background: var(--primary); border-radius: 99px; transition: width 0.3s; }
 
 .class-dot { display: inline-block; border-radius: 50%; flex: 0 0 auto; }
+.chip-shared { background: var(--primary-soft); color: var(--primary); width: fit-content; }
 .chip-todo { background: #fef3c7; color: #92400e; }
 :root[data-theme='dark'] .chip-todo { background: #4a3410; color: #fcd34d; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .chip-todo { background: #4a3410; color: #fcd34d; } }

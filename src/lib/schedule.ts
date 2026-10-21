@@ -2,6 +2,16 @@ import type { Holiday, ISODate, Slot } from '../types';
 import { addDays, timeToMin, weekdayOf } from './dates';
 import { holidayOn } from './holidays';
 
+/**
+ * Créneaux utilisés par un cycle : ceux listés dans `slotIds`, sinon tous ceux de la classe.
+ * Si aucun identifiant ne correspond (créneau supprimé), on retombe sur tous les créneaux.
+ */
+export function slotsForCycle(slots: Slot[], slotIds: string[] | undefined): Slot[] {
+  if (!slotIds?.length) return slots;
+  const picked = slots.filter((s) => slotIds.includes(s.id));
+  return picked.length ? picked : slots;
+}
+
 export interface Occurrence {
   date: ISODate;
   slot: Slot;

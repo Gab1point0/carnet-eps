@@ -4,7 +4,7 @@ import { newBlock, newCycle, newExercise, newKlass, newLesson, newYear } from '.
 import { cycleLessons, sortLessons } from './selectors';
 import { addDays, shiftYear } from '../lib/dates';
 import { publicHolidaysForSchoolYear } from '../lib/holidays';
-import { nextOccurrences } from '../lib/schedule';
+import { nextOccurrences, slotsForCycle } from '../lib/schedule';
 import { deepClone, uid } from '../lib/util';
 
 const st = () => useData.getState();
@@ -53,13 +53,16 @@ export function duplicateYear(fromId: ID, o: DuplicateYearOptions): ID {
     const moveDate = (d: ISODate | null) => (d && o.keepDates ? addDays(d, shift) : null);
 
     for (const k of tx.all('classes').filter((c) => c.yearId === fromId)) {
-      const nk: Klass = { ...deepClone(k), id: uid(), yearId: newId, slots: k.slots.map((s) => ({ ...s, id: uid() })) };
+      // Les créneaux reçoivent de nouveaux identifiants : les cycles qui s'y réfèrent doivent suivre.
+      const slotMap = new Map(k.slots.map((s) => [s.id, uid()]));
+      const nk: Klass = { ...deepClone(k), id: uid(), yearId: newId, slots: k.slots.map((s) => ({ ...s, id: slotMap.get(s.id)! })) };
       tx.put('classes', nk);
       for (const cy of tx.all('cycles').filter((c) => c.classId === k.id)) {
         const ncy: Cycle = {
           ...deepClone(cy),
           id: uid(),
           classId: nk.id,
+          slotIds: (cy.slotIds ?? []).map((id) => slotMap.get(id)).filter((id): id is string => !!id),
           startDate: moveDate(cy.startDate),
           endDate: moveDate(cy.endDate),
         };
@@ -91,6 +94,8 @@ export interface NewCycleOptions {
   activityId: ID | null;
   startDate: ISODate | null;
   count: number;
+  /** Créneaux de la classe à utiliser (vide / absent = tous). */
+  slotIds?: ID[];
 }
 
 /** Crée un cycle et ses séances, datées automatiquement selon l'emploi du temps de la classe. */
@@ -101,14 +106,17 @@ export function createCycleWithLessons(classId: ID, o: NewCycleOptions): ID {
     if (!klass) return;
     const year = yearOfClass(tx, klass);
     const order = tx.all('cycles').filter((c) => c.classId === classId).length;
+    const slotIds = o.slotIds ?? [];
+    const slots = slotsForCycle(klass.slots, slotIds);
     const occ =
-      o.startDate && klass.slots.length
-        ? nextOccurrences(klass.slots, o.startDate, year?.holidays ?? [], { count: o.count })
+      o.startDate && slots.length
+        ? nextOccurrences(slots, o.startDate, year?.holidays ?? [], { count: o.count })
         : [];
 
     const cycle: Cycle = {
       ...newCycle(classId, order, o.title),
       id: cycleId,
+      slotIds,
       activityId: o.activityId,
       startDate: occ[0]?.date ?? o.startDate,
       endDate: occ.length ? occ[occ.length - 1].date : null,
@@ -139,7 +147,7 @@ export function regenerateDates(cycleId: ID, startDate: ISODate): number {
     if (!cycle || !klass) return;
     const year = yearOfClass(tx, klass);
     const lessons = sortLessons(tx.all('lessons').filter((l) => l.cycleId === cycleId));
-    const occ = nextOccurrences(klass.slots, startDate, year?.holidays ?? [], { count: lessons.length });
+    const occ = nextOccurrences(slotsForCycle(klass.slots, cycle.slotIds), startDate, year?.holidays ?? [], { count: lessons.length });
     lessons.forEach((l, i) => {
       const o = occ[i];
       tx.patch('lessons', l.id, o ? { date: o.date, start: o.slot.start, end: o.slot.end } : { date: null });
@@ -169,7 +177,7 @@ export function addLessonToCycle(cycleId: ID): ID {
       const lastDate = [...existing].reverse().find((x) => x.date)?.date ?? cycle.startDate;
       if (lastDate && klass.slots.length) {
         const from = existing.some((x) => x.date) ? addDays(lastDate, 1) : lastDate;
-        const o = nextOccurrences(klass.slots, from, year?.holidays ?? [], { count: 1 })[0];
+        const o = nextOccurrences(slotsForCycle(klass.slots, cycle.slotIds), from, year?.holidays ?? [], { count: 1 })[0];
         if (o) {
           l.date = o.date;
           l.start = o.slot.start;
@@ -250,6 +258,7 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
       ...deepClone(src),
       id: newId,
       classId,
+      slotIds: [],
       order,
       startDate: occ[0]?.date ?? null,
       endDate: occ.length ? occ[occ.length - 1].date : null,

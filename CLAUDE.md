@@ -29,8 +29,8 @@ Règles :
 ```
 AppData { schemaVersion:1, settings, years{}, classes{}, cycles{}, lessons{}, exercises{}, deleted{} }
 SchoolYear { id,label:"2026-2027",start,end,zone,holidays:[{id,label,start,end,kind}] }
-Klass      { id,yearId,name,level,students,color,slots:[{id,weekday,start,end,place}],notes,order }
-Cycle      { id,classId|null,title,activityId,startDate,endDate,objectives,competences,evaluation,notes,order }
+Klass      { id,yearId,name,level,students,color,slots:[{id,weekday,start,end,place}],sharedWith,notes,order }
+Cycle      { id,classId|null,title,activityId,slotIds,startDate,endDate,objectives,competences,evaluation,notes,order }
 Lesson     { id,classId|null,cycleId|null,activityId,title,order,date,start,end,status:planned|done|cancelled,
              objective,materials,safety,blocks:[Block],bilan,tags }
 Block      { id,kind:warmup|situation|skill|game|evaluation|theory|cooldown|free,title,minutes,text,materials,animation|null }
@@ -39,6 +39,8 @@ Animation  { court,tokens:[{id,kind,label,color,size}],frames:[{id,caption,holdM
 ```
 
 - `classId: null` = élément **modèle** de la bibliothèque (cycle ou séance réutilisable).
+- `Cycle.slotIds` : créneaux de la classe utilisés par le cycle (vide = tous). Sert à mener deux cycles en parallèle dans une même classe (ex. un bloc de 2 h et un bloc de 1 h par semaine, chacun avec son activité). Les séances du cycle doivent tomber sur ces créneaux.
+- `Klass.sharedWith` : texte libre si la classe fait cours en commun avec un collègue ; vide sinon.
 - `activityId` renvoie à `settings.activities[].id` (ex. `badminton`, `volley`, `basket`, `hand`, `course-duree`…).
 - Positions d'animation en **% du terrain** (0–100). Terrains : `blank basket basket-half volley badminton hand foot rugby ultimate tennis tt track`. Jetons : `player coach ball cone hoop goal mat bench text`.
 - Un ballon « porté » : `carry:<id du joueur>` + `dx,dy` (décalage en %) → il suit ce joueur et voyage avec lui entre les étapes.

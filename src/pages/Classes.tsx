@@ -112,6 +112,7 @@ export function ClassesPage() {
                     {k.level && <Chip>{k.level}</Chip>}
                   </div>
                   <p className="muted small">{slotsSummary(k)}</p>
+                  {k.sharedWith && <span className="chip chip-shared">👥 En commun : {k.sharedWith}</span>}
                   <div className="class-card-stats">
                     <span>
                       <strong>{s.cycles}</strong> {s.cycles > 1 ? 'cycles' : 'cycle'}

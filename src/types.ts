@@ -57,6 +57,8 @@ export interface Klass extends Meta {
   students: number | null;
   color: string;
   slots: Slot[];
+  /** Cours partagés avec un collègue (texte libre : « un collègue », « classe de M. X »…). Vide = classe non partagée. */
+  sharedWith: string;
   notes: string;
   order: number;
 }
@@ -68,6 +70,11 @@ export interface Cycle extends Meta {
   classId: ID | null;
   title: string;
   activityId: ID | null;
+  /**
+   * Créneaux de la classe utilisés par ce cycle. Vide = tous les créneaux.
+   * Permet de mener deux cycles en parallèle (ex. 2 h de badminton le jeudi, 1 h de demi-fond le lundi).
+   */
+  slotIds: ID[];
   startDate: ISODate | null;
   endDate: ISODate | null;
   objectives: string;

@@ -41,6 +41,36 @@ export function ActivitySelect({
   return <Select<string> value={value ?? ''} onChange={(v) => onChange(v || null)} options={options} placeholder={placeholder} />;
 }
 
+export function slotLabel(s: Slot): string {
+  const day = WEEKDAYS_LONG[s.weekday - 1] ?? '';
+  return `${day[0]?.toUpperCase() ?? ''}${day.slice(1)} ${s.start}–${s.end}${s.place ? ` · ${s.place}` : ''}`;
+}
+
+/**
+ * Choix des créneaux d'une classe qu'utilise un cycle.
+ * `value` vide = tous les créneaux (comportement par défaut).
+ */
+export function SlotPicker({ slots, value, onChange }: { slots: Slot[]; value: ID[]; onChange: (ids: ID[]) => void }) {
+  const sorted = [...slots].sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start));
+  const all = value.length === 0 || value.length >= sorted.length;
+  const toggle = (id: ID) => {
+    const current = all ? sorted.map((s) => s.id) : value;
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+    // Tout décocher n'a pas de sens : on revient à « tous les créneaux ».
+    onChange(next.length === 0 || next.length === sorted.length ? [] : next);
+  };
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      {sorted.map((s) => (
+        <label key={s.id} className="check">
+          <input type="checkbox" checked={all || value.includes(s.id)} onChange={() => toggle(s.id)} />
+          {slotLabel(s)}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 /** Édition de l'emploi du temps hebdomadaire d'une classe. */
 export function SlotsEditor({ slots, onChange }: { slots: Slot[]; onChange: (s: Slot[]) => void }) {
   const places = useData((s) => s.data.settings.places);

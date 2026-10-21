@@ -55,6 +55,9 @@ export function ClassFormModal({
           <span className="field-label">Couleur</span>
           <ColorSwatches value={k.color} onChange={(c) => patch({ color: c })} colors={CLASS_COLORS} />
         </div>
+        <Field label="Cours en commun avec un collègue (facultatif)" hint="Laissez vide si la classe n'est pas partagée.">
+          <TextInput value={k.sharedWith ?? ''} onChange={(v) => patch({ sharedWith: v })} placeholder="Ex. un collègue, classe de M. Martin…" />
+        </Field>
       </div>
       <div className="field">
         <span className="field-label">Emploi du temps hebdomadaire</span>

@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, BookmarkPlus, CalendarClock, ChevronLeft, Copy, Plus, Trash2, X } from 'lucide-react';
 import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
-import { ActivitySelect, DateField } from '../components/forms';
+import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
 import { CopyCycleModal, RedateModal } from '../components/CycleModals';
 import { useData } from '../store/data';
 import { cycleLessons } from '../store/selectors';
@@ -109,6 +109,13 @@ export function CycleDetailPage() {
             </>
           )}
         </div>
+        {!isTemplate && klass && klass.slots.length > 1 && (
+          <div className="field" style={{ marginTop: 14 }}>
+            <span className="field-label">Créneaux utilisés par ce cycle</span>
+            <SlotPicker slots={klass.slots} value={cycle.slotIds ?? []} onChange={(slotIds) => patch({ slotIds })} />
+            <span className="field-hint">Après un changement, utilisez « Recalculer les dates » pour replacer les séances sur les bons créneaux.</span>
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-2">

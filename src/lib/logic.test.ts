@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { easterSunday, publicHolidays } from './holidays';
-import { nextOccurrences } from './schedule';
+import { nextOccurrences, slotsForCycle } from './schedule';
 import { mergeData, sameData } from './merge';
 import { emptyData, newKlass, normalizeData } from '../store/model';
 import { addDays, startOfWeek, weekdayOf } from './dates';
@@ -32,6 +32,24 @@ describe('emploi du temps', () => {
     const holidays = [{ id: 'h', label: 'Toussaint', start: '2026-10-19', end: '2026-11-01', kind: 'vacances' as const }];
     const occ = nextOccurrences(slots, '2026-10-12', holidays, { count: 3 });
     expect(occ.map((o) => o.date)).toEqual(['2026-10-13', '2026-11-03', '2026-11-10']);
+  });
+});
+
+describe('créneaux par cycle', () => {
+  const slots = [
+    { id: 'jeu', weekday: 4, start: '08:30', end: '10:20', place: '' },
+    { id: 'lun', weekday: 1, start: '13:55', end: '14:50', place: '' },
+  ];
+  it('utilise tous les créneaux par défaut, ou seulement ceux choisis', () => {
+    expect(slotsForCycle(slots, [])).toHaveLength(2);
+    expect(slotsForCycle(slots, undefined)).toHaveLength(2);
+    expect(slotsForCycle(slots, ['jeu']).map((s) => s.id)).toEqual(['jeu']);
+    // identifiant périmé (créneau supprimé) : on retombe sur tous les créneaux
+    expect(slotsForCycle(slots, ['inconnu'])).toHaveLength(2);
+  });
+  it('date un cycle uniquement sur son créneau', () => {
+    const occ = nextOccurrences(slotsForCycle(slots, ['jeu']), '2026-11-02', [], { count: 3 });
+    expect(occ.map((o) => o.date)).toEqual(['2026-11-05', '2026-11-12', '2026-11-19']);
   });
 });
 

@@ -28,12 +28,16 @@ export const DEFAULT_ACTIVITIES: Activity[] = [
   a('poids', 'Lancer de poids', 'ca1', '⚫', 'blank'),
   a('javelot', 'Lancer de javelot', 'ca1', '🎯', 'blank'),
   a('nat-vitesse', 'Natation de vitesse', 'ca1', '🏊', 'blank'),
+  a('natation', 'Natation', 'ca1', '🏊', 'blank'),
+  a('combine-athle', 'Combiné athlétique', 'ca1', '🏃', 'track'),
+  a('biathlon', 'Biathlon (course + lancer)', 'ca1', '🎯', 'track'),
   // CA2 – environnements variés
   a('orientation', "Course d'orientation", 'ca2', '🧭', 'blank'),
   a('escalade', 'Escalade', 'ca2', '🧗', 'blank'),
   a('sauvetage', 'Sauvetage / savoir nager', 'ca2', '🛟', 'blank'),
   a('parcours', 'Parcours / activités de pleine nature', 'ca2', '🌲', 'blank'),
   // CA3 – expression
+  a('gym', 'Gymnastique', 'ca3', '🤸', 'blank'),
   a('gym-sol', 'Gymnastique au sol', 'ca3', '🤸', 'blank'),
   a('gym-agres', 'Gymnastique aux agrès', 'ca3', '🤸', 'blank'),
   a('acrosport', 'Acrosport', 'ca3', '🤸', 'blank'),

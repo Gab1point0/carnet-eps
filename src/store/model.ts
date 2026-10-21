@@ -51,6 +51,7 @@ export function newKlass(yearId: ID, order: number, name = '', level = ''): Klas
     students: null,
     color: CLASS_COLORS[order % CLASS_COLORS.length],
     slots: [],
+    sharedWith: '',
     notes: '',
     order,
   };
@@ -62,6 +63,7 @@ export function newCycle(classId: ID | null, order: number, title = ''): Cycle {
     classId,
     title,
     activityId: null,
+    slotIds: [],
     startDate: null,
     endDate: null,
     objectives: '',
@@ -167,7 +169,9 @@ export function normalizeData(raw: unknown): AppData {
   out.classes = fill<Klass>(r.classes, () => newKlass('', 0), (k) => {
     k.slots = withIds(k.slots).map((s) => ({ ...newSlot(), ...s }));
   });
-  out.cycles = fill<Cycle>(r.cycles, () => newCycle(null, 0));
+  out.cycles = fill<Cycle>(r.cycles, () => newCycle(null, 0), (c) => {
+    c.slotIds = Array.isArray(c.slotIds) ? c.slotIds : [];
+  });
   out.lessons = fill<Lesson>(r.lessons, () => newLesson(null, null, 0), (l) => {
     l.blocks = withIds(l.blocks).map((b) => ({ ...newBlock(), ...b }));
     l.tags = Array.isArray(l.tags) ? l.tags : [];

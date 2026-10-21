@@ -48,6 +48,7 @@ export function ClassDetailPage() {
             {klass.level && <Chip>{klass.level}</Chip>}
             {klass.students != null && <span>{plural(klass.students, 'élève')}</span>}
             <span>{slotsSummary(klass)}</span>
+            {klass.sharedWith && <span className="chip chip-shared">👥 En commun : {klass.sharedWith}</span>}
           </span>
         }
         actions={
