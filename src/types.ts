@@ -268,6 +268,8 @@ export interface Settings {
   levels: string[];
   places: string[];
   defaultLessonMinutes: number;
+  /** Lieu des cours en plein air, pour les prévisions météo. `null` = pas renseigné. */
+  weather: { label: string; lat: number; lon: number } | null;
 }
 
 // ── Document complet ───────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchForecast, type Hour } from '../lib/weather';
 import { Link } from 'react-router-dom';
 import { ListChecks, Plus, X } from 'lucide-react';
 import type { Lesson } from '../types';
@@ -18,7 +19,18 @@ export function TodoSection({ lessons, today }: { lessons: Lesson[]; today: stri
   const [text, setText] = useState('');
   const [all, setAll] = useState(false);
 
-  const groups = useMemo(() => taskGroups(data, lessons, today), [data, lessons, today]);
+  const place = data.settings.weather;
+  const [forecast, setForecast] = useState<Hour[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setForecast(null);
+    if (place) fetchForecast(place).then((h) => alive && setForecast(h)).catch(() => alive && setForecast(null));
+    return () => {
+      alive = false;
+    };
+  }, [place?.lat, place?.lon]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const groups = useMemo(() => taskGroups(data, lessons, today, { place: !!place, forecast }), [data, lessons, today, place, forecast]);
   const open = groups.map((g) => ({ ...g, open: g.tasks.filter((t) => !t.done), done: g.tasks.filter((t) => t.done) })).filter((g) => g.open.length > 0);
   const total = open.reduce((n, g) => n + g.open.length, 0);
 

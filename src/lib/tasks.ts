@@ -3,7 +3,8 @@ import { cycleLessons, sortCycles } from '../store/selectors';
 import { pendingProposals } from '../components/ProposalsPanel';
 import { prepState } from '../pages/Preparation';
 import { EVAL_KINDS } from './levels';
-import { diffDays } from './dates';
+import { diffDays, formatShort } from './dates';
+import { risksFor, type Hour } from './weather';
 
 export interface Task {
   /** `auto:<clé>` pour une tâche calculée, identifiant de la tâche pour une tâche ajoutée à la main. */
@@ -45,7 +46,14 @@ const FACILITY: Array<[RegExp, string]> = [
 ];
 
 /** Tâches à faire avant la séance `l` : calculées d'après l'état du cycle, plus celles ajoutées à la main. */
-export function tasksFor(data: AppData, l: Lesson, today: ISODate): Task[] {
+export interface WeatherEnv {
+  /** Lieu des cours renseigné dans les réglages. */
+  place: boolean;
+  /** Prévisions heure par heure ; `null` si indisponibles. */
+  forecast: Hour[] | null;
+}
+
+export function tasksFor(data: AppData, l: Lesson, today: ISODate, weather: WeatherEnv = { place: false, forecast: null }): Task[] {
   const out: Task[] = [];
   const cycle = l.cycleId ? data.cycles[l.cycleId] : undefined;
   const lessons = l.cycleId ? cycleLessons(data, l.cycleId) : [];
@@ -88,7 +96,20 @@ export function tasksFor(data: AppData, l: Lesson, today: ISODate): Task[] {
   const summative = lessons.find((x) => x.evalKind === 'summative');
   if (summative && summative.order - l.order === 1) auto('announce', 'Annoncer l\'évaluation de la prochaine séance : critères, tenue, ordre de passage');
   // Météo pour les activités de plein air, dans les 2 jours.
-  if (cycle && OUTDOOR.test(cycle.title) && daysTo >= 0 && daysTo <= 2) auto('meteo', 'Regarder la météo et prévoir un plan B (salle ou gymnase)');
+  if (cycle && OUTDOOR.test(cycle.title) && l.date && daysTo >= 0 && daysTo <= 2) {
+    if (weather.forecast) {
+      // Prévisions connues : on n'alerte que si quelque chose de gênant est annoncé pendant la séance.
+      const risks = risksFor(weather.forecast, l.date, l.start, l.end);
+      if (risks.length) {
+        const icon = risks[0].kind === 'rain' ? '☔' : risks[0].kind === 'storm' ? '⛈' : risks[0].kind === 'snow' ? '❄' : risks[0].kind === 'wind' ? '💨' : risks[0].kind === 'heat' ? '🥵' : '🥶';
+        auto('meteo', `${icon} ${formatShort(l.date)} ${l.start}–${l.end} : ${risks.map((r) => r.text).join(', ')}`, { detail: 'Prévoir un plan B (gymnase, salle) ou adapter la séance.' });
+      }
+    } else {
+      auto('meteo', 'Regarder la météo et prévoir un plan B (salle ou gymnase)', {
+        detail: weather.place ? 'Prévisions indisponibles pour le moment.' : 'Renseignez le lieu des cours dans Réglages pour être prévenu automatiquement.',
+      });
+    }
+  }
 
   // Tâches ajoutées à la main.
   for (const t of l.todos) out.push({ id: t.id, lessonId: l.id, text: t.text, manual: true, done: t.done, to: `/lessons/${l.id}` });
@@ -99,7 +120,7 @@ export function tasksFor(data: AppData, l: Lesson, today: ISODate): Task[] {
  * Tâches à faire avant les prochaines séances : les 2 prochaines de chaque classe (dans les 14 jours).
  * `lessons` : séances de l'année, déjà triées par date.
  */
-export function taskGroups(data: AppData, lessons: Lesson[], today: ISODate): TaskGroup[] {
+export function taskGroups(data: AppData, lessons: Lesson[], today: ISODate, weather?: WeatherEnv): TaskGroup[] {
   const perClass = new Map<string, number>();
   const groups: TaskGroup[] = [];
   for (const l of lessons) {
@@ -108,7 +129,7 @@ export function taskGroups(data: AppData, lessons: Lesson[], today: ISODate): Ta
     const n = perClass.get(l.classId) ?? 0;
     if (n >= 2) continue;
     perClass.set(l.classId, n + 1);
-    const tasks = tasksFor(data, l, today);
+    const tasks = tasksFor(data, l, today, weather);
     if (tasks.length) groups.push({ lesson: l, klass: data.classes[l.classId], tasks });
   }
   return groups;

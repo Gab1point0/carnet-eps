@@ -81,6 +81,7 @@ export function defaultSettings(): Settings {
     levels: [...DEFAULT_LEVELS],
     places: ['Gymnase', 'Plateau extérieur', 'Salle de danse', 'Piscine', 'Stade'],
     defaultLessonMinutes: 110,
+    weather: null,
   };
 }
 

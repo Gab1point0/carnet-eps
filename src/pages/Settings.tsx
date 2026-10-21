@@ -13,6 +13,7 @@ import { normalizeData, serialize } from '../store/model';
 import { mergeData } from '../lib/merge';
 import { confirmDialog, toast, useUi, type Theme } from '../store/ui';
 import { COURTS } from '../lib/defaults';
+import { searchPlaces, type Place } from '../lib/weather';
 import { uid } from '../lib/util';
 import { plural } from '../lib/util';
 
@@ -53,8 +54,73 @@ function ProfileSection() {
             <NumberInput value={settings.defaultLessonMinutes} min={20} max={240} onChange={(v) => patch({ defaultLessonMinutes: v ?? 110 })} />
           </Field>
         </div>
+        <WeatherField />
       </Card>
     </Section>
+  );
+}
+
+/** Lieu des cours en plein air : sert aux alertes météo de l'accueil (2 jours à l'avance). */
+function WeatherField() {
+  const settings = useSettings();
+  const patch = useData.getState().patchSettings;
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState<Place[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const search = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const r = await searchPlaces(q);
+      setResults(r);
+      if (r.length === 0) setError('Aucune commune trouvée.');
+    } catch {
+      setError('Recherche impossible : vérifiez votre connexion.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <Field label="Lieu des cours en plein air (alertes météo)">
+        {settings.weather ? (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <strong>📍 {settings.weather.label}</strong>
+            <Button size="sm" onClick={() => patch({ weather: null })}>
+              Changer
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="row" style={{ gap: 8 }}>
+              <TextInput value={q} onChange={setQ} placeholder="Commune ou code postal" />
+              <Button size="sm" onClick={search} disabled={busy || q.trim().length < 2}>
+                Chercher
+              </Button>
+            </div>
+            {error && <p className="error-text small">{error}</p>}
+            {results.map((p) => (
+              <div key={`${p.lat},${p.lon}`} style={{ marginTop: 6 }}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    patch({ weather: p });
+                    setResults([]);
+                    toast(`Météo : ${p.label}`, { tone: 'success' });
+                  }}
+                >
+                  📍 {p.label}
+                </Button>
+              </div>
+            ))}
+          </>
+        )}
+      </Field>
+      <p className="muted small">Avec un lieu, l'accueil vous prévient 2 jours avant si de la pluie, un orage, du vent, de la chaleur ou du gel est annoncé pendant une séance de plein air.</p>
+    </div>
   );
 }
 
