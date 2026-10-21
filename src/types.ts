@@ -132,6 +132,8 @@ export interface Lesson extends Meta {
   rating: number | null;
   /** Séance à ajuster ou à refaire l'an prochain. */
   adjust: boolean;
+  /** Propositions d'ajustement (issues du bilan précédent) déjà acceptées ou refusées. */
+  proposalsDone: string[];
   tags: string[];
 }
 

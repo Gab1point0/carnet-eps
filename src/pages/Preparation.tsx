@@ -5,6 +5,7 @@ import type { Klass, Lesson } from '../types';
 import { Button, Card, Chip, EmptyState, PageHeader, Section, Tabs } from '../components/ui';
 import { ClassDot } from '../components/cards';
 import { useCurrentYear, useYearClasses, useYearLessons } from '../store/selectors';
+import { pendingProposals } from '../components/ProposalsPanel';
 import { lessonMaterialTexts, mergeMaterials } from '../lib/materials';
 import { addDays, formatDM, formatShort, startOfWeek, todayISO } from '../lib/dates';
 import { cls, plural } from '../lib/util';
@@ -74,6 +75,13 @@ export function PreparationPage() {
       }),
     [lessons, weekStart],
   );
+
+  const byCycle = useMemo(() => {
+    const m = new Map<string, Lesson[]>();
+    for (const l of lessons) if (l.cycleId) m.set(l.cycleId, [...(m.get(l.cycleId) ?? []), l]);
+    return m;
+  }, [lessons]);
+  const proposalCount = (l: Lesson) => pendingProposals(byCycle.get(l.cycleId ?? '') ?? [], l).list.length;
 
   const materials = useMemo(() => mergeMaterials(week.flatMap(lessonMaterialTexts)), [week]);
 
@@ -164,6 +172,7 @@ export function PreparationPage() {
                             <div className="lesson-row-meta muted small">
                               {l.start}–{l.end} · {plural(l.blocks.length, 'bloc')}
                               {l.adjust && ' · 🔧 à ajuster'}
+                              {proposalCount(l) > 0 && ` · 💡 ${plural(proposalCount(l), 'proposition')}`}
                             </div>
                           </div>
                           <Chip className={cls('prep-chip', `prep-${s}`)}>{PREP_LABEL[s]}</Chip>

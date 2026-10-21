@@ -97,6 +97,7 @@ export function newLesson(classId: ID | null, cycleId: ID | null, order: number,
     bilan: '',
     rating: null,
     adjust: false,
+    proposalsDone: [],
     tags: [],
   };
 }
@@ -177,6 +178,7 @@ export function normalizeData(raw: unknown): AppData {
   out.lessons = fill<Lesson>(r.lessons, () => newLesson(null, null, 0), (l) => {
     l.blocks = withIds(l.blocks).map((b) => ({ ...newBlock(), ...b }));
     l.tags = Array.isArray(l.tags) ? l.tags : [];
+    l.proposalsDone = Array.isArray(l.proposalsDone) ? l.proposalsDone : [];
   });
   out.exercises = fill<Exercise>(r.exercises, () => newExercise(), (e) => {
     e.tags = Array.isArray(e.tags) ? e.tags : [];

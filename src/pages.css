@@ -334,3 +334,14 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
   .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
   @page { margin: 12mm; }
 }
+
+.dictate-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px; border-radius: 14px; border: 2px dashed var(--primary); background: var(--primary-soft); color: var(--text); font-weight: 700; font-size: 1rem; cursor: pointer; margin-bottom: 8px; }
+.dictate-on { border-style: solid; background: var(--danger); color: #fff; border-color: var(--danger); animation: dictate-pulse 1.4s ease-in-out infinite; }
+@keyframes dictate-pulse { 50% { opacity: 0.8; } }
+.dictate-interim { font-style: italic; margin: 0 0 6px; }
+.proposals { border-left: 4px solid var(--primary); }
+.proposal { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.proposal:first-of-type { border-top: 0; }
+.proposal-text { flex: 1 1 260px; min-width: 0; }
+.proposal-text p { margin: 4px 0 0; }
+.proposal-actions { display: flex; gap: 6px; }

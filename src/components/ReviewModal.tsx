@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { Mic, MicOff } from 'lucide-react';
 import type { Lesson } from '../types';
+import { useDictation } from '../lib/dictation';
+import { sentimentOf, themesOf } from '../lib/suggestions';
 import { Button, Modal, TextArea } from './ui';
 import { useData } from '../store/data';
 import { cls } from '../lib/util';
@@ -18,7 +21,26 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
   const [adjust, setAdjust] = useState(lesson.adjust);
   const [bilan, setBilan] = useState(lesson.bilan);
 
+  const bilanRef = useRef(bilan);
+  bilanRef.current = bilan;
+  const ratingRef = useRef(rating);
+  ratingRef.current = rating;
+
+  // Dictée : chaque phrase s'ajoute au bilan ; ressenti et « à ajuster » sont devinés si pas déjà renseignés.
+  const dictation = useDictation((t) => {
+    const next = bilanRef.current.trim() ? `${bilanRef.current.trim()} ${t}` : t;
+    setBilan(next);
+    if (ratingRef.current === null) {
+      const s = sentimentOf(next);
+      if (s) setRating(s);
+    }
+    const themes = themesOf(next);
+    if ([...themes].some((x) => x !== 'absent')) setAdjust(true);
+  });
+  const found = [...themesOf(bilan)].length;
+
   const save = () => {
+    dictation.stop();
     useData.getState().patch('lessons', lesson.id, { status, rating: status === 'cancelled' ? null : rating, adjust, bilan });
     toast('Bilan enregistré', { tone: 'success' });
     onClose();
@@ -73,8 +95,19 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
         🔧 À ajuster ou à retravailler pour la prochaine fois
       </label>
       <div className="field">
-        <span className="field-label">Remarque (facultatif)</span>
-        <TextArea value={bilan} onChange={setBilan} minRows={3} placeholder="Ce qui a marché, ce qu'il faut changer, élèves à suivre…" />
+        <span className="field-label">Bilan (à l'oral ou à l'écrit)</span>
+        {dictation.supported ? (
+          <button type="button" className={cls('dictate-btn', dictation.listening && 'dictate-on')} onClick={dictation.listening ? dictation.stop : dictation.start}>
+            {dictation.listening ? <MicOff size={22} /> : <Mic size={22} />}
+            <span>{dictation.listening ? 'Je vous écoute… touchez pour arrêter' : 'Dicter le bilan'}</span>
+          </button>
+        ) : (
+          <p className="muted small">La dictée n'est pas disponible dans ce navigateur (essayez Chrome ou Safari). Sur téléphone, le micro du clavier fonctionne aussi dans la zone ci-dessous.</p>
+        )}
+        {dictation.error && <p className="error-text small">{dictation.error}</p>}
+        {dictation.interim && <p className="muted small dictate-interim">… {dictation.interim}</p>}
+        <TextArea value={bilan} onChange={setBilan} minRows={4} placeholder="Ce qui a marché, ce qu'il faut changer, élèves à suivre… Vous pouvez dire « virgule », « point », « à la ligne »." />
+        {found > 0 && <p className="muted small">💡 {found} point{found > 1 ? 's' : ''} repéré{found > 1 ? 's' : ''} : des ajustements vous seront proposés sur la séance suivante.</p>}
       </div>
     </Modal>
   );

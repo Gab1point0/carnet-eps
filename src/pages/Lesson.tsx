@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Library, Play, Plus, Printer, Trash2 } from 'lucide-react';
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
+import { ProposalsPanel } from '../components/ProposalsPanel';
 import type { Block, BlockKind, ID, Lesson } from '../types';
 import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea } from '../components/ui';
 import { ClassDot } from '../components/cards';
@@ -203,6 +204,8 @@ export function LessonPage() {
       <Field label="⚠️ Sécurité / organisation">
         <TextArea value={lesson.safety} onChange={(v) => patch({ safety: v })} minRows={2} placeholder="Zones de sécurité, rotation, élèves à surveiller, rappel des consignes…" />
       </Field>
+
+      <ProposalsPanel lesson={lesson} />
 
       <Section
         title="Déroulé de la séance"
