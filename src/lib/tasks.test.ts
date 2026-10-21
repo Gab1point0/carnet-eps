@@ -32,12 +32,21 @@ function setup() {
 describe('tâches avant la prochaine séance', () => {
   it('après une évaluation faite : École Directe, bilan et niveau à relever', () => {
     const { data, mk } = setup();
-    mk('c1', 0, '2026-11-23', { status: 'done', evalKind: 'diagnostic' });
+    mk('c1', 0, '2026-11-23', { status: 'done', evalKind: 'formative' });
     const next = mk('c1', 1, '2026-11-30');
     const ids = tasksFor(data, next, '2026-11-24').map((t) => t.id);
     expect(ids).toEqual(expect.arrayContaining(['auto:ed:c1-0', 'auto:levels:c1-0']));
     // Le bilan n'est demandé que si la séance est passée sans bilan.
     expect(ids.some((i) => i.startsWith('auto:bilan'))).toBe(true);
+  });
+
+  it('une évaluation diagnostique, jamais notée, ne demande pas de saisie École Directe', () => {
+    const { data, mk } = setup();
+    mk('c1', 0, '2026-11-23', { status: 'done', evalKind: 'diagnostic' });
+    const next = mk('c1', 1, '2026-11-30');
+    const ids = tasksFor(data, next, '2026-11-24').map((t) => t.id);
+    expect(ids.some((i) => i.startsWith('auto:ed:'))).toBe(false);
+    expect(ids).toContain('auto:levels:c1-0');
   });
 
   it('une tâche faite est mémorisée, une tâche manuelle apparaît', () => {

@@ -61,7 +61,8 @@ export function tasksFor(data: AppData, l: Lesson, today: ISODate): Task[] {
   // Évaluation passée : saisie dans École Directe, niveau relevé.
   if (prev?.evalKind && prev.status === 'done') {
     const k = EVAL_KINDS[prev.evalKind].label.toLowerCase();
-    auto(`ed:${prev.id}`, `Saisir l'évaluation ${k} sur École Directe`, { detail: `« ${prev.title || 'Séance'} » (${prev.date ?? ''})`, to: `/lessons/${prev.id}` });
+    // Une évaluation diagnostique n'est jamais notée : rien à saisir sur École Directe.
+    if (prev.evalKind !== 'diagnostic') auto(`ed:${prev.id}`, `Saisir l'évaluation ${k} sur École Directe`, { detail: `« ${prev.title || 'Séance'} » (${prev.date ?? ''})`, to: `/lessons/${prev.id}` });
     if (!prev.levels) auto(`levels:${prev.id}`, `Relever le niveau de la classe (évaluation ${k})`, { detail: 'Ouvrez le bilan et dictez les effectifs par degré.', to: `/lessons/${prev.id}` });
   }
   // Propositions d'ajustement en attente.
