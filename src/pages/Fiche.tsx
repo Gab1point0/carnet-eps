@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, Printer } from 'lucide-react';
 import { useData } from '../store/data';
 import { Button, Card, PageHeader, Section } from '../components/ui';
-import { FICHES, FICHE_BY_ID, FICHE_GROUPS, fichesOfActivity, type FicheCtx, type FicheDef, type FicheSection } from '../lib/fiches';
+import { FICHES, FICHE_BY_ID, FICHE_GROUPS, LEVEL_KEYS, LEVEL_LABELS, buildFiche, fichesOfActivity, levelKeyOf, type FicheCtx, type FicheDef, type FicheSection, type LevelKey } from '../lib/fiches';
 import { criteriaOf } from '../lib/materials';
 import { cls } from '../lib/util';
 
@@ -123,7 +123,7 @@ export function FicheView({ def, ctx, subtitle }: { def: FicheDef; ctx: FicheCtx
           ))}
         </div>
       </header>
-      {def.build(ctx).map((s, i) => (
+      {buildFiche(def, ctx).map((s, i) => (
         <Section_ key={i} s={s} />
       ))}
     </article>
@@ -140,10 +140,14 @@ export function FichePage() {
   const cycle = data.cycles[params.get('cycle') ?? ''];
   const defaultCopies = def?.size === 'half' ? 2 : 1;
   const copies = Math.max(1, Math.min(60, Number(params.get('copies')) || defaultCopies));
-  const ctx: FicheCtx = useMemo(() => ({ criteria: cycle ? criteriaOf(cycle.evaluation) : [] }), [cycle]);
-  if (!def) return <Navigate to="/fiches" replace />;
   const klass = cycle?.classId ? data.classes[cycle.classId] : undefined;
+  const asked = params.get('level');
+  const level: LevelKey | undefined = asked === 'none' ? undefined : LEVEL_KEYS.find((k) => k === asked) ?? levelKeyOf(klass?.level);
+  const ctx: FicheCtx = useMemo(() => ({ criteria: cycle ? criteriaOf(cycle.evaluation) : [], level }), [cycle, level]);
+  if (!def) return <Navigate to="/fiches" replace />;
   const subtitle = [klass?.name, cycle?.title].filter(Boolean).join(' · ');
+  const setQuery = (patch: Record<string, string>) =>
+    setParams({ ...(cycle ? { cycle: cycle.id } : {}), ...(params.get('copies') ? { copies: params.get('copies')! } : {}), ...(asked ? { level: asked } : {}), ...patch }, { replace: true });
 
   return (
     <div className="print-page">
@@ -160,8 +164,19 @@ export function FichePage() {
             max={60}
             value={copies}
             style={{ width: 80 }}
-            onChange={(e) => setParams({ ...(cycle ? { cycle: cycle.id } : {}), copies: String(e.target.value) }, { replace: true })}
+            onChange={(e) => setQuery({ copies: String(e.target.value) })}
           />
+        </label>
+        <label className="row" style={{ gap: 8 }}>
+          Niveau
+          <select className="input" style={{ width: 'auto' }} value={level ?? 'none'} onChange={(e) => setQuery({ level: e.target.value })}>
+            <option value="none">Version générale</option>
+            {LEVEL_KEYS.map((k) => (
+              <option key={k} value={k}>
+                {LEVEL_LABELS[k]}
+              </option>
+            ))}
+          </select>
         </label>
         <Button variant="primary" icon={<Printer size={18} />} onClick={() => window.print()}>
           Imprimer / enregistrer en PDF
@@ -186,7 +201,8 @@ export function FichesHubPage() {
   const data = useData((s) => s.data);
   const cycle = data.cycles[params.get('cycle') ?? ''];
   const mine = cycle ? fichesOfActivity(cycle.title) : null;
-  const q = cycle ? `?cycle=${cycle.id}` : '';
+  const [level, setLevel] = useState<string>(() => levelKeyOf(cycle?.classId ? data.classes[cycle.classId]?.level : undefined) ?? 'none');
+  const q = `?${new URLSearchParams({ ...(cycle ? { cycle: cycle.id } : {}), level }).toString()}`;
   const groups = mine ? [...new Set(mine.map((f) => f.group))] : FICHE_GROUPS;
   const list = mine ?? FICHES;
   return (
@@ -202,7 +218,20 @@ export function FichesHubPage() {
           ) : undefined
         }
       />
-      <p className="muted">Choisissez une fiche, réglez le nombre d'exemplaires, puis imprimez ou enregistrez en PDF. Les critères viennent de la fiche « Évaluation » du cycle quand vous ouvrez les fiches depuis un cycle.</p>
+      <p className="muted">
+        Choisissez le niveau de la classe, puis une fiche : le vocabulaire, le nombre de critères et d'essais et les attendus (socle commun, attendus de fin de cycle, attendus de fin de lycée) s'adaptent. Réglez ensuite le nombre d'exemplaires et imprimez. Les critères viennent de la fiche « Évaluation » du cycle quand vous ouvrez les fiches depuis un cycle.
+      </p>
+      <label className="row" style={{ gap: 8, marginBottom: 12 }}>
+        <strong>Niveau de la classe</strong>
+        <select className="input" style={{ width: 'auto' }} value={level} onChange={(e) => setLevel(e.target.value)}>
+          <option value="none">Version générale</option>
+          {LEVEL_KEYS.map((k) => (
+            <option key={k} value={k}>
+              {LEVEL_LABELS[k]}
+            </option>
+          ))}
+        </select>
+      </label>
       {groups.map((g) => (
         <Section key={g} title={g}>
           <div className="grid grid-2">

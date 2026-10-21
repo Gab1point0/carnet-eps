@@ -8,9 +8,13 @@ export type FicheSection =
   | { type: 'fields'; fields: string[] }
   | { type: 'text'; text: string };
 
+export type LevelKey = '6e' | '5e' | '4e' | '3e' | '2nde' | '1re' | 'Tle';
+
 export interface FicheCtx {
   /** Critères d'évaluation du cycle (champ « Évaluation »), s'il y en a. */
   criteria: string[];
+  /** Niveau de la classe : adapte le vocabulaire, le nombre de critères et d'essais, les attendus. `undefined` = version générale. */
+  level?: LevelKey;
 }
 
 export interface FicheDef {
@@ -416,6 +420,198 @@ export const FICHES: FicheDef[] = [
     ],
   },
 ];
+
+// ── Différenciation par niveau de classe ─────────────────────────────────────
+// Du cycle 3 (6e) aux attendus de fin de lycée (AFL) : la même fiche devient plus guidée en 6e et en 5e,
+// puis demande de plus en plus d'analyse, de justification et de régulation.
+
+export const LEVEL_KEYS: LevelKey[] = ['6e', '5e', '4e', '3e', '2nde', '1re', 'Tle'];
+export const LEVEL_LABELS: Record<LevelKey, string> = {
+  '6e': '6e (cycle 3)',
+  '5e': '5e (cycle 4, découverte)',
+  '4e': '4e (cycle 4, approfondissement)',
+  '3e': '3e (attendus de fin de cycle 4)',
+  '2nde': '2nde (lycée, AFL)',
+  '1re': '1re (lycée, AFL)',
+  Tle: 'Terminale (lycée, AFL)',
+};
+
+/** « 1re », « Terminale », « 2nde »… → clé de niveau ; `undefined` si ce n'est pas un niveau scolaire (UNSS…). */
+export function levelKeyOf(level: string | undefined | null): LevelKey | undefined {
+  const s = (level ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  if (/^6/.test(s)) return '6e';
+  if (/^5/.test(s)) return '5e';
+  if (/^4/.test(s)) return '4e';
+  if (/^3/.test(s)) return '3e';
+  if (/^(2|seconde)/.test(s)) return '2nde';
+  if (/^(1|premiere)/.test(s)) return '1re';
+  if (/^(t|terminale)/.test(s)) return 'Tle';
+  return undefined;
+}
+
+const PROFILE: Record<LevelKey, { maxRows: number; trials: number; lines: number; kid: boolean; degrees: string[] }> = {
+  '6e': { maxRows: 3, trials: 3, lines: 0.5, kid: true, degrees: ['Pas encore', 'Presque', 'Oui !'] },
+  '5e': { maxRows: 4, trials: 4, lines: 0.75, kid: true, degrees: ['À revoir', 'En progrès', 'Réussi'] },
+  '4e': { maxRows: 5, trials: 5, lines: 1, kid: false, degrees: ['Insuffisant', 'Fragile', 'Satisfaisant', 'Très satisfaisant'] },
+  '3e': { maxRows: 7, trials: 6, lines: 1, kid: false, degrees: ['Objectif non atteint', 'Partiellement atteint', 'Atteint', 'Dépassé'] },
+  '2nde': { maxRows: 8, trials: 6, lines: 1, kid: false, degrees: ['Niveau 1 : non atteint', 'Niveau 2 : en cours', 'Niveau 3 : atteint', 'Niveau 4 : maîtrisé'] },
+  '1re': { maxRows: 8, trials: 6, lines: 1, kid: false, degrees: ['Niveau 1 : non atteint', 'Niveau 2 : en cours', 'Niveau 3 : atteint', 'Niveau 4 : maîtrisé'] },
+  Tle: { maxRows: 8, trials: 6, lines: 1, kid: false, degrees: ['Niveau 1 : non atteint', 'Niveau 2 : en cours', 'Niveau 3 : atteint', 'Niveau 4 : maîtrisé'] },
+};
+
+/** Fiches dont les listes de critères sont raccourcies pour les plus jeunes. */
+const TRIM_ROWS = new Set(['observation-binome', 'observation-basket', 'observation-baseball', 'observation-tt', 'observation-badminton', 'validation-technique', 'contrat-individuel', 'carte-projet-renfo']);
+
+type Champ = 'CA1' | 'CA2' | 'CA3' | 'CA4' | 'CA5';
+
+const CHAMP_OF_GROUP: Record<string, Champ> = {
+  'Basket-ball': 'CA4', Baseball: 'CA4', 'Tennis de table': 'CA4', Badminton: 'CA4',
+  Gymnastique: 'CA3', Acrosport: 'CA3', Danse: 'CA3', Step: 'CA3',
+  Escalade: 'CA2',
+  'Demi-fond': 'CA1', Natation: 'CA1', Biathlon: 'CA1', 'Combiné athlétique': 'CA1',
+  Crossfit: 'CA5', 'Renforcement musculaire': 'CA5', Yoga: 'CA5',
+};
+
+const CHAMP_NAME: Record<'college' | 'lycee', Record<Champ, string>> = {
+  college: {
+    CA1: 'Produire une performance optimale',
+    CA2: 'Adapter ses déplacements à des environnements variés',
+    CA3: 'S\'exprimer devant les autres par une prestation artistique ou acrobatique',
+    CA4: 'Conduire et maîtriser un affrontement collectif ou interindividuel',
+    CA5: 'Produire une performance optimale (se préparer, s\'entretenir)',
+  },
+  lycee: {
+    CA1: 'Réaliser une performance mesurée à une échéance donnée',
+    CA2: 'Adapter ses déplacements à des environnements variés',
+    CA3: 'S\'exprimer devant les autres par une prestation artistique ou acrobatique',
+    CA4: 'Conduire et maîtriser un affrontement individuel ou collectif',
+    CA5: 'Réaliser une activité physique pour développer ses ressources et s\'entretenir',
+  },
+};
+
+/** Attendu travaillé, à ce niveau, dans ce champ d'apprentissage (AFC au collège, AFL au lycée). */
+const ATTENDU: Record<LevelKey, Record<Champ, string>> = {
+  '6e': {
+    CA1: 'Réaliser une performance mesurée (distance ou durée) en choisissant un objectif réaliste et en le tenant.',
+    CA2: 'Se déplacer en sécurité dans un milieu inhabituel, en respectant les règles et le matériel.',
+    CA3: 'Présenter un enchaînement devant les autres en tenant bien son rôle (acteur, spectateur, juge).',
+    CA4: 'Jouer en respectant les règles, coopérer avec ses partenaires et s\'opposer sans contact violent.',
+    CA5: 'Se préparer à l\'effort, bien placer son corps et respirer pour s\'entretenir en sécurité.',
+  },
+  '5e': {
+    CA1: 'Gérer son effort pour tenir un objectif ; commencer à comparer son projet et sa réalisation.',
+    CA2: 'S\'engager en sécurité dans un milieu incertain en vérifiant son matériel et celui de son partenaire.',
+    CA3: 'Composer une courte prestation à plusieurs ; repérer ce qui rend une prestation lisible pour le public.',
+    CA4: 'Faire des choix simples (passer, tirer, se placer), tenir un rôle d\'arbitre ou d\'observateur.',
+    CA5: 'Choisir des exercices adaptés à soi et les réaliser avec une posture correcte.',
+  },
+  '4e': {
+    CA1: 'Construire et tenir un projet de performance ; analyser ses résultats pour progresser.',
+    CA2: 'S\'engager en sécurité en lisant l\'environnement, en prenant des risques maîtrisés.',
+    CA3: 'Composer et présenter une prestation en choisissant des procédés ; juger celle des autres sur des critères.',
+    CA4: 'Lire le rapport de force et adapter ses choix ; assumer des rôles (arbitre, observateur, coach).',
+    CA5: 'Choisir un mobile de pratique et construire une séance cohérente avec ce mobile.',
+  },
+  '3e': {
+    CA1: 'AFC cycle 4 : planifier et réguler son effort pour réaliser une performance, analyser ses résultats et les mettre en relation avec ses ressources.',
+    CA2: 'AFC cycle 4 : choisir un itinéraire ou une voie adaptée à ses ressources et s\'engager en sécurité, en assumant les rôles de partenaire.',
+    CA3: 'AFC cycle 4 : composer et présenter seul ou à plusieurs une prestation en justifiant ses choix ; apprécier celle des autres.',
+    CA4: 'AFC cycle 4 : choisir et mettre en œuvre une stratégie adaptée à l\'adversaire ; arbitrer, observer, coacher.',
+    CA5: 'AFC cycle 4 : construire un projet d\'entretien de soi en justifiant ses choix d\'exercices, de charges et de récupération.',
+  },
+  '2nde': {
+    CA1: 'AFL 1-2-3 : se préparer et s\'engager pour produire une performance, planifier et réguler son projet, analyser ses résultats.',
+    CA2: 'AFL 1-2-3 : s\'engager en sécurité dans un milieu incertain, choisir et planifier son parcours, analyser ses prises de risque.',
+    CA3: 'AFL 1-2-3 : composer et réaliser une prestation, la réguler après avis, apprécier celle des autres.',
+    CA4: 'AFL 1-2-3 : réaliser des actions efficaces, choisir et ajuster une stratégie, arbitrer et coacher.',
+    CA5: 'AFL 1-2-3 : réaliser une pratique d\'entretien de soi, choisir et planifier un projet, analyser les effets de la pratique.',
+  },
+  '1re': {
+    CA1: 'AFL : optimiser sa performance en affinant son projet d\'entraînement et en s\'appuyant sur des indicateurs précis.',
+    CA2: 'AFL : maîtriser l\'engagement dans un milieu incertain en gérant les risques et les rôles de cordée.',
+    CA3: 'AFL : composer une prestation originale, la réguler grâce aux retours et juger selon des critères explicites.',
+    CA4: 'AFL : réaliser des choix tactiques construits, les réguler en cours de jeu, assumer un coaching argumenté.',
+    CA5: 'AFL : conduire un projet d\'entretien personnel en reliant les effets observés aux principes d\'entraînement.',
+  },
+  Tle: {
+    CA1: 'AFL : conduire de façon autonome un projet de performance et le justifier par l\'analyse de ses résultats.',
+    CA2: 'AFL : s\'engager de façon autonome et responsable, en choisissant un projet adapté à ses ressources.',
+    CA3: 'AFL : concevoir, réaliser et apprécier une prestation en assumant ses choix artistiques ou acrobatiques.',
+    CA4: 'AFL : maîtriser l\'affrontement en adaptant sa stratégie à l\'adversaire et en jouant les rôles de coach et d\'arbitre.',
+    CA5: 'AFL : construire et conduire en autonomie un projet d\'entretien de soi, évaluer ses effets et le transférer hors de l\'école.',
+  },
+};
+
+const SOCLE: Record<LevelKey, string> = {
+  '6e': 'Socle commun : D2 « apprendre seul ou avec les autres » · D3 « respecter les règles et assumer des rôles ».',
+  '5e': 'Socle commun : D2 « s\'organiser, coopérer » · D3 « respecter les autres, être solidaire ».',
+  '4e': 'Socle commun : D2 « mener un projet, analyser ses résultats » · D3 « assumer des responsabilités ».',
+  '3e': 'Socle commun (validation fin de cycle 4) : D2 « mener une démarche réflexive » · D3 « exercer son jugement, s\'engager ».',
+  '2nde': 'Compétences travaillées : s\'engager, planifier, réguler, analyser · AFL 1, 2 et 3.',
+  '1re': 'Compétences travaillées : s\'engager, planifier, réguler, analyser, coopérer · AFL 1, 2 et 3.',
+  Tle: 'Compétences travaillées : autonomie, projet personnel, analyse, transfert · AFL 1, 2 et 3.',
+};
+
+/** Phrase « attendu » + socle à reproduire en tête de fiche. */
+export function attendu(def: FicheDef, level: LevelKey): string {
+  const champ = CHAMP_OF_GROUP[def.group];
+  const lycee = level === '2nde' || level === '1re' || level === 'Tle';
+  const head = champ ? `${champ === 'CA5' && lycee ? 'CP5' : champ === 'CA5' ? 'Champ 1' : lycee ? `CP${champ.slice(2)}` : `Champ ${champ.slice(2)}`} — ${CHAMP_NAME[lycee ? 'lycee' : 'college'][champ]}. ${ATTENDU[level][champ]}` : '';
+  return [head, SOCLE[level]].filter(Boolean).join(' ');
+}
+
+const KID_EXTRAS_TEXT = 'Mon ressenti (j\'entoure) : 😕   🙂   😀';
+
+/** Construit les sections d'une fiche, adaptées au niveau de la classe. */
+export function buildFiche(def: FicheDef, ctx: FicheCtx): FicheSection[] {
+  const base = def.build(ctx);
+  const level = ctx.level;
+  if (!level) return base;
+  const p = PROFILE[level];
+  const teacher = def.who === 'enseignant';
+  const out: FicheSection[] = [];
+
+  out.push({ type: 'text', text: `Niveau ${LEVEL_LABELS[level]}. ${attendu(def, level)}` });
+
+  for (const s of base) {
+    if (s.type === 'table') {
+      let rows = s.rows;
+      if (Array.isArray(rows) && TRIM_ROWS.has(def.id) && rows.length > p.maxRows) rows = rows.slice(0, p.maxRows);
+      const cols = TRIM_ROWS.has(def.id) || def.id.startsWith('score') ? s.cols.filter((c) => {
+        const m = /^(Essai|Match|Série|Set|Manche) (\d+)$/.exec(c);
+        return !m || Number(m[2]) <= p.trials;
+      }) : s.cols;
+      const kidCols = cols.map((c) => (p.kid && c === 'Écart / validé ?' ? 'Réussi ? (😕 🙂 😀)' : c));
+      out.push({ ...s, rows, cols: kidCols });
+    } else if (s.type === 'levels') {
+      if (teacher) out.push(level === '2nde' || level === '1re' || level === 'Tle' ? { ...s, levels: p.degrees } : s);
+      else out.push({ ...s, levels: p.degrees });
+    } else if (s.type === 'lines') {
+      out.push({ ...s, n: Math.max(1, Math.round((s.n ?? 2) * p.lines)) });
+    } else out.push(s);
+  }
+
+  if (teacher) return out;
+
+  // Compléments propres au niveau : plus on avance, plus on analyse, on justifie et on régule.
+  const half = def.size === 'half';
+  if (level === '6e') out.push({ type: 'text', text: KID_EXTRAS_TEXT });
+  else if (level === '5e') {
+    out.push({ type: 'text', text: KID_EXTRAS_TEXT });
+    if (!half) out.push({ type: 'lines', title: 'Un conseil que j\'ai reçu ou donné', n: 1 });
+  } else if (half) {
+    out.push({ type: 'lines', title: level === '4e' ? 'Ce que je constate / ce que je change' : 'Ce que je constate (chiffre) → ce que je change et pourquoi', n: 1 });
+  } else if (level === '4e') {
+    out.push({ type: 'lines', title: 'Ce que je constate', n: 1 }, { type: 'lines', title: 'Ce que je change à la prochaine séance', n: 1 });
+  } else if (level === '3e') {
+    out.push({ type: 'lines', title: 'Ce que je constate (avec un chiffre ou un exemple)', n: 1 }, { type: 'lines', title: 'Ce que je change et pourquoi', n: 2 }, { type: 'fields', fields: ['Attendu de fin de cycle que ce travail me permet de valider'] });
+  } else {
+    out.push({ type: 'table', head: 'Régulation', cols: ['Mon résultat', 'Ce que j\'en déduis', 'Ce que je modifie'], rows: ['Indicateur 1', 'Indicateur 2'], tall: true });
+    if (level === '1re') out.push({ type: 'lines', title: 'Principe d\'action ou d\'entraînement utilisé, et pourquoi', n: 1 });
+    if (level === 'Tle') out.push({ type: 'lines', title: 'Transfert : comment réutiliser ce projet en dehors du cours (autonomie)', n: 1 });
+  }
+  return out;
+}
 
 export const FICHE_BY_ID = new Map(FICHES.map((f) => [f.id, f]));
 export const FICHE_GROUPS = [...new Set(FICHES.map((f) => f.group))];
