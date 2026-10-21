@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FICHES, FICHE_BY_ID, LEVEL_KEYS, attendu, buildFiche, fichesOfActivity, levelKeyOf } from './fiches';
+import { FICHES, FICHE_BY_ID, LEVEL_KEYS, buildFiche, fichesOfActivity, levelKeyOf } from './fiches';
 
 describe('fiches imprimables', () => {
   it('chaque fiche a un identifiant unique et se construit avec ou sans critères', () => {
@@ -28,17 +28,14 @@ describe('fiches imprimables', () => {
     expect(['6e', '5e', '4e', '3e', '2nde', '1re', 'Terminale', 'UNSS'].map(levelKeyOf)).toEqual(['6e', '5e', '4e', '3e', '2nde', '1re', 'Tle', undefined]);
   });
 
-  it('toutes les fiches se construisent à tous les niveaux et affichent les attendus', () => {
+  it('toutes les fiches se construisent à tous les niveaux, sans mention des attendus', () => {
     for (const f of FICHES) {
       for (const level of LEVEL_KEYS) {
-        const s = buildFiche(f, { criteria: [], level });
-        expect(s[0]).toMatchObject({ type: 'text' });
+        const text = JSON.stringify(buildFiche(f, { criteria: [], level }));
+        expect(text.length).toBeGreaterThan(20);
+        expect(text).not.toMatch(/AFC|AFL|attendu/i);
       }
     }
-    const basket = FICHE_BY_ID.get('observation-basket')!;
-    expect(attendu(basket, '3e')).toMatch(/AFC cycle 4/);
-    expect(attendu(basket, '2nde')).toMatch(/CP4/);
-    expect(attendu(basket, '2nde')).toMatch(/AFL/);
   });
 
   it('plus on monte en niveau, plus la fiche est fournie et exigeante', () => {

@@ -219,7 +219,7 @@ export function FichesHubPage() {
         }
       />
       <p className="muted">
-        Choisissez le niveau de la classe, puis une fiche : le vocabulaire, le nombre de critères et d'essais et les attendus (socle commun, attendus de fin de cycle, attendus de fin de lycée) s'adaptent. Réglez ensuite le nombre d'exemplaires et imprimez. Les critères viennent de la fiche « Évaluation » du cycle quand vous ouvrez les fiches depuis un cycle.
+        Choisissez le niveau de la classe, puis une fiche : le vocabulaire, le nombre de critères et d'essais et le niveau d'analyse demandé s'adaptent (très guidé en 6e et 5e, de plus en plus autonome ensuite). Réglez ensuite le nombre d'exemplaires et imprimez. Les critères viennent de la fiche « Évaluation » du cycle quand vous ouvrez les fiches depuis un cycle.
       </p>
       <label className="row" style={{ gap: 8, marginBottom: 12 }}>
         <strong>Niveau de la classe</strong>
