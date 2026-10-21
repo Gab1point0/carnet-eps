@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Copy, ListPlus, Trash2 } from 'lucide-react';
 import type { BlockKind, ID } from '../types';
+import { MarkdownField } from '../components/MarkdownField';
 import { Button, Card, Field, Menu, Modal, NumberInput, PageHeader, Select, TagInput, TextArea, TextInput } from '../components/ui';
 import { ActivitySelect } from '../components/forms';
 import { AnimationField } from '../components/AnimationField';
@@ -100,7 +101,7 @@ export function ExerciseEditorPage() {
       </Card>
 
       <Field label="Consignes, organisation, critères de réussite, variables">
-        <TextArea
+        <MarkdownField
           value={ex.text}
           minRows={8}
           onChange={(v) => patch({ text: v })}

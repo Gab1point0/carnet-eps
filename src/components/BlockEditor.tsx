@@ -4,6 +4,7 @@ import type { Block, BlockKind, CourtId, ID } from '../types';
 import { IconButton, Menu, NumberInput, Select, TextArea, TextInput } from './ui';
 import { AnimationField } from './AnimationField';
 import { Markdown } from './Markdown';
+import { MarkdownField } from './MarkdownField';
 import { SheetLinks } from '../pages/Fiche';
 import { FICHES } from '../lib/fiches';
 import { BLOCK_KINDS, BLOCK_KIND_ORDER } from '../lib/defaults';
@@ -88,13 +89,13 @@ export function BlockEditor({
 
       {open && (
         <div className="block-body">
-          <TextArea
+          <MarkdownField
             value={block.text}
             minRows={8}
             placeholder={'Organisation, consignes, critères de réussite, variables…\n- une ligne par idée\n**gras** pour insister'}
             onChange={(v) => onChange({ text: v })}
           />
-          <TextArea
+          <MarkdownField
             value={block.materials}
             minRows={2}
             placeholder={'🧰 Matériel pour ce bloc, une ligne par objet\n- 12 plots (couloirs de passe)\n- 6 ballons (1 par groupe)'}
