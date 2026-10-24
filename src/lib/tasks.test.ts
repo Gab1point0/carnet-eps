@@ -74,6 +74,20 @@ describe('tâches avant la prochaine séance', () => {
     expect(tasks.some((t) => t.id === 'auto:facility')).toBe(true);
   });
 
+  it('liste les fiches à imprimer des blocs, avec le nombre d\'exemplaires', () => {
+    const { data, mk } = setup();
+    data.classes.k.students = 30;
+    const l = mk('c1', 0, '2026-11-25');
+    l.blocks[1].sheets = ['marque-basket', 'observation-basket'];
+    l.blocks[2].sheets = ['observation-basket'];
+    const tasks = tasksFor(data, l, '2026-11-24').filter((t) => t.id.startsWith('auto:sheet:'));
+    expect(tasks.map((t) => t.id).sort()).toEqual(['auto:sheet:marque-basket', 'auto:sheet:observation-basket']);
+    const obs = tasks.find((t) => t.id.endsWith('observation-basket'))!;
+    expect(obs.text).toMatch(/15 ×/);
+    expect(obs.to).toMatch(/^\/fiches\/observation-basket\?cycle=c1&copies=15$/);
+    expect(tasks.find((t) => t.id.endsWith('marque-basket'))!.text).toMatch(/8 ×/);
+  });
+
   it('ne regroupe que les 2 prochaines séances de chaque classe', () => {
     const { data, mk } = setup();
     ['2026-11-23', '2026-11-30', '2026-12-07'].forEach((d, i) => mk('c1', i, d, { blocks: [] }));

@@ -3,6 +3,7 @@ import { cycleLessons, sortCycles } from '../store/selectors';
 import { pendingProposals } from '../components/ProposalsPanel';
 import { prepState } from '../pages/Preparation';
 import { EVAL_KINDS } from './levels';
+import { FICHE_BY_ID } from './fiches';
 import { diffDays, formatShort } from './dates';
 import { risksFor, type Hour } from './weather';
 
@@ -111,13 +112,43 @@ export function tasksFor(data: AppData, l: Lesson, today: ISODate, weather: Weat
     }
   }
 
+  // Fiches à imprimer pour cette séance (d'après les blocs), avec le nombre d'exemplaires pour la classe.
+  const n = l.classId ? data.classes[l.classId]?.students ?? null : null;
+  const seen = new Set<string>();
+  l.blocks.forEach((b, i) => {
+    for (const sid of b.sheets ?? []) {
+      const def = FICHE_BY_ID.get(sid);
+      if (!def || seen.has(sid)) continue;
+      seen.add(sid);
+      const copies = ficheCopies(sid, def.who, n);
+      const q = new URLSearchParams({ ...(cycle ? { cycle: cycle.id } : {}), ...(copies ? { copies: String(copies) } : {}) }).toString();
+      auto(`sheet:${sid}`, `Imprimer ${copies ? `${copies} × ` : ''}« ${def.title} »`, {
+        detail: `Bloc ${i + 1} : ${b.title}${def.size === 'half' ? ' · 2 fiches par page A4' : ''}`,
+        to: `/fiches/${sid}${q ? `?${q}` : ''}`,
+      });
+    }
+  });
+
   // Tâches ajoutées à la main.
   for (const t of l.todos) out.push({ id: t.id, lessonId: l.id, text: t.text, manual: true, done: t.done, to: `/lessons/${l.id}` });
   return out;
 }
 
+/** Nombre d'exemplaires à imprimer : un par élève, un par observateur (la moitié de la classe), un par groupe… */
+function ficheCopies(id: string, who: string, n: number | null): number | null {
+  if (!n) return null;
+  if (id === 'releve-niveau') return 1;
+  if (id === 'grille-evaluation' || who === 'élève') return n;
+  if (who === 'observateur') return Math.ceil(n / 2);
+  if (who === 'groupe') return Math.max(1, Math.round(n / 4));
+  return 1;
+}
+
+/** Fenêtre des tâches : les séances des 10 prochains jours (3 par classe au plus). */
+export const TASK_WINDOW_DAYS = 10;
+
 /**
- * Tâches à faire avant les prochaines séances : les 2 prochaines de chaque classe (dans les 14 jours).
+ * Tâches à faire avant les prochaines séances (10 prochains jours), fiches à imprimer comprises.
  * `lessons` : séances de l'année, déjà triées par date.
  */
 export function taskGroups(data: AppData, lessons: Lesson[], today: ISODate, weather?: WeatherEnv): TaskGroup[] {
@@ -125,9 +156,9 @@ export function taskGroups(data: AppData, lessons: Lesson[], today: ISODate, wea
   const groups: TaskGroup[] = [];
   for (const l of lessons) {
     if (!l.classId || !l.date || l.date < today || l.status !== 'planned') continue;
-    if (diffDays(today, l.date) > 14) continue;
+    if (diffDays(today, l.date) > TASK_WINDOW_DAYS) continue;
     const n = perClass.get(l.classId) ?? 0;
-    if (n >= 2) continue;
+    if (n >= 3) continue;
     perClass.set(l.classId, n + 1);
     const tasks = tasksFor(data, l, today, weather);
     if (tasks.length) groups.push({ lesson: l, klass: data.classes[l.classId], tasks });
