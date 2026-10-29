@@ -308,6 +308,43 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
 
 // ── Bibliothèque ────────────────────────────────────────────────────────────
 
+/**
+ * Vide des séances sans les supprimer : la date, la classe, le cycle et la place dans le cycle sont conservés ;
+ * titre, objectif, matériel, sécurité, blocs, bilan et évaluations sont effacés. Renvoie l'annulation.
+ */
+export function clearLessons(lessonIds: ID[]): () => void {
+  const before = lessonIds.map((id) => st().data.lessons[id]).filter((l): l is Lesson => !!l);
+  const cleared = {
+    objective: '',
+    materials: '',
+    safety: '',
+    blocks: [] as Block[],
+    bilan: '',
+    rating: null,
+    adjust: false,
+    evalKind: null,
+    levels: null,
+    proposalsDone: [] as string[],
+    todos: [],
+    tasksDone: [] as string[],
+    tags: [] as string[],
+    status: 'planned' as const,
+  };
+  st().transact((tx) => {
+    for (const l of before) tx.patch('lessons', l.id, { ...cleared, title: `Séance ${l.order + 1}` });
+  });
+  return () =>
+    st().transact((tx) => {
+      for (const l of before) {
+        tx.patch('lessons', l.id, {
+          title: l.title, objective: l.objective, materials: l.materials, safety: l.safety, blocks: l.blocks, bilan: l.bilan,
+          rating: l.rating, adjust: l.adjust, evalKind: l.evalKind, levels: l.levels, proposalsDone: l.proposalsDone,
+          todos: l.todos, tasksDone: l.tasksDone, tags: l.tags, status: l.status,
+        });
+      }
+    });
+}
+
 /** « 6e » → ['6e'] ; vide ou inconnu → []. */
 function levelsOf(level: string | undefined | null): string[] {
   return level && level !== 'UNSS' ? [level] : [];

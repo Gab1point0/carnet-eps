@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useData } from './data';
-import { cancelAndShift, closeDays, extractSituations, postponeLesson, previewClosure, saveLessonAsTemplate } from './actions';
+import { cancelAndShift, clearLessons, closeDays, extractSituations, postponeLesson, previewClosure, saveLessonAsTemplate } from './actions';
 import { emptyData, newBlock, newCycle, newKlass, newLesson, newSlot, newYear } from './model';
 import { cycleLessons } from './selectors';
 import { criteriaOf, lessonMaterialTexts, mergeMaterials, splitMaterials } from '../lib/materials';
@@ -65,6 +65,19 @@ describe('imprévus', () => {
     r.undo();
     expect(dates().map((d) => d[1])).toEqual(MONDAYS);
     expect(useData.getState().data.years.y.holidays.some((h) => h.label === 'Sortie')).toBe(false);
+  });
+});
+
+describe('vider des séances', () => {
+  beforeEach(setup);
+  it('efface le contenu mais garde la séance, sa date et sa place ; annulable', () => {
+    useData.getState().patch('lessons', 'l1', { title: 'Passe et va', objective: 'Objectif', blocks: [newBlock('situation', 'A', 20)], status: 'done', rating: 3 });
+    const undo = clearLessons(['l1']);
+    const l = useData.getState().data.lessons.l1;
+    expect(l).toMatchObject({ title: 'Séance 2', objective: '', blocks: [], status: 'planned', rating: null, date: '2026-11-09', order: 1, cycleId: 'c' });
+    undo();
+    expect(useData.getState().data.lessons.l1).toMatchObject({ title: 'Passe et va', status: 'done', rating: 3 });
+    expect(useData.getState().data.lessons.l1.blocks).toHaveLength(1);
   });
 });
 

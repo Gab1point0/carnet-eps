@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { BookmarkPlus, CheckSquare, ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { BookmarkPlus, CheckSquare, ChevronLeft, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button, Card, Chip, EmptyState, Menu, PageHeader, Section, TextArea } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ClassFormModal } from '../components/ClassForm';
 import { NewCycleModal } from '../components/CycleModals';
 import { useData } from '../store/data';
 import { classCycles, cycleLessons } from '../store/selectors';
-import { saveLessonAsTemplate } from '../store/actions';
+import { clearLessons, saveLessonAsTemplate } from '../store/actions';
 import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { slotsSummary } from './Classes';
 import { plural } from '../lib/util';
@@ -46,6 +46,19 @@ export function ClassDetailPage() {
     for (const i of ids) saveLessonAsTemplate(i);
     toast(` copiée dans la bibliothèque (onglet Séances)`, { tone: 'success' });
     stopSelecting();
+  };
+  const clearSelected = async () => {
+    const ids = [...selected];
+    const ok = await confirmDialog({
+      title: `Vider ${plural(ids.length, 'séance')} ?`,
+      message: 'Le contenu (titre, objectif, blocs, matériel, bilan) est effacé ; les séances, leurs dates et leur place dans le cycle sont conservées. Vous pourrez annuler juste après.',
+      confirmLabel: 'Vider',
+      danger: true,
+    });
+    if (!ok) return;
+    const undo = clearLessons(ids);
+    stopSelecting();
+    toastUndo(`${plural(ids.length, 'séance')} vidée${ids.length > 1 ? 's' : ''}`, undo);
   };
   const deleteSelected = async () => {
     const ids = [...selected];
@@ -96,7 +109,7 @@ export function ClassDetailPage() {
             <Menu
               items={[
                 {
-                  label: 'Sélectionner des séances (supprimer / copier dans la bibliothèque)',
+                  label: 'Sélectionner des séances (vider / supprimer / copier dans la bibliothèque)',
                   icon: <CheckSquare size={16} />,
                   hidden: allLessonIds.length === 0,
                   onClick: () => setSelecting(true),
@@ -134,6 +147,9 @@ export function ClassDetailPage() {
             </Button>
             <Button size="sm" icon={<BookmarkPlus size={15} />} onClick={copySelected} disabled={selected.size === 0}>
               Copier dans la bibliothèque
+            </Button>
+            <Button size="sm" icon={<Eraser size={15} />} onClick={clearSelected} disabled={selected.size === 0}>
+              Vider
             </Button>
             <Button size="sm" variant="danger" icon={<Trash2 size={15} />} onClick={deleteSelected} disabled={selected.size === 0}>
               Supprimer
