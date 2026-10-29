@@ -389,3 +389,8 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .md-field { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
 .md-field .md { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
 .md-field textarea { width: 100%; }
+
+.select-bar { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; border-left: 4px solid var(--primary); }
+.select-row { display: flex; align-items: center; gap: 10px; padding-left: 6px; }
+.select-row input[type=checkbox], .select-cycle input { width: 20px; height: 20px; flex: none; }
+.select-cycle { padding: 6px 12px 0; }

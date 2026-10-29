@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Pencil, Plus, Trash2 } from 'lucide-react';
+import { BookmarkPlus, CheckSquare, ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { Button, Card, Chip, EmptyState, Menu, PageHeader, Section, TextArea } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ClassFormModal } from '../components/ClassForm';
 import { NewCycleModal } from '../components/CycleModals';
 import { useData } from '../store/data';
 import { classCycles, cycleLessons } from '../store/selectors';
-import { confirmDialog, toastUndo } from '../store/ui';
+import { saveLessonAsTemplate } from '../store/actions';
+import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { slotsSummary } from './Classes';
 import { plural } from '../lib/util';
 
@@ -18,11 +19,47 @@ export function ClassDetailPage() {
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [newCycle, setNewCycle] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   if (!klass) return <Navigate to="/classes" replace />;
 
   const cycles = classCycles(data, klass.id);
   const patch = (p: Partial<typeof klass>) => useData.getState().patch('classes', klass.id, p);
+
+  const allLessonIds = cycles.flatMap((c) => cycleLessons(data, c.id).map((l) => l.id));
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  const toggle = (ids: string[], on: boolean) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      for (const i of ids) {
+        if (on) next.add(i);
+        else next.delete(i);
+      }
+      return next;
+    });
+  const copySelected = () => {
+    const ids = [...selected];
+    for (const i of ids) saveLessonAsTemplate(i);
+    toast(` copiée dans la bibliothèque (onglet Séances)`, { tone: 'success' });
+    stopSelecting();
+  };
+  const deleteSelected = async () => {
+    const ids = [...selected];
+    const ok = await confirmDialog({
+      title: `Supprimer  ?`,
+      message: 'Les séances sélectionnées seront supprimées de cette classe. Vous pourrez annuler juste après.',
+      confirmLabel: 'Supprimer',
+      danger: true,
+    });
+    if (!ok) return;
+    const undos = ids.map((i) => useData.getState().remove('lessons', i));
+    stopSelecting();
+    toastUndo(` supprimée`, () => undos.forEach((u) => u()));
+  };
 
   return (
     <>
@@ -59,6 +96,12 @@ export function ClassDetailPage() {
             <Menu
               items={[
                 {
+                  label: 'Sélectionner des séances (supprimer / copier dans la bibliothèque)',
+                  icon: <CheckSquare size={16} />,
+                  hidden: allLessonIds.length === 0,
+                  onClick: () => setSelecting(true),
+                },
+                {
                   label: 'Supprimer la classe',
                   icon: <Trash2 size={16} />,
                   danger: true,
@@ -82,6 +125,26 @@ export function ClassDetailPage() {
         }
       />
 
+      {selecting && (
+        <Card className="select-bar">
+          <strong>{plural(selected.size, 'séance')} sélectionnée{selected.size > 1 ? 's' : ''}</strong>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <Button size="sm" onClick={() => toggle(allLessonIds, selected.size < allLessonIds.length)}>
+              {selected.size < allLessonIds.length ? 'Tout sélectionner' : 'Tout désélectionner'}
+            </Button>
+            <Button size="sm" icon={<BookmarkPlus size={15} />} onClick={copySelected} disabled={selected.size === 0}>
+              Copier dans la bibliothèque
+            </Button>
+            <Button size="sm" variant="danger" icon={<Trash2 size={15} />} onClick={deleteSelected} disabled={selected.size === 0}>
+              Supprimer
+            </Button>
+            <Button size="sm" variant="ghost" icon={<X size={15} />} onClick={stopSelecting}>
+              Terminer
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <Section
         title="Programmation de l'année"
         actions={
@@ -101,6 +164,12 @@ export function ClassDetailPage() {
               const prepared = lessons.filter((l) => l.blocks.length > 0).length;
               return (
                 <Card key={c.id} className="cycle-card">
+                  {selecting && lessons.length > 0 && (
+                    <label className="check select-cycle">
+                      <input type="checkbox" checked={lessons.every((l) => selected.has(l.id))} onChange={(e) => toggle(lessons.map((l) => l.id), e.target.checked)} />
+                      Tout le cycle
+                    </label>
+                  )}
                   <Link to={`/cycles/${c.id}`} className="cycle-card-head">
                     <div className="grow">
                       <h3>{c.title || 'Cycle sans titre'}</h3>
@@ -112,9 +181,18 @@ export function ClassDetailPage() {
                   </Link>
                   {lessons.length > 0 && (
                     <div className="lesson-list">
-                      {lessons.map((l) => (
-                        <LessonRow key={l.id} lesson={l} />
-                      ))}
+                      {lessons.map((l) =>
+                        selecting ? (
+                          <div key={l.id} className="select-row">
+                            <input type="checkbox" aria-label={`Sélectionner `} checked={selected.has(l.id)} onChange={(e) => toggle([l.id], e.target.checked)} />
+                            <div className="grow">
+                              <LessonRow lesson={l} />
+                            </div>
+                          </div>
+                        ) : (
+                          <LessonRow key={l.id} lesson={l} />
+                        ),
+                      )}
                     </div>
                   )}
                 </Card>
