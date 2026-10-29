@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useData } from './data';
-import { cancelAndShift, closeDays, postponeLesson, previewClosure } from './actions';
-import { emptyData, newCycle, newKlass, newLesson, newSlot, newYear } from './model';
+import { cancelAndShift, closeDays, extractSituations, postponeLesson, previewClosure } from './actions';
+import { emptyData, newBlock, newCycle, newKlass, newLesson, newSlot, newYear } from './model';
 import { cycleLessons } from './selectors';
 import { criteriaOf, lessonMaterialTexts, mergeMaterials, splitMaterials } from '../lib/materials';
 
@@ -65,6 +65,26 @@ describe('imprévus', () => {
     r.undo();
     expect(dates().map((d) => d[1])).toEqual(MONDAYS);
     expect(useData.getState().data.years.y.holidays.some((h) => h.label === 'Sortie')).toBe(false);
+  });
+});
+
+describe('extraction des situations', () => {
+  it('ajoute les situations des séances modèles, sans échauffement ni doublon', () => {
+    const data = emptyData();
+    const l = newLesson(null, null, 0, 'Modèle');
+    l.id = 'tpl';
+    l.activityId = 'basket';
+    l.blocks = [newBlock('warmup', 'Échauffement', 10), newBlock('situation', 'Passe et va', 20), newBlock('cooldown', 'Retour', 5)];
+    l.blocks[1].text = '2 contre 1';
+    l.blocks[1].sheets = ['marque-basket'];
+    data.lessons.tpl = l;
+    useData.getState().applyData(data);
+    expect(extractSituations(['tpl'])).toEqual({ created: 1, skipped: 0 });
+    const ex = Object.values(useData.getState().data.exercises);
+    expect(ex).toHaveLength(1);
+    expect(ex[0]).toMatchObject({ title: 'Passe et va', activityId: 'basket', sheets: ['marque-basket'] });
+    expect(extractSituations(['tpl'])).toEqual({ created: 0, skipped: 1 });
+    expect(extractSituations(['tpl'], { withWarmups: true }).created).toBe(2);
   });
 });
 

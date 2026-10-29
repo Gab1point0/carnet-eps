@@ -118,6 +118,7 @@ export function newExercise(title = ''): Exercise {
     text: '',
     materials: '',
     animation: null,
+    sheets: [],
   };
 }
 
@@ -191,6 +192,7 @@ export function normalizeData(raw: unknown): AppData {
   });
   out.exercises = fill<Exercise>(r.exercises, () => newExercise(), (e) => {
     e.tags = Array.isArray(e.tags) ? e.tags : [];
+    e.sheets = Array.isArray(e.sheets) ? e.sheets : [];
   });
 
   // Une pierre tombale n'a de sens que si elle est plus récente que l'entité.

@@ -166,6 +166,8 @@ export interface Exercise extends Meta {
   text: string;
   materials: string;
   animation: Animation | null;
+  /** Fiches imprimables associées (identifiants de src/lib/fiches.ts). */
+  sheets: string[];
 }
 
 // ── Animations de situations ───────────────────────────────────────────────

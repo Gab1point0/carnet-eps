@@ -311,9 +311,50 @@ export function saveBlockAsExercise(block: Block, activityId: ID | null): ID {
     text: block.text,
     materials: block.materials,
     animation: block.animation ? deepClone(block.animation) : null,
+    sheets: [...(block.sheets ?? [])],
   };
   st().put('exercises', ex);
   return ex.id;
+}
+
+/**
+ * Extrait les situations (blocs) des séances données et les ajoute à la bibliothèque de situations.
+ * Les échauffements et retours au calme sont ignorés sauf demande ; une situation identique (même titre et même texte)
+ * déjà dans la bibliothèque n'est pas recréée.
+ */
+export function extractSituations(lessonIds: ID[], opts: { withWarmups?: boolean } = {}): { created: number; skipped: number } {
+  let created = 0;
+  let skipped = 0;
+  st().transact((tx) => {
+    const have = new Set(tx.all('exercises').map((e) => `${e.title}\u0000${e.text}`));
+    for (const id of lessonIds) {
+      const l = tx.get('lessons', id);
+      if (!l) continue;
+      const cycle = l.cycleId ? tx.get('cycles', l.cycleId) : undefined;
+      const activityId = l.activityId ?? cycle?.activityId ?? null;
+      for (const b of l.blocks) {
+        if (!opts.withWarmups && (b.kind === 'warmup' || b.kind === 'cooldown')) continue;
+        const key = `${b.title}\u0000${b.text}`;
+        if (have.has(key)) {
+          skipped++;
+          continue;
+        }
+        have.add(key);
+        tx.put('exercises', {
+          ...newExercise(b.title || 'Sans titre'),
+          activityId,
+          kind: b.kind,
+          minutes: b.minutes,
+          text: b.text,
+          materials: b.materials,
+          animation: b.animation ? deepClone(b.animation) : null,
+          sheets: [...(b.sheets ?? [])],
+        });
+        created++;
+      }
+    }
+  });
+  return { created, skipped };
 }
 
 export function blockFromExercise(ex: Exercise): Block {
@@ -322,6 +363,7 @@ export function blockFromExercise(ex: Exercise): Block {
     text: ex.text,
     materials: ex.materials,
     animation: ex.animation ? deepClone(ex.animation) : null,
+    sheets: [...(ex.sheets ?? [])],
   };
 }
 

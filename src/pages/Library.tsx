@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Film, Plus, Search } from 'lucide-react';
+import { FileOutput, Film, ListChecks, Plus, Search } from 'lucide-react';
+import { extractSituations } from '../store/actions';
+import { toast } from '../store/ui';
 import type { ID } from '../types';
 import { Button, Card, Chip, EmptyState, PageHeader, Select, Tabs, TextInput } from '../components/ui';
 import { ActivityChip, LessonRow } from '../components/cards';
@@ -21,6 +23,9 @@ export function LibraryPage() {
   const exercises = useExercises();
   const data = useData((s) => s.data);
   const navigate = useNavigate();
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [withWarmups, setWithWarmups] = useState(false);
 
   const nq = normalize(q);
   const match = (text: string, act: ID | null) => (!activity || act === activity) && (!nq || normalize(text).includes(nq));
@@ -63,6 +68,24 @@ export function LibraryPage() {
       c.activityId = activity || null;
       useData.getState().put('cycles', c);
       navigate(`/cycles/${c.id}`);
+    }
+  };
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  const extract = () => {
+    const { created, skipped } = extractSituations([...selected], { withWarmups });
+    toast(
+      created === 0
+        ? 'Aucune nouvelle situation : celles de ces séances sont déjà dans la bibliothèque.'
+        : `${plural(created, 'situation')} ajoutée${created > 1 ? 's' : ''} à la bibliothèque${skipped ? ` (${skipped} déjà présente${skipped > 1 ? 's' : ''}, ignorée${skipped > 1 ? 's' : ''})` : ''}.`,
+      { tone: created ? 'success' : undefined },
+    );
+    if (created) {
+      stopSelecting();
+      setTab('exercises');
     }
   };
 
@@ -141,11 +164,57 @@ export function LibraryPage() {
             Depuis une séance de classe, utilisez « Enregistrer comme séance modèle » pour la conserver ici.
           </EmptyState>
         ) : (
-          <Card style={{ padding: 6 }} className="lesson-list">
-            {templateLessons.map((l) => (
-              <LessonRow key={l.id} lesson={l} />
-            ))}
-          </Card>
+          <>
+            <div className="row-between" style={{ marginBottom: 8 }}>
+              <span className="muted small">Sélectionnez des séances pour en extraire les situations dans l'onglet « Situations ».</span>
+              <Button size="sm" icon={<ListChecks size={15} />} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>
+                {selecting ? 'Terminer la sélection' : 'Sélectionner des séances'}
+              </Button>
+            </div>
+            {selecting && (
+              <Card className="select-bar">
+                <strong>{plural(selected.size, 'séance')} sélectionnée{selected.size > 1 ? 's' : ''}</strong>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <Button size="sm" onClick={() => setSelected(selected.size < templateLessons.length ? new Set(templateLessons.map((l) => l.id)) : new Set())}>
+                    {selected.size < templateLessons.length ? 'Tout sélectionner' : 'Tout désélectionner'}
+                  </Button>
+                  <label className="check">
+                    <input type="checkbox" checked={withWarmups} onChange={(e) => setWithWarmups(e.target.checked)} />
+                    avec échauffements et retours au calme
+                  </label>
+                  <Button size="sm" variant="primary" icon={<FileOutput size={15} />} onClick={extract} disabled={selected.size === 0}>
+                    Extraire les situations
+                  </Button>
+                </div>
+              </Card>
+            )}
+            <Card style={{ padding: 6 }} className="lesson-list">
+              {templateLessons.map((l) =>
+                selecting ? (
+                  <div key={l.id} className="select-row">
+                    <input
+                      type="checkbox"
+                      aria-label={`Sélectionner ${l.title || 'la séance'}`}
+                      checked={selected.has(l.id)}
+                      onChange={(e) =>
+                        setSelected((cur) => {
+                          const next = new Set(cur);
+                          if (e.target.checked) next.add(l.id);
+                          else next.delete(l.id);
+                          return next;
+                        })
+                      }
+                    />
+                    <div className="grow">
+                      <LessonRow lesson={l} />
+                    </div>
+                  </div>
+                ) : (
+                  <LessonRow key={l.id} lesson={l} />
+                ),
+              )}
+            </Card>
+          </>
         ))}
 
       {tab === 'cycles' &&
