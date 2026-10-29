@@ -4,6 +4,7 @@ import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Li
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import { ProposalsPanel } from '../components/ProposalsPanel';
 import { MarkdownField } from '../components/MarkdownField';
+import { LevelsField } from '../components/LevelsField';
 import { EVAL_KINDS } from '../lib/levels';
 import type { Block, BlockKind, ID, Lesson } from '../types';
 import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea } from '../components/ui';
@@ -195,6 +196,11 @@ export function LessonPage() {
               options={(Object.keys(EVAL_KINDS) as Array<keyof typeof EVAL_KINDS>).map((k) => ({ value: k, label: `${EVAL_KINDS[k].emoji} ${EVAL_KINDS[k].label}` }))}
             />
           </Field>
+          {isTemplate && (
+            <Field label="Niveaux de classe">
+              <LevelsField value={lesson.classLevels ?? []} onChange={(classLevels) => patch({ classLevels })} />
+            </Field>
+          )}
           {(isTemplate || !cycle) && (
             <Field label="Activité">
               <ActivitySelect value={lesson.activityId} onChange={(a) => patch({ activityId: a })} />
@@ -256,7 +262,7 @@ export function LessonPage() {
                 setBlocks(next);
               }}
               onSaveToLibrary={() => {
-                saveBlockAsExercise(b, activityId);
+                saveBlockAsExercise(b, activityId, klass?.level ?? lesson.classLevels[0] ?? null);
                 toast('Situation enregistrée dans la bibliothèque', { tone: 'success' });
               }}
             />

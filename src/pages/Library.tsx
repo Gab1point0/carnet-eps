@@ -19,6 +19,7 @@ export function LibraryPage() {
   const [tab, setTab] = useState<Tab>('exercises');
   const [q, setQ] = useState('');
   const [activity, setActivity] = useState<ID | ''>('');
+  const [level, setLevel] = useState('');
   const settings = useSettings();
   const exercises = useExercises();
   const data = useData((s) => s.data);
@@ -28,28 +29,29 @@ export function LibraryPage() {
   const [withWarmups, setWithWarmups] = useState(false);
 
   const nq = normalize(q);
-  const match = (text: string, act: ID | null) => (!activity || act === activity) && (!nq || normalize(text).includes(nq));
+  const levelOk = (levels: string[] | undefined) => !level || (level === '__none' ? !(levels ?? []).length : (levels ?? []).includes(level));
+  const match = (text: string, act: ID | null, levels?: string[]) => (!activity || act === activity) && levelOk(levels) && (!nq || normalize(text).includes(nq));
 
   const filteredExercises = useMemo(
-    () => exercises.filter((e) => match(`${e.title} ${e.tags.join(' ')} ${e.text}`, e.activityId)),
+    () => exercises.filter((e) => match(`${e.title} ${e.tags.join(' ')} ${e.text}`, e.activityId, e.classLevels)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [exercises, nq, activity],
+    [exercises, nq, activity, level],
   );
   const templateLessons = useMemo(
     () =>
       Object.values(data.lessons)
-        .filter((l) => l.classId === null && match(`${l.title} ${l.objective} ${l.tags.join(' ')}`, l.activityId))
+        .filter((l) => l.classId === null && match(`${l.title} ${l.objective} ${l.tags.join(' ')}`, l.activityId, l.classLevels))
         .sort((a, b) => a.title.localeCompare(b.title, 'fr')),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.lessons, nq, activity],
+    [data.lessons, nq, activity, level],
   );
   const templateCycles = useMemo(
     () =>
       Object.values(data.cycles)
-        .filter((c) => c.classId === null && match(`${c.title} ${c.objectives}`, c.activityId))
+        .filter((c) => c.classId === null && match(`${c.title} ${c.objectives}`, c.activityId, c.classLevels))
         .sort((a, b) => a.title.localeCompare(b.title, 'fr')),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.cycles, nq, activity],
+    [data.cycles, nq, activity, level],
   );
 
   const create = () => {
@@ -126,6 +128,12 @@ export function LibraryPage() {
           placeholder="Toutes les activités"
           options={settings.activities.map((a) => ({ value: a.id, label: `${a.emoji} ${a.name}` }))}
         />
+        <Select<string>
+          value={level}
+          onChange={(v) => setLevel(v)}
+          placeholder="Tous les niveaux"
+          options={[...settings.levels.map((l) => ({ value: l, label: l })), { value: '__none', label: 'Niveau non précisé' }]}
+        />
       </div>
 
       {tab === 'exercises' &&
@@ -151,6 +159,9 @@ export function LibraryPage() {
                     <ActivityChip activityId={e.activityId} />
                     <Chip color={BLOCK_KINDS[e.kind].color}>{BLOCK_KINDS[e.kind].label}</Chip>
                     <span className="muted small">{e.minutes} min</span>
+                    {(e.classLevels ?? []).map((lv) => (
+                      <Chip key={lv}>{lv}</Chip>
+                    ))}
                   </div>
                 </Card>
               </Link>
@@ -231,6 +242,9 @@ export function LibraryPage() {
                   <div className="row" style={{ gap: 6, marginTop: 8 }}>
                     <ActivityChip activityId={c.activityId} />
                     <span className="muted small">{plural(cycleLessons(data, c.id).length, 'séance')}</span>
+                    {(c.classLevels ?? []).map((lv) => (
+                      <Chip key={lv}>{lv}</Chip>
+                    ))}
                   </div>
                 </Card>
               </Link>

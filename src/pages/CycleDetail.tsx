@@ -5,6 +5,7 @@ import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section,
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
 import { EvalPath } from '../components/EvalPath';
+import { LevelsField } from '../components/LevelsField';
 import { CopyCycleModal, RedateModal } from '../components/CycleModals';
 import { useData } from '../store/data';
 import { cycleLessons } from '../store/selectors';
@@ -99,6 +100,11 @@ export function CycleDetailPage() {
           <Field label="Activité">
             <ActivitySelect value={cycle.activityId} onChange={(a) => patch({ activityId: a })} />
           </Field>
+          {isTemplate && (
+            <Field label="Niveaux de classe">
+              <LevelsField value={cycle.classLevels ?? []} onChange={(classLevels) => patch({ classLevels })} />
+            </Field>
+          )}
           {!isTemplate && (
             <>
               <Field label="Début du cycle">

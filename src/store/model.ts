@@ -65,6 +65,7 @@ export function newCycle(classId: ID | null, order: number, title = ''): Cycle {
     title,
     activityId: null,
     slotIds: [],
+    classLevels: [],
     startDate: null,
     endDate: null,
     objectives: '',
@@ -101,6 +102,7 @@ export function newLesson(classId: ID | null, cycleId: ID | null, order: number,
     evalKind: null,
     levels: null,
     proposalsDone: [],
+    classLevels: [],
     todos: [],
     tasksDone: [],
 tags: [],
@@ -119,6 +121,7 @@ export function newExercise(title = ''): Exercise {
     materials: '',
     animation: null,
     sheets: [],
+    classLevels: [],
   };
 }
 
@@ -180,11 +183,13 @@ export function normalizeData(raw: unknown): AppData {
   });
   out.cycles = fill<Cycle>(r.cycles, () => newCycle(null, 0), (c) => {
     c.slotIds = Array.isArray(c.slotIds) ? c.slotIds : [];
+    c.classLevels = Array.isArray(c.classLevels) ? c.classLevels : [];
   });
   out.lessons = fill<Lesson>(r.lessons, () => newLesson(null, null, 0), (l) => {
     l.blocks = withIds(l.blocks).map((b) => ({ ...newBlock(), ...b, sheets: Array.isArray(b.sheets) ? b.sheets : [] }));
     l.tags = Array.isArray(l.tags) ? l.tags : [];
     l.proposalsDone = Array.isArray(l.proposalsDone) ? l.proposalsDone : [];
+    l.classLevels = Array.isArray(l.classLevels) ? l.classLevels : [];
     l.tasksDone = Array.isArray(l.tasksDone) ? l.tasksDone : [];
     l.todos = withIds<Partial<Todo>>(l.todos).map((t) => ({ id: t.id as ID, text: t.text ?? '', done: !!t.done }));
     l.evalKind = l.evalKind === 'diagnostic' || l.evalKind === 'formative' || l.evalKind === 'summative' ? l.evalKind : null;
@@ -193,6 +198,7 @@ export function normalizeData(raw: unknown): AppData {
   out.exercises = fill<Exercise>(r.exercises, () => newExercise(), (e) => {
     e.tags = Array.isArray(e.tags) ? e.tags : [];
     e.sheets = Array.isArray(e.sheets) ? e.sheets : [];
+    e.classLevels = Array.isArray(e.classLevels) ? e.classLevels : [];
   });
 
   // Une pierre tombale n'a de sens que si elle est plus récente que l'entité.

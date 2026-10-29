@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useData } from './data';
-import { cancelAndShift, closeDays, extractSituations, postponeLesson, previewClosure } from './actions';
+import { cancelAndShift, closeDays, extractSituations, postponeLesson, previewClosure, saveLessonAsTemplate } from './actions';
 import { emptyData, newBlock, newCycle, newKlass, newLesson, newSlot, newYear } from './model';
 import { cycleLessons } from './selectors';
 import { criteriaOf, lessonMaterialTexts, mergeMaterials, splitMaterials } from '../lib/materials';
@@ -65,6 +65,20 @@ describe('imprévus', () => {
     r.undo();
     expect(dates().map((d) => d[1])).toEqual(MONDAYS);
     expect(useData.getState().data.years.y.holidays.some((h) => h.label === 'Sortie')).toBe(false);
+  });
+});
+
+describe('niveaux dans la bibliothèque', () => {
+  beforeEach(setup);
+  it('une séance copiée dans la bibliothèque garde le niveau de sa classe, puis ses situations aussi', () => {
+    useData.getState().patch('classes', 'k', { level: '4e' });
+    const l = useData.getState().data.lessons.l0;
+    useData.getState().patch('lessons', 'l0', { blocks: [newBlock('situation', 'Passe', 20)] });
+    void l;
+    const tpl = saveLessonAsTemplate('l0');
+    expect(useData.getState().data.lessons[tpl].classLevels).toEqual(['4e']);
+    extractSituations([tpl]);
+    expect(Object.values(useData.getState().data.exercises)[0].classLevels).toEqual(['4e']);
   });
 });
 

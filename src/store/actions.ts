@@ -225,10 +225,13 @@ export function duplicateLesson(lessonId: ID, o: DuplicateLessonOptions = {}): I
     if (!src) return;
     const cycleId = o.cycleId === undefined ? src.cycleId : o.cycleId;
     const order = cycleId ? tx.all('lessons').filter((l) => l.cycleId === cycleId).length : 0;
+    const toClassId = o.classId === undefined ? src.classId : o.classId;
     const copy: Lesson = {
       ...deepClone(src),
       id,
-      classId: o.classId === undefined ? src.classId : o.classId,
+      // Une séance modèle garde le niveau de la classe d'où elle vient ; une séance de classe prend celui de sa classe.
+      classLevels: toClassId ? [] : src.classLevels.length ? [...src.classLevels] : levelsOf(tx.get('classes', src.classId ?? '')?.level),
+      classId: toClassId,
       cycleId,
       date: o.date === undefined ? null : o.date,
       title: o.title ?? src.title,
@@ -266,10 +269,12 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
       klass && startDate && klass.slots.length
         ? nextOccurrences(klass.slots, startDate, year?.holidays ?? [], { count: lessons.length })
         : [];
+    const lv = classId ? [] : src.classLevels.length ? [...src.classLevels] : levelsOf(tx.get('classes', src.classId ?? '')?.level);
     tx.put('cycles', {
       ...deepClone(src),
       id: newId,
       classId,
+      classLevels: lv,
       slotIds: [],
       order,
       startDate: occ[0]?.date ?? null,
@@ -280,6 +285,7 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
         ...deepClone(l),
         id: uid(),
         classId,
+        classLevels: lv,
         cycleId: newId,
         order: i,
         date: occ[i]?.date ?? null,
@@ -302,10 +308,16 @@ export function copyCycle(cycleId: ID, classId: ID | null, startDate: ISODate | 
 
 // ── Bibliothèque ────────────────────────────────────────────────────────────
 
-export function saveBlockAsExercise(block: Block, activityId: ID | null): ID {
+/** « 6e » → ['6e'] ; vide ou inconnu → []. */
+function levelsOf(level: string | undefined | null): string[] {
+  return level && level !== 'UNSS' ? [level] : [];
+}
+
+export function saveBlockAsExercise(block: Block, activityId: ID | null, classLevel?: string | null): ID {
   const ex: Exercise = {
     ...newExercise(block.title || 'Sans titre'),
     activityId,
+    classLevels: levelsOf(classLevel),
     kind: block.kind,
     minutes: block.minutes,
     text: block.text,
@@ -343,6 +355,7 @@ export function extractSituations(lessonIds: ID[], opts: { withWarmups?: boolean
         tx.put('exercises', {
           ...newExercise(b.title || 'Sans titre'),
           activityId,
+          classLevels: l.classLevels.length ? [...l.classLevels] : cycle?.classLevels ?? [],
           kind: b.kind,
           minutes: b.minutes,
           text: b.text,

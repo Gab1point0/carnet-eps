@@ -75,6 +75,8 @@ export interface Cycle extends Meta {
    * Permet de mener deux cycles en parallèle (ex. 2 h de badminton le jeudi, 1 h de demi-fond le lundi).
    */
   slotIds: ID[];
+  /** Niveaux de classe concernés (« 6e », « 2nde »…), pour trier la bibliothèque. Vide = non précisé. */
+  classLevels: string[];
   startDate: ISODate | null;
   endDate: ISODate | null;
   objectives: string;
@@ -142,6 +144,8 @@ export interface Lesson extends Meta {
   rating: number | null;
   /** Séance à ajuster ou à refaire l'an prochain. */
   adjust: boolean;
+  /** Niveaux de classe concernés (modèles de la bibliothèque). */
+  classLevels: string[];
   /** Séance d'évaluation : diagnostique (début de cycle), formative (milieu) ou sommative (fin). */
   evalKind: EvalKind | null;
   /** Niveau observé de la classe lors d'une évaluation : nombre d'élèves par degré (débutant, en cours, acquis, avancé). Aucun nom d'élève. */
@@ -168,6 +172,8 @@ export interface Exercise extends Meta {
   animation: Animation | null;
   /** Fiches imprimables associées (identifiants de src/lib/fiches.ts). */
   sheets: string[];
+  /** Niveaux de classe concernés. */
+  classLevels: string[];
 }
 
 // ── Animations de situations ───────────────────────────────────────────────

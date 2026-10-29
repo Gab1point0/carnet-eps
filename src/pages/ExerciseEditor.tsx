@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Copy, ListPlus, Trash2 } from 'lucide-react';
 import type { BlockKind, ID } from '../types';
 import { MarkdownField } from '../components/MarkdownField';
+import { LevelsField } from '../components/LevelsField';
 import { Button, Card, Field, Menu, Modal, NumberInput, PageHeader, Select, TagInput, TextArea, TextInput } from '../components/ui';
 import { ActivitySelect } from '../components/forms';
 import { AnimationField } from '../components/AnimationField';
@@ -112,6 +113,10 @@ export function ExerciseEditorPage() {
 
       <Field label="Schéma / animation">
         <AnimationField value={ex.animation} onChange={(a) => patch({ animation: a })} defaultCourt={court} title={ex.title || 'Situation'} />
+      </Field>
+
+      <Field label="Niveaux de classe">
+        <LevelsField value={ex.classLevels ?? []} onChange={(classLevels) => patch({ classLevels })} />
       </Field>
 
       <Field label="Étiquettes">
