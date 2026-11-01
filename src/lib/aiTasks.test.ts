@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANIMATION_SCHEMA, FICHE_SCHEMA, LESSON_SCHEMA, applyOps, toAnimation, toCustomSheet, type LessonOp } from './aiTasks';
+import { ANIMATION_SCHEMA, FICHE_SCHEMA, LESSON_SCHEMA, applyOps, cleanSheet, toAnimation, toCustomSheet, type LessonOp } from './aiTasks';
 import { applyChanges, emptyDraft } from './voiceLesson';
 import { customDef } from './fiches';
 import { newBlock, newLesson } from '../store/model';
@@ -66,6 +66,29 @@ describe('fiche sur mesure', () => {
     expect(sheet.sections.map((s) => s.type)).toEqual(['table', 'lines']);
     expect(sheet.sections[1]).toMatchObject({ n: 8 });
     expect(customDef(sheet).build({ criteria: [] })).toHaveLength(2);
+  });
+});
+
+describe('fiche modifiée à la main', () => {
+  it('garde son identifiant, retire les lignes vides et les parties incomplètes', () => {
+    const clean = cleanSheet({
+      id: 'fiche1',
+      title: ' Observer ',
+      who: 'groupe',
+      size: 'full',
+      ident: ['Classe', ''],
+      sections: [
+        { type: 'checks', title: '', items: ['Regarde', '', ' Annonce '] },
+        { type: 'table', cols: [''], rows: [''] },
+        { type: 'text', text: '  ' },
+        { type: 'lines', n: 3 },
+      ],
+    });
+    expect(clean).toMatchObject({ id: 'fiche1', title: 'Observer', who: 'groupe', size: 'full', ident: ['Classe'] });
+    expect(clean.sections).toEqual([
+      { type: 'checks', title: undefined, items: ['Regarde', 'Annonce'] },
+      { type: 'lines', title: undefined, n: 3 },
+    ]);
   });
 });
 

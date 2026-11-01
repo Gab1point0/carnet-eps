@@ -122,12 +122,7 @@ export function BlockEditor({
               ))}
             </select>
           </div>
-          {lesson && <AiBlockTools lesson={lesson} block={block} onChange={onChange} />}
-          {(block.customSheets ?? []).map((s) => (
-            <button key={s.id} type="button" className="link-btn small" onClick={() => onChange({ customSheets: block.customSheets!.filter((x) => x.id !== s.id) })}>
-              Retirer la fiche « {s.title} »
-            </button>
-          ))}
+          <AiBlockTools lesson={lesson} block={block} onChange={onChange} />
           <AnimationField
             value={block.animation}
             onChange={(a) => onChange({ animation: a })}

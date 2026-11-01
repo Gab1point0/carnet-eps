@@ -259,6 +259,36 @@ export function toCustomSheet(raw: RawSheet): CustomSheet {
   };
 }
 
+/** Fiche modifiée à la main → fiche enregistrable : mêmes règles qu'à la création, sans les lignes laissées vides. */
+export function cleanSheet(sheet: CustomSheet): CustomSheet {
+  const list = (v?: string[]) => (v ?? []).map((x) => x.trim()).filter(Boolean);
+  const none = { title: null, head: null, cols: null, rows: null, tall: null, items: null, levels: null, n: null, fields: null, text: null };
+  const clean = toCustomSheet({
+    title: sheet.title.trim(),
+    who: sheet.who,
+    size: sheet.size,
+    ident: list(sheet.ident),
+    sections: sheet.sections.map((s): RawSection => {
+      const title = 'title' in s ? s.title?.trim() || null : null;
+      switch (s.type) {
+        case 'table':
+          return { ...none, type: s.type, title, head: s.head?.trim() || null, cols: list(s.cols), rows: list(Array.isArray(s.rows) ? s.rows : []), tall: !!s.tall };
+        case 'levels':
+          return { ...none, type: s.type, title, items: list(s.items), levels: list(s.levels) };
+        case 'checks':
+          return { ...none, type: s.type, title, items: list(s.items) };
+        case 'lines':
+          return { ...none, type: s.type, title, n: s.n ?? 2 };
+        case 'fields':
+          return { ...none, type: s.type, fields: list(s.fields) };
+        case 'text':
+          return { ...none, type: s.type, text: s.text.trim() };
+      }
+    }),
+  });
+  return { ...clean, id: sheet.id };
+}
+
 function blockPrompt(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text'>, ctx: TeachingCtx, previous: unknown, instruction: string) {
   const parts = [`Contexte :\n${JSON.stringify(describe(ctx))}`, `Situation :\n<situation>\nTitre : ${block.title}\nDurée : ${block.minutes} min\n${block.text}\n</situation>`];
   if (previous) parts.push(`Version précédente :\n${JSON.stringify(previous)}`);

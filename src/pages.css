@@ -379,6 +379,9 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .fiche-half .fiche-table tr.tall td { height: 38px; }
 .fiche-half .fiche-id { min-width: 200px; font-size: 0.85rem; gap: 4px; }
 .fiche-half h1 { font-size: 1.15rem; }
+/* Aperçu dans une fenêtre : une fiche large défile sur place, sans décaler les boutons. */
+.fiche-preview { overflow-x: auto; }
+.fiche-preview .fiche { min-height: 0; margin: 0; padding: 14px; width: max-content; min-width: 100%; max-width: 640px; box-shadow: none; border: 1px solid var(--border); }
 .sheet-links { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 @media print {
   .fiche-half { break-inside: avoid; break-after: auto; height: 48%; margin: 0 0 4mm; overflow: hidden; }
