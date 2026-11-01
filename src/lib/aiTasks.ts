@@ -12,7 +12,8 @@ const KINDS: BlockKind[] = ['warmup', 'situation', 'skill', 'game', 'evaluation'
 
 const obj = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
 const nullable = (type: string) => ({ type: [type, 'null'] });
-const nullableEnum = (values: string[]) => ({ type: ['string', 'null'], enum: [...values, null] });
+// L'API refuse un `enum` combiné à un type multiple : la valeur nulle passe par `anyOf`.
+const nullableEnum = (values: string[]) => ({ anyOf: [{ type: 'string', enum: values }, { type: 'null' }] });
 const strings = { type: 'array', items: { type: 'string' } };
 const nullableStrings = { type: ['array', 'null'], items: { type: 'string' } };
 

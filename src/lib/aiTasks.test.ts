@@ -14,6 +14,8 @@ function checkStrict(s: unknown) {
     expect(n.additionalProperties).toBe(false);
     expect((n.required as string[]).sort()).toEqual(Object.keys(n.properties as object).sort());
   }
+  // Un `enum` ne doit pas être combiné à un type multiple : l'API renvoie une erreur 400.
+  if (n.enum) expect(typeof n.type).toBe('string');
   for (const v of Object.values(n)) if (typeof v === 'object') checkStrict(v);
 }
 
