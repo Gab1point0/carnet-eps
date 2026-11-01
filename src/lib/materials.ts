@@ -32,13 +32,15 @@ export function splitMaterials(text: string): string[] {
 
 const key = (s: string) => normalize(s).replace(/s\b/g, '').replace(/\s+/g, ' ').trim();
 
+// « 12 plots » → quantité 12 ; mais pas « 8 à 10 tables », « 200 m », « 2 kg ».
+const QUANTITY = /^(\d+)\s*(?:x|×)?\s+(?!à\s|-|m\b|km\b|min\b|s\b|kg\b|cm\b|%)(.+)$/i;
+
 /** Fusionne les éléments de plusieurs textes : « 12 plots » + « 6 plots » → « 18 plots ». */
 export function mergeMaterials(texts: string[]): MaterialItem[] {
   const map = new Map<string, MaterialItem>();
   for (const t of texts) {
     for (const raw of splitMaterials(t)) {
-      // « 12 plots » → quantité 12 ; mais pas « 8 à 10 tables », « 200 m », « 2 kg ».
-      const m = /^(\d+)\s*(?:x|×)?\s+(?!à\s|-|m\b|km\b|min\b|s\b|kg\b|cm\b|%)(.+)$/i.exec(raw);
+      const m = QUANTITY.exec(raw);
       const qty = m ? Number(m[1]) : null;
       const name = (m ? m[2] : raw).trim();
       const k = key(name);
@@ -62,6 +64,42 @@ export function lessonMaterialTexts(l: { materials: string; blocks: Array<{ mate
       .filter(Boolean);
   }
   return [l.materials, ...l.blocks.map((b) => b.materials)].filter(Boolean);
+}
+
+/**
+ * Matériel de la séance recalculé depuis ses blocs : une ligne « - 15 ballons — bloc 2 (passes) ; bloc 3 (match) » par objet,
+ * avec la plus grande quantité demandée (un objet resservi n'est pas sorti deux fois).
+ * Le reste du texte (installation, notes, objets ajoutés à la main sans bloc) est conservé.
+ */
+export function materialsFromBlocks(l: { materials: string; blocks: Array<{ materials: string }> }): string {
+  const items = new Map<string, { name: string; qty: number | null; uses: string[] }>();
+  l.blocks.forEach((b, i) => {
+    for (const raw of splitMaterials(b.materials)) {
+      const usage = /\s*\(([^()]*)\)$/.exec(raw);
+      const label = usage ? raw.slice(0, usage.index).trim() : raw;
+      const m = QUANTITY.exec(label);
+      const qty = m ? Number(m[1]) : null;
+      const name = (m ? m[2] : label).trim();
+      const k = key(name);
+      if (!k) continue;
+      const cur = items.get(k) ?? { name, qty, uses: [] };
+      if (qty !== null) cur.qty = Math.max(cur.qty ?? 0, qty);
+      const use = `bloc ${i + 1}${usage ? ` (${usage[1]})` : ''}`;
+      if (!cur.uses.includes(use)) cur.uses.push(use);
+      items.set(k, cur);
+    }
+  });
+  const kept = l.materials.split('\n').filter((line) => {
+    if (!/^- /.test(line)) return line.trim() !== '';
+    if (/\s—\s*bloc\s+\d/.test(line)) return false;
+    // Objet ajouté à la main : il reste, sauf si un bloc le demande désormais.
+    const m = QUANTITY.exec(line.slice(2).replace(/\s*\([^()]*\)$/, ''));
+    return !items.has(key(m ? m[2] : line.slice(2).replace(/\s*\([^()]*\)$/, '')));
+  });
+  const notes = kept.filter((line) => !/^- /.test(line));
+  const manual = kept.filter((line) => /^- /.test(line));
+  const computed = [...items.values()].map((x) => `- ${x.qty !== null ? `${x.qty} ` : ''}${x.name} — ${x.uses.join(' ; ')}`);
+  return [...notes, ...computed, ...manual].join('\n');
 }
 
 /** Critères d'évaluation d'un cycle, extraits de la phrase « Critères proposés : a · b · c ». */

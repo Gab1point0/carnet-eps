@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Library, Play, Plus, Printer, Trash2 } from 'lucide-react';
+import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Library, Play, Plus, Printer, RefreshCw, Trash2 } from 'lucide-react';
 import { Mic } from 'lucide-react';
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import { VoiceLessonModal } from '../components/VoiceLessonModal';
@@ -21,7 +21,8 @@ import { newBlock } from '../store/model';
 import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { BLOCK_KINDS, BLOCK_KIND_ORDER } from '../lib/defaults';
 import { durationOf, formatLong, formatDuration, weekdayOf } from '../lib/dates';
-import { cls } from '../lib/util';
+import { materialsFromBlocks } from '../lib/materials';
+import { cls, plural } from '../lib/util';
 
 export function LessonPage() {
   const { id = '' } = useParams();
@@ -53,6 +54,22 @@ export function LessonPage() {
   };
   const addBlock = (kind: BlockKind) => {
     setBlocks([...lesson.blocks, newBlock(kind, '', DEFAULT_MINUTES[kind])]);
+  };
+
+  const refreshMaterials = () => {
+    const missing = lesson.blocks.filter((b) => !b.materials.trim()).length;
+    if (missing === lesson.blocks.length) {
+      toast('Aucune situation n\'indique de matériel : remplissez d\'abord leur champ « Matériel ».', { tone: 'error', ms: 6000 });
+      return;
+    }
+    const before = lesson.materials;
+    const after = materialsFromBlocks(lesson);
+    if (after === before) {
+      toast('Le matériel de la séance est déjà à jour.');
+      return;
+    }
+    patch({ materials: after });
+    toastUndo(missing ? `Matériel mis à jour. ${plural(missing, 'situation')} sans matériel indiqué.` : 'Matériel mis à jour.', () => patch({ materials: before }));
   };
 
   const planned = lesson.start && lesson.end ? durationOf(lesson.start, lesson.end) : 0;
@@ -221,6 +238,9 @@ export function LessonPage() {
         </Field>
         <Field label="🧰 Matériel de la séance (objet — bloc où il sert)">
           <MarkdownField value={lesson.materials} onChange={(v) => patch({ materials: v })} minRows={6} placeholder={'Une ligne par objet, avec le bloc où il sert :\n- 15 ballons — bloc 2 (passes) ; bloc 3 (match)'} />
+          <Button size="sm" icon={<RefreshCw size={15} />} style={{ marginTop: 8 }} onClick={refreshMaterials}>
+            Mettre à jour depuis les situations
+          </Button>
         </Field>
       </div>
       <Field label="⚠️ Sécurité / organisation">
