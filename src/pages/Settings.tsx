@@ -14,6 +14,7 @@ import { mergeData } from '../lib/merge';
 import { confirmDialog, toast, useUi, type Theme } from '../store/ui';
 import { COURTS } from '../lib/defaults';
 import { searchPlaces, type Place } from '../lib/weather';
+import { AiSection } from '../components/AiSection';
 import { uid } from '../lib/util';
 import { plural } from '../lib/util';
 
@@ -27,6 +28,7 @@ export function SettingsPage() {
     <>
       <PageHeader title="Réglages" subtitle="Années, vacances, activités, sauvegarde et synchronisation." />
       <ProfileSection />
+      <AiSection />
       <YearsSection />
       <ListsSection />
       <ActivitiesSection />

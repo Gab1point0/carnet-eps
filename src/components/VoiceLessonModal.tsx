@@ -1,13 +1,15 @@
 import { useMemo, useRef, useState } from 'react';
-import { Check, Mic, MicOff, X } from 'lucide-react';
+import { Check, Loader, Mic, MicOff, X } from 'lucide-react';
 import type { Lesson } from '../types';
 import { Button, Modal, TextArea } from './ui';
 import { Markdown } from './Markdown';
 import { useData } from '../store/data';
-import { activityOf } from '../store/selectors';
+import { teachingCtx } from './AiBlockTools';
 import { confirmDialog, toast } from '../store/ui';
 import { useDictation } from '../lib/dictation';
-import { applyChanges, emptyDraft, fieldLabel, ingest, type Change, type Draft, type VoiceCtx } from '../lib/voiceLesson';
+import { applyChanges, emptyDraft, fieldLabel, ingest, type Change, type Draft } from '../lib/voiceLesson';
+import { aiReady } from '../lib/ai';
+import { aiIngest, type TeachingCtx } from '../lib/aiTasks';
 import { BLOCK_KINDS } from '../lib/defaults';
 import { durationOf } from '../lib/dates';
 import { cls } from '../lib/util';
@@ -24,22 +26,29 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
   const [log, setLog] = useState<string[]>([]);
   const [unclear, setUnclear] = useState<string[]>([]);
 
-  const ctx: VoiceCtx = useMemo(() => {
-    const cycle = lesson.cycleId ? data.cycles[lesson.cycleId] : undefined;
-    const klass = lesson.classId ? data.classes[lesson.classId] : undefined;
-    return {
-      students: klass?.students ?? null,
-      activity: activityOf(data, lesson.activityId ?? cycle?.activityId ?? null)?.name ?? '',
-      planned: lesson.start && lesson.end ? durationOf(lesson.start, lesson.end) : 0,
-      activities: data.settings.activities.map((a) => a.name),
-    };
-  }, [data, lesson]);
+  const ctx: TeachingCtx = useMemo(() => teachingCtx(data, lesson), [data, lesson]);
+  const useAi = aiReady();
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const draftRef = useRef(draft);
   draftRef.current = draft;
 
-  const hear = (text: string) => {
-    const r = ingest(draftRef.current, lesson, text, ctx);
+  const hear = async (text: string) => {
+    setNotice('');
+    let r;
+    if (useAi) {
+      setBusy(true);
+      try {
+        r = await aiIngest(draftRef.current, lesson, text, ctx);
+      } catch (e) {
+        // Claude indisponible : rien n'est perdu, les mots-clés prennent le relais.
+        setNotice(`${e instanceof Error ? e.message : 'Claude est indisponible.'} Cette partie a été comprise avec les mots-clés.`);
+        r = ingest(draftRef.current, lesson, text, ctx);
+      } finally {
+        setBusy(false);
+      }
+    } else r = ingest(draftRef.current, lesson, text, ctx);
     draftRef.current = r.draft;
     setDraft(r.draft);
     setLog((cur) => [...cur, ...r.understood]);
@@ -58,16 +67,16 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
     });
 
   /** « J'ai terminé cette partie » : ce qui a été dit devient un changement proposé. */
-  const finishPart = () => {
+  const finishPart = async () => {
     const text = `${typed} ${dictation.flush()}`.trim();
     if (!text) return;
-    hear(text);
     setTyped('');
+    await hear(text);
   };
 
-  const openReview = () => {
-    finishPart();
+  const openReview = async () => {
     dictation.stop();
+    await finishPart();
     setReview(true);
   };
   const hasPending = !!typed.trim() || !!dictation.interim.trim();
@@ -122,7 +131,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
             <Button variant="ghost" onClick={close}>
               Fermer
             </Button>
-            <Button onClick={openReview} disabled={draft.changes.length === 0 && !hasPending}>
+            <Button onClick={openReview} disabled={busy || (draft.changes.length === 0 && !hasPending)}>
               Voir les changements ({draft.changes.length})
             </Button>
           </>
@@ -144,11 +153,18 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
 
           <div className="voice-type">
             <TextArea value={typed} onChange={setTyped} minRows={3} placeholder="Ce que vous dites s'écrit ici. Prenez votre temps : les pauses ne valident rien. Vous pouvez aussi écrire ou corriger." />
-            <Button variant="primary" icon={<Check size={16} />} onClick={finishPart} disabled={!hasPending}>
+            <Button variant="primary" icon={<Check size={16} />} onClick={finishPart} disabled={!hasPending || busy}>
               J'ai terminé cette partie
             </Button>
           </div>
 
+          {busy && (
+            <p className="muted small row" style={{ gap: 6 }}>
+              <Loader size={14} className="spin" /> Claude met en forme cette partie…
+            </p>
+          )}
+          {notice && <p className="error-text small">{notice}</p>}
+          {!useAi && <p className="muted small">Mise en forme par mots-clés. Pour que Claude comprenne vos phrases, ajoutez une clé dans Réglages, « Assistant IA ».</p>}
           {unclear.map((u) => (
             <p key={u} className="error-text small">
               {u}
@@ -208,9 +224,9 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
                   </div>
                   {!off && c.op !== 'remove' && c.op !== 'field' && <Markdown text={c.text} />}
                   {!off && c.op !== 'remove' && c.op !== 'field' && c.materials && <Markdown text={c.materials} />}
-                  {!off && c.spoken && (
+                  {!off && (c.heard ?? c.spoken) && (
                     <p className="muted small">
-                      Compris à partir de : « {c.spoken} »
+                      Compris à partir de : « {c.heard ?? c.spoken} »
                     </p>
                   )}
                 </div>

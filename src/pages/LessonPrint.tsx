@@ -83,7 +83,7 @@ export function LessonPrintPage() {
               <div className={anim ? 'sheet-block-grid' : undefined}>
                 <div>
                   {b.text && <Markdown text={b.text} />}
-                  {b.sheets?.length > 0 && <p className="small"><strong>Fiches à imprimer :</strong> {b.sheets.map((s) => FICHE_BY_ID.get(s)?.title ?? s).join(' · ')}</p>}
+                  {(b.sheets?.length > 0 || !!b.customSheets?.length) && <p className="small"><strong>Fiches à imprimer :</strong> {[...b.sheets.map((s) => FICHE_BY_ID.get(s)?.title ?? s), ...(b.customSheets ?? []).map((s) => s.title)].join(' · ')}</p>}
                   {b.materials && (
                     <div className="small">
                       <strong>Matériel :</strong>

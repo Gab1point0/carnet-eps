@@ -251,6 +251,7 @@ export function LessonPage() {
               key={b.id}
               block={b}
               cycleId={lesson.cycleId}
+              lesson={lesson}
               index={i}
               count={lesson.blocks.length}
               court={court}

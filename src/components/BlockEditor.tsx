@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, BookmarkPlus, ChevronDown, ChevronRight, Copy, Film, Trash2 } from 'lucide-react';
-import type { Block, BlockKind, CourtId, ID } from '../types';
+import type { Block, BlockKind, CourtId, ID, Lesson } from '../types';
+import { AiBlockTools } from './AiBlockTools';
 import { IconButton, Menu, NumberInput, Select, TextArea, TextInput } from './ui';
 import { AnimationField } from './AnimationField';
 import { Markdown } from './Markdown';
@@ -33,6 +34,7 @@ export function BlockEditor({
   onDuplicate,
   onSaveToLibrary,
   cycleId,
+  lesson,
 }: {
   block: Block;
   index: number;
@@ -45,6 +47,8 @@ export function BlockEditor({
   onDuplicate: () => void;
   onSaveToLibrary: () => void;
   cycleId?: ID | null;
+  /** Séance du bloc : donne à Claude le contexte de la classe. */
+  lesson?: Lesson;
 }) {
   const [open, setOpen] = useState(true);
   const kind = BLOCK_KINDS[block.kind];
@@ -102,7 +106,7 @@ export function BlockEditor({
             onChange={(v) => onChange({ materials: v })}
           />
           <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-            <SheetLinks sheets={block.sheets ?? []} cycleId={cycleId} />
+            <SheetLinks sheets={block.sheets ?? []} cycleId={cycleId} custom={block.customSheets} lessonId={lesson?.id} blockId={block.id} />
             <select
               className="input"
               style={{ width: 'auto', maxWidth: 260 }}
@@ -118,6 +122,12 @@ export function BlockEditor({
               ))}
             </select>
           </div>
+          {lesson && <AiBlockTools lesson={lesson} block={block} onChange={onChange} />}
+          {(block.customSheets ?? []).map((s) => (
+            <button key={s.id} type="button" className="link-btn small" onClick={() => onChange({ customSheets: block.customSheets!.filter((x) => x.id !== s.id) })}>
+              Retirer la fiche « {s.title} »
+            </button>
+          ))}
           <AnimationField
             value={block.animation}
             onChange={(a) => onChange({ animation: a })}

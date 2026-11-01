@@ -1,9 +1,10 @@
+import type { CustomSheet } from '../types';
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, Printer } from 'lucide-react';
 import { useData } from '../store/data';
 import { Button, Card, PageHeader, Section } from '../components/ui';
-import { FICHES, FICHE_BY_ID, FICHE_GROUPS, LEVEL_KEYS, LEVEL_LABELS, buildFiche, fichesOfActivity, levelKeyOf, type FicheCtx, type FicheDef, type FicheSection, type LevelKey } from '../lib/fiches';
+import { FICHES, FICHE_BY_ID, FICHE_GROUPS, LEVEL_KEYS, LEVEL_LABELS, buildFiche, customDef, fichesOfActivity, levelKeyOf, type FicheCtx, type FicheDef, type FicheSection, type LevelKey } from '../lib/fiches';
 import { criteriaOf } from '../lib/materials';
 import { cls } from '../lib/util';
 
@@ -136,18 +137,21 @@ export function FichePage() {
   const [params, setParams] = useSearchParams();
   const data = useData((s) => s.data);
   const navigate = useNavigate();
-  const def = FICHE_BY_ID.get(id);
-  const cycle = data.cycles[params.get('cycle') ?? ''];
+  const lessonOf = data.lessons[params.get('lesson') ?? ''];
+  const custom = id === 'custom' ? lessonOf?.blocks.find((b) => b.id === params.get('block'))?.customSheets?.find((s) => s.id === params.get('sheet')) : undefined;
+  const def = custom ? customDef(custom) : FICHE_BY_ID.get(id);
+  const cycle = data.cycles[params.get('cycle') ?? lessonOf?.cycleId ?? ''];
   const defaultCopies = def?.size === 'half' ? 2 : 1;
   const copies = Math.max(1, Math.min(60, Number(params.get('copies')) || defaultCopies));
   const klass = cycle?.classId ? data.classes[cycle.classId] : undefined;
   const asked = params.get('level');
-  const level: LevelKey | undefined = asked === 'none' ? undefined : LEVEL_KEYS.find((k) => k === asked) ?? levelKeyOf(klass?.level);
+  // Une fiche sur mesure est déjà écrite pour le niveau de sa classe.
+  const level: LevelKey | undefined = custom || asked === 'none' ? undefined : LEVEL_KEYS.find((k) => k === asked) ?? levelKeyOf(klass?.level);
   const ctx: FicheCtx = useMemo(() => ({ criteria: cycle ? criteriaOf(cycle.evaluation) : [], level }), [cycle, level]);
   if (!def) return <Navigate to="/fiches" replace />;
   const subtitle = [klass?.name, cycle?.title].filter(Boolean).join(' · ');
   const setQuery = (patch: Record<string, string>) =>
-    setParams({ ...(cycle ? { cycle: cycle.id } : {}), ...(params.get('copies') ? { copies: params.get('copies')! } : {}), ...(asked ? { level: asked } : {}), ...patch }, { replace: true });
+    setParams({ ...Object.fromEntries(params), ...patch }, { replace: true });
 
   return (
     <div className="print-page">
@@ -167,7 +171,7 @@ export function FichePage() {
             onChange={(e) => setQuery({ copies: String(e.target.value) })}
           />
         </label>
-        <label className="row" style={{ gap: 8 }}>
+        {!custom && <label className="row" style={{ gap: 8 }}>
           Niveau
           <select className="input" style={{ width: 'auto' }} value={level ?? 'none'} onChange={(e) => setQuery({ level: e.target.value })}>
             <option value="none">Version générale</option>
@@ -177,7 +181,7 @@ export function FichePage() {
               </option>
             ))}
           </select>
-        </label>
+        </label>}
         <Button variant="primary" icon={<Printer size={18} />} onClick={() => window.print()}>
           Imprimer / enregistrer en PDF
         </Button>
@@ -259,9 +263,9 @@ export function FichesHubPage() {
 }
 
 /** Boutons d'impression des fiches d'un bloc. */
-export function SheetLinks({ sheets, cycleId, className }: { sheets: string[]; cycleId?: string | null; className?: string }) {
+export function SheetLinks({ sheets, cycleId, className, custom, lessonId, blockId }: { sheets: string[]; cycleId?: string | null; className?: string; custom?: CustomSheet[]; lessonId?: string; blockId?: string }) {
   const defs = sheets.map((s) => FICHE_BY_ID.get(s)).filter((d): d is FicheDef => !!d);
-  if (defs.length === 0) return null;
+  if (defs.length === 0 && !custom?.length) return null;
   const q = cycleId ? `?cycle=${cycleId}` : '';
   return (
     <div className={cls('sheet-links', className)}>
@@ -269,6 +273,11 @@ export function SheetLinks({ sheets, cycleId, className }: { sheets: string[]; c
       {defs.map((d) => (
         <Link key={d.id} to={`/fiches/${d.id}${q}`} className="chip chip-btn">
           🖨 {d.title}
+        </Link>
+      ))}
+      {custom?.map((s) => (
+        <Link key={s.id} to={`/fiches/custom?lesson=${lessonId}&block=${blockId}&sheet=${s.id}`} className="chip chip-btn">
+          🖨 {s.title}
         </Link>
       ))}
     </div>

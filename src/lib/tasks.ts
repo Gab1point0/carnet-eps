@@ -129,6 +129,16 @@ export function tasksFor(data: AppData, l: Lesson, today: ISODate, weather: Weat
     }
   });
 
+  l.blocks.forEach((b, i) => {
+    for (const s of b.customSheets ?? []) {
+      const copies = ficheCopies(s.id, s.who, n);
+      auto(`sheet:${s.id}`, `Imprimer ${copies ? `${copies} × ` : ''}« ${s.title} »`, {
+        detail: `Bloc ${i + 1} : ${b.title} · fiche sur mesure${s.size === 'half' ? ' · 2 fiches par page A4' : ''}`,
+        to: `/fiches/custom?lesson=${l.id}&block=${b.id}&sheet=${s.id}${copies ? `&copies=${copies}` : ''}`,
+      });
+    }
+  });
+
   // Tâches ajoutées à la main.
   for (const t of l.todos) out.push({ id: t.id, lessonId: l.id, text: t.text, manual: true, done: t.done, to: `/lessons/${l.id}` });
   return out;

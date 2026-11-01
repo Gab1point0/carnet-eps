@@ -1,3 +1,5 @@
+import type { FicheSection } from './lib/fiches';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Modèle de données du Carnet EPS.
 // Tout est sérialisable en JSON (export, import, synchronisation GitHub).
@@ -112,6 +114,18 @@ export interface Block {
   animation: Animation | null;
   /** Fiches imprimables utilisées dans ce bloc (identifiants de `src/lib/fiches.ts`). */
   sheets: string[];
+  /** Fiches créées sur mesure pour ce bloc. */
+  customSheets?: CustomSheet[];
+}
+
+/** Fiche créée sur mesure pour une situation. */
+export interface CustomSheet {
+  id: ID;
+  title: string;
+  who: 'élève' | 'observateur' | 'groupe' | 'enseignant';
+  size: 'full' | 'half';
+  ident: string[];
+  sections: FicheSection[];
 }
 
 export interface Todo {
@@ -174,6 +188,7 @@ export interface Exercise extends Meta {
   sheets: string[];
   /** Niveaux de classe concernés. */
   classLevels: string[];
+  customSheets?: CustomSheet[];
 }
 
 // ── Animations de situations ───────────────────────────────────────────────

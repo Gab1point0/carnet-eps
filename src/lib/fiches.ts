@@ -1,3 +1,5 @@
+import type { CustomSheet } from '../types';
+
 // Bibliothèque de fiches imprimables. Chaque fiche est décrite par des sections (tableaux, cases à cocher,
 // lignes à remplir) : la page `/fiches/:id` les met en forme pour l'impression. Aucun nom d'élève n'est stocké.
 export type FicheSection =
@@ -511,6 +513,11 @@ export function buildFiche(def: FicheDef, ctx: FicheCtx): FicheSection[] {
     if (level === 'Tle') out.push({ type: 'lines', title: 'Transfert : comment réutiliser ce projet en dehors du cours (autonomie)', n: 1 });
   }
   return out;
+}
+
+/** Fiche créée sur mesure → même forme que les fiches de la bibliothèque. */
+export function customDef(s: CustomSheet): FicheDef {
+  return { id: s.id, title: s.title, group: 'Sur mesure', who: s.who, hint: 'Fiche créée pour cette situation.', size: s.size, ident: s.ident, build: () => s.sections };
 }
 
 export const FICHE_BY_ID = new Map(FICHES.map((f) => [f.id, f]));

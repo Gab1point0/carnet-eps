@@ -247,7 +247,7 @@ export function LessonRunPage() {
 
             {block.animation && <AnimationPlayer animation={block.animation} autoPlay maxHeight="50vh" />}
             {block.text && <Markdown text={block.text} className="md-big" />}
-            <SheetLinks sheets={block.sheets ?? []} cycleId={lesson.cycleId} />
+            <SheetLinks sheets={block.sheets ?? []} cycleId={lesson.cycleId} custom={block.customSheets} lessonId={lesson.id} blockId={block.id} />
             {block.materials && (
               <div className="callout">
                 🧰 <strong>Matériel de ce bloc :</strong>

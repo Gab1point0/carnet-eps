@@ -21,6 +21,8 @@ export interface Change {
   materials: string;
   /** Ce qui a été dit, pour remettre en forme après une correction. Absent : on modifie un bloc sans le réécrire. */
   spoken?: string;
+  /** Phrase dictée à l'origine d'un changement proposé par Claude. */
+  heard?: string;
   field?: FieldKey;
   value?: string;
 }
@@ -635,7 +637,7 @@ export function applyChanges(lesson: Lesson, changes: Change[]): Partial<Lesson>
   const patch: Partial<Lesson> = {};
   for (const c of changes) {
     if (c.op === 'remove') blocks = blocks.filter((b) => b.id !== c.blockId);
-    else if (c.op === 'update') blocks = blocks.map((b) => (b.id === c.blockId ? { ...b, title: c.title, minutes: c.minutes, text: c.text, materials: c.materials || b.materials } : b));
+    else if (c.op === 'update') blocks = blocks.map((b) => (b.id === c.blockId ? { ...b, kind: c.kind, title: c.title, minutes: c.minutes, text: c.text, materials: c.materials || b.materials } : b));
     else if (c.op === 'field' && c.field) {
       if (c.field === 'materials') patch.materials = [lesson.materials.trim(), c.value ?? ''].filter(Boolean).join('\n');
       else patch[c.field] = c.value ?? '';

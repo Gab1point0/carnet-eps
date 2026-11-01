@@ -361,6 +361,7 @@ export function saveBlockAsExercise(block: Block, activityId: ID | null, classLe
     materials: block.materials,
     animation: block.animation ? deepClone(block.animation) : null,
     sheets: [...(block.sheets ?? [])],
+    customSheets: block.customSheets ? deepClone(block.customSheets) : undefined,
   };
   st().put('exercises', ex);
   return ex.id;
@@ -399,6 +400,7 @@ export function extractSituations(lessonIds: ID[], opts: { withWarmups?: boolean
           materials: b.materials,
           animation: b.animation ? deepClone(b.animation) : null,
           sheets: [...(b.sheets ?? [])],
+          customSheets: b.customSheets ? deepClone(b.customSheets) : undefined,
         });
         created++;
       }
@@ -414,6 +416,7 @@ export function blockFromExercise(ex: Exercise): Block {
     materials: ex.materials,
     animation: ex.animation ? deepClone(ex.animation) : null,
     sheets: [...(ex.sheets ?? [])],
+    customSheets: ex.customSheets ? deepClone(ex.customSheets) : undefined,
   };
 }
 
