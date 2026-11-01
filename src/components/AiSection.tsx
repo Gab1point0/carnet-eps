@@ -4,6 +4,8 @@ import { Button, Card, Field, Section, TextInput } from './ui';
 import { AI_MODELS, getAiConfig, setAiConfig, type AiConfig, type AiTask } from '../lib/ai';
 import { testAi } from '../lib/aiTasks';
 
+declare const __BUILD_TIME__: string;
+
 const TASKS: Array<{ id: AiTask; label: string }> = [
   { id: 'lesson', label: 'Dictée des séances' },
   { id: 'fiche', label: 'Fiches adaptées' },
@@ -69,6 +71,7 @@ export function AiSection() {
           </p>
         ))}
         <p className="muted small">L'essai fait de vrais appels : quelques centimes au plus. Vos phrases et le contenu de la séance sont envoyés à Anthropic ; évitez de dicter des noms d'élèves.</p>
+        <p className="muted small">Version de l'application : {new Date(__BUILD_TIME__).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</p>
       </Card>
     </Section>
   );

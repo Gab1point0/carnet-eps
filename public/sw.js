@@ -23,6 +23,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // Recherche d'une nouvelle version : toujours le site, jamais le cache.
+  if (req.cache === 'no-store') return;
 
   if (req.mode === 'navigate') {
     event.respondWith(
