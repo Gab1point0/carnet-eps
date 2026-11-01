@@ -332,7 +332,7 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
   .no-print, .bottom-nav, .sidebar, .topbar, .toasts { display: none !important; }
   .print-page { padding: 0; background: #fff; }
   .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
-  @page { margin: 12mm; }
+  @page { margin: 5mm; }
 }
 
 /* Copie servant à fabriquer un PDF sur téléphone : mêmes règles que l'impression. */
