@@ -6,6 +6,7 @@ import { useData } from '../store/data';
 import { Button, Card, PageHeader, Section } from '../components/ui';
 import { FICHES, FICHE_BY_ID, FICHE_GROUPS, LEVEL_KEYS, LEVEL_LABELS, buildFiche, customDef, fichesOfActivity, levelKeyOf, type FicheCtx, type FicheDef, type FicheSection, type LevelKey } from '../lib/fiches';
 import { criteriaOf } from '../lib/materials';
+import { printPage } from '../lib/printPdf';
 import { cls } from '../lib/util';
 
 function Blank({ short }: { short?: boolean }) {
@@ -182,7 +183,7 @@ export function FichePage() {
             ))}
           </select>
         </label>}
-        <Button variant="primary" icon={<Printer size={18} />} onClick={() => window.print()}>
+        <Button variant="primary" icon={<Printer size={18} />} onClick={() => printPage(def.title)}>
           Imprimer / enregistrer en PDF
         </Button>
       </div>

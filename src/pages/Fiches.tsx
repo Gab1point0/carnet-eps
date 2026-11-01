@@ -6,6 +6,7 @@ import { activityOf, cycleLessons } from '../store/selectors';
 import { Button } from '../components/ui';
 import { criteriaOf } from '../lib/materials';
 import { formatDM } from '../lib/dates';
+import { printPage } from '../lib/printPdf';
 
 type FicheId = 'contrat' | 'observation' | 'grille' | 'carnet';
 
@@ -66,7 +67,7 @@ export function FichesPage() {
         <Button variant="ghost" icon={<ChevronLeft size={18} />} onClick={() => navigate(`/cycles/${cycle.id}`)}>
           Retour
         </Button>
-        <Button variant="primary" icon={<Printer size={18} />} onClick={() => window.print()} disabled={selected.size === 0}>
+        <Button variant="primary" icon={<Printer size={18} />} onClick={() => printPage(`Fiches ${cycle.title}`)} disabled={selected.size === 0}>
           Imprimer / enregistrer en PDF
         </Button>
       </div>

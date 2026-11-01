@@ -9,6 +9,7 @@ import { Button } from '../components/ui';
 import { BLOCK_KINDS } from '../lib/defaults';
 import { formatDuration, formatLong } from '../lib/dates';
 import { sanitizeAnimation } from '../animation/engine';
+import { printPage } from '../lib/printPdf';
 
 /** Fiche de séance imprimable (impression papier ou « Enregistrer en PDF »). */
 export function LessonPrintPage() {
@@ -28,7 +29,7 @@ export function LessonPrintPage() {
         <Button variant="ghost" icon={<ChevronLeft size={18} />} onClick={() => navigate(`/lessons/${lesson.id}`)}>
           Retour
         </Button>
-        <Button variant="primary" icon={<Printer size={18} />} onClick={() => window.print()}>
+        <Button variant="primary" icon={<Printer size={18} />} onClick={() => printPage(lesson.title || 'Séance')}>
           Imprimer / enregistrer en PDF
         </Button>
       </div>

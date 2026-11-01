@@ -7,6 +7,7 @@ import { ClassDot } from '../components/cards';
 import { useCurrentYear, useYearClasses, useYearLessons } from '../store/selectors';
 import { pendingProposals } from '../components/ProposalsPanel';
 import { lessonMaterialTexts, mergeMaterials } from '../lib/materials';
+import { printPage } from '../lib/printPdf';
 import { addDays, formatDM, formatShort, startOfWeek, todayISO } from '../lib/dates';
 import { cls, plural } from '../lib/util';
 
@@ -203,7 +204,7 @@ export function PreparationPage() {
         <>
           <div className="row-between">
             <p className="muted">Cochez au fur et à mesure que le matériel est sorti. Les quantités s'additionnent quand elles sont écrites en chiffres (« 12 plots »).</p>
-            <Button size="sm" className="no-print" icon={<Printer size={16} />} onClick={() => window.print()}>
+            <Button size="sm" className="no-print" icon={<Printer size={16} />} onClick={() => printPage('Matériel de la semaine', '.mat-print')}>
               Imprimer
             </Button>
           </div>
@@ -214,7 +215,7 @@ export function PreparationPage() {
             </EmptyState>
           ) : (
             <>
-              <Section title="Tout le matériel de la semaine">
+              <Section title="Tout le matériel de la semaine" className="mat-print">
                 <Card>
                   <div className="mat-list">
                     {materials.filter((m) => !m.venue).map((m) => {
@@ -238,7 +239,7 @@ export function PreparationPage() {
                 </Card>
               </Section>
 
-              <Section title="Séance par séance">
+              <Section title="Séance par séance" className="mat-print">
                 <div className="stack">
                   {days.flatMap((d) =>
                     byDay

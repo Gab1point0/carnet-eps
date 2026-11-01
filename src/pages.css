@@ -335,6 +335,12 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
   @page { margin: 12mm; }
 }
 
+/* Copie servant à fabriquer un PDF sur téléphone : mêmes règles que l'impression. */
+.pdf-mode .no-print { display: none !important; }
+.pdf-mode .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
+.pdf-mode .fiche { min-height: 0; margin: 0; }
+.pdf-mode body { background: #fff; }
+
 .dictate-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px; border-radius: 14px; border: 2px dashed var(--primary); background: var(--primary-soft); color: var(--text); font-weight: 700; font-size: 1rem; cursor: pointer; margin-bottom: 8px; }
 .dictate-on { border-style: solid; background: var(--danger); color: #fff; border-color: var(--danger); animation: dictate-pulse 1.4s ease-in-out infinite; }
 @keyframes dictate-pulse { 50% { opacity: 0.8; } }
