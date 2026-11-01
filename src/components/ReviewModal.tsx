@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Mic, MicOff } from 'lucide-react';
+import { BookmarkPlus, Mic, MicOff } from 'lucide-react';
+import { extractSituations } from '../store/actions';
 import type { Lesson } from '../types';
 import { useDictation } from '../lib/dictation';
 import { sentimentOf, themesOf } from '../lib/suggestions';
@@ -163,6 +164,53 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
         <TextArea value={bilan} onChange={setBilan} minRows={4} placeholder="Ce qui a marché, ce qu'il faut changer, élèves à suivre… Vous pouvez dire « virgule », « point », « à la ligne »." />
         {found > 0 && <p className="muted small">💡 {found} point{found > 1 ? 's' : ''} repéré{found > 1 ? 's' : ''} : des ajustements vous seront proposés sur la séance suivante.</p>}
       </div>
+      <LibraryPicker lesson={lesson} />
     </Modal>
+  );
+}
+
+/** Choisir des exercices de la séance et les envoyer dans la bibliothèque de situations. */
+function LibraryPicker({ lesson }: { lesson: Lesson }) {
+  const exercises = useData((s) => s.data.exercises);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const blocks = lesson.blocks.filter((b) => b.kind !== 'warmup' && b.kind !== 'cooldown');
+  if (blocks.length === 0) return null;
+
+  const known = new Set(Object.values(exercises).map((e) => `${e.title}\u0000${e.text}`));
+  const inLibrary = (b: Lesson['blocks'][number]) => known.has(`${b.title || 'Sans titre'}\u0000${b.text}`);
+  const toggle = (id: string) =>
+    setPicked((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const send = () => {
+    const { created } = extractSituations([lesson.id], { blockIds: [...picked] });
+    toast(`${created} exercice${created > 1 ? 's' : ''} ajouté${created > 1 ? 's' : ''} à la bibliothèque`, { tone: 'success' });
+    setPicked(new Set());
+  };
+
+  return (
+    <div className="field">
+      <span className="field-label">Ajouter à la bibliothèque</span>
+      <div className="lib-picks">
+        {blocks.map((b) => {
+          const there = inLibrary(b);
+          return (
+            <button key={b.id} type="button" disabled={there} aria-pressed={picked.has(b.id)} className={cls('lib-pick', picked.has(b.id) && 'lib-pick-on')} onClick={() => toggle(b.id)}>
+              <span>{there ? '✓' : picked.has(b.id) ? '☑' : '☐'}</span>
+              <span>
+                {b.title || 'Sans titre'}
+                {there && <span className="muted small"> · déjà dans la bibliothèque</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <Button size="sm" icon={<BookmarkPlus size={15} />} onClick={send} disabled={picked.size === 0}>
+        Valider ({picked.size})
+      </Button>
+    </div>
   );
 }

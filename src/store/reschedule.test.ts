@@ -95,6 +95,20 @@ describe('niveaux dans la bibliothèque', () => {
   });
 });
 
+describe('envoi depuis le bilan', () => {
+  beforeEach(setup);
+  it('envoie seulement les exercices choisis, avec le niveau de la classe, sans doublon', () => {
+    useData.getState().patch('classes', 'k', { level: '5e' });
+    const a = { ...newBlock('situation', 'Passe et va', 20), id: 'a' };
+    const b = { ...newBlock('game', 'Match', 20), id: 'b' };
+    useData.getState().patch('lessons', 'l0', { blocks: [a, b] });
+    expect(extractSituations(['l0'], { blockIds: ['a'] })).toEqual({ created: 1, skipped: 0 });
+    const ex = Object.values(useData.getState().data.exercises);
+    expect(ex.map((e) => [e.title, e.classLevels])).toEqual([['Passe et va', ['5e']]]);
+    expect(extractSituations(['l0'], { blockIds: ['a'] })).toEqual({ created: 0, skipped: 1 });
+  });
+});
+
 describe('extraction des situations', () => {
   it('ajoute les situations des séances modèles, sans échauffement ni doublon', () => {
     const data = emptyData();

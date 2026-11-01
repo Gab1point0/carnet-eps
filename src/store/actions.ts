@@ -371,7 +371,7 @@ export function saveBlockAsExercise(block: Block, activityId: ID | null, classLe
  * Les échauffements et retours au calme sont ignorés sauf demande ; une situation identique (même titre et même texte)
  * déjà dans la bibliothèque n'est pas recréée.
  */
-export function extractSituations(lessonIds: ID[], opts: { withWarmups?: boolean } = {}): { created: number; skipped: number } {
+export function extractSituations(lessonIds: ID[], opts: { withWarmups?: boolean; blockIds?: ID[] } = {}): { created: number; skipped: number } {
   let created = 0;
   let skipped = 0;
   st().transact((tx) => {
@@ -382,7 +382,7 @@ export function extractSituations(lessonIds: ID[], opts: { withWarmups?: boolean
       const cycle = l.cycleId ? tx.get('cycles', l.cycleId) : undefined;
       const activityId = l.activityId ?? cycle?.activityId ?? null;
       for (const b of l.blocks) {
-        if (!opts.withWarmups && (b.kind === 'warmup' || b.kind === 'cooldown')) continue;
+        if (opts.blockIds ? !opts.blockIds.includes(b.id) : !opts.withWarmups && (b.kind === 'warmup' || b.kind === 'cooldown')) continue;
         const key = `${b.title}\u0000${b.text}`;
         if (have.has(key)) {
           skipped++;
@@ -392,7 +392,7 @@ export function extractSituations(lessonIds: ID[], opts: { withWarmups?: boolean
         tx.put('exercises', {
           ...newExercise(b.title || 'Sans titre'),
           activityId,
-          classLevels: l.classLevels.length ? [...l.classLevels] : cycle?.classLevels ?? [],
+          classLevels: l.classLevels.length ? [...l.classLevels] : cycle?.classLevels?.length ? [...cycle.classLevels] : levelsOf(l.classId ? tx.get('classes', l.classId)?.level : null),
           kind: b.kind,
           minutes: b.minutes,
           text: b.text,

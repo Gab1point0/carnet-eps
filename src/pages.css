@@ -403,3 +403,9 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .voice-last { border-color: var(--primary) !important; }
 .voice-change { padding: 10px 12px; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
 .voice-off { border-left-color: var(--danger); opacity: 0.6; }
+
+/* Bilan : exercices à envoyer dans la bibliothèque */
+.lib-picks { display: grid; gap: 6px; margin-bottom: 8px; }
+.lib-pick { display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 10px 12px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.lib-pick-on { border-color: var(--primary); background: var(--primary-soft); }
+.lib-pick:disabled { opacity: 0.6; cursor: default; }
