@@ -78,6 +78,11 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .timeline { display: flex; flex-direction: column; gap: 6px; }
 .timeline-bar { display: flex; height: 12px; border-radius: 99px; overflow: hidden; background: var(--surface-2); gap: 2px; }
 .timeline-bar > div { min-width: 3px; }
+.timeline-travel { background: #94a3b8; }
+.timeline-locker { background: #64748b; }
+.venue-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+.venue-row > :first-child { grid-column: 1 / -1; }
+@media (min-width: 700px) { .venue-row { grid-template-columns: 1fr 110px 110px auto; } .venue-row > :first-child { grid-column: auto; } }
 .timeline-free { background: repeating-linear-gradient(45deg, transparent 0 4px, var(--border) 4px 8px); }
 .empty-compact { padding: 18px; }
 

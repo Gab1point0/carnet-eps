@@ -202,7 +202,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
         <>
           <p className="muted small">
             Gardez ou écartez chaque changement. Pour redire ce qui a été mal compris, écartez-le puis touchez « Continuer à dicter ».
-            {ctx.planned > 0 && ` Après validation : ${totalAfter} min de contenu pour un créneau de ${ctx.planned} min.`}
+            {ctx.planned > 0 && ` Après validation : ${totalAfter} min de contenu pour ${ctx.planned} min disponibles.`}
           </p>
           <div className="stack">
             {draft.changes.map((c) => {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CopyPlus, Download, ExternalLink, FolderOpen, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
-import type { Activity, AppData, CourtId, Field as FieldT, SchoolYear } from '../types';
+import type { Activity, AppData, CourtId, Field as FieldT, SchoolYear, Venue } from '../types';
 import { Button, Card, Field, IconButton, NumberInput, PageHeader, Section, Select, TagInput, Tabs, TextInput } from '../components/ui';
 import { DateField } from '../components/forms';
 import { DuplicateYearModal, HolidaysEditor, NewYearModal } from '../components/YearModals';
@@ -11,7 +11,7 @@ import { EMPTY_CONFIG, isConfigured, useSync } from '../store/sync';
 import { loadSample } from '../store/sample';
 import { normalizeData, serialize } from '../store/model';
 import { mergeData } from '../lib/merge';
-import { confirmDialog, toast, useUi, type Theme } from '../store/ui';
+import { confirmDialog, toast, toastUndo, useUi, type Theme } from '../store/ui';
 import { COURTS } from '../lib/defaults';
 import { searchPlaces, type Place } from '../lib/weather';
 import { AiSection } from '../components/AiSection';
@@ -31,6 +31,7 @@ export function SettingsPage() {
       <AiSection />
       <YearsSection />
       <ListsSection />
+      <VenuesSection />
       <ActivitiesSection />
       <AppearanceSection />
       <DataSection />
@@ -223,7 +224,7 @@ function ListsSection() {
           <Field label="Niveaux proposés">
             <TagInput value={settings.levels} onChange={(levels) => patch({ levels })} />
           </Field>
-          <Field label="Lieux de pratique">
+          <Field label="Lieux proposés dans l'emploi du temps">
             <TagInput value={settings.places} onChange={(places) => patch({ places })} />
           </Field>
         </div>
@@ -233,6 +234,46 @@ function ListsSection() {
 }
 
 // ── Champs d'apprentissage & activités ─────────────────────────────────────
+
+function VenuesSection() {
+  const settings = useSettings();
+  const patch = useData.getState().patchSettings;
+  const setVenue = (id: string, p: Partial<Venue>) => patch({ venues: settings.venues.map((v) => (v.id === id ? { ...v, ...p } : v)) });
+  const remove = (v: Venue) => {
+    const before = settings.venues;
+    patch({ venues: before.filter((x) => x.id !== v.id) });
+    toastUndo(`Lieu « ${v.name} » supprimé`, () => patch({ venues: before }));
+  };
+
+  return (
+    <Section title="Lieux des séances">
+      <Card className="stack">
+        <p className="muted small">Chaque séance peut indiquer son lieu : le trajet (compté à l'aller et au retour) et le vestiaire sont retirés du temps disponible. Laissez une case vide si vous ne connaissez pas encore la durée.</p>
+        {settings.venues.map((v) => (
+          <div key={v.id} className="venue-row">
+            <Field label="Nom">
+              <TextInput value={v.name} onChange={(name) => setVenue(v.id, { name })} />
+            </Field>
+            <Field label="Trajet (min)">
+              <NumberInput min={0} value={v.travelMinutes} onChange={(travelMinutes) => setVenue(v.id, { travelMinutes })} />
+            </Field>
+            <Field label="Vestiaire (min)">
+              <NumberInput min={0} value={v.lockerMinutes} onChange={(lockerMinutes) => setVenue(v.id, { lockerMinutes })} />
+            </Field>
+            <IconButton label={`Supprimer ${v.name}`} onClick={() => remove(v)}>
+              <Trash2 size={17} />
+            </IconButton>
+          </div>
+        ))}
+        <div>
+          <Button size="sm" icon={<Plus size={15} />} onClick={() => patch({ venues: [...settings.venues, { id: uid(), name: 'Nouveau lieu', travelMinutes: null, lockerMinutes: null }] })}>
+            Ajouter un lieu
+          </Button>
+        </div>
+      </Card>
+    </Section>
+  );
+}
 
 function ActivitiesSection() {
   const settings = useSettings();

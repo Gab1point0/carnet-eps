@@ -8,7 +8,8 @@ import { ProposalsPanel } from '../components/ProposalsPanel';
 import { MarkdownField } from '../components/MarkdownField';
 import { LevelsField } from '../components/LevelsField';
 import { EVAL_KINDS } from '../lib/levels';
-import type { Block, BlockKind, ID, Lesson } from '../types';
+import type { Block, BlockKind, ID, Lesson, Venue } from '../types';
+import { venueOf, venueTime } from '../lib/venues';
 import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea } from '../components/ui';
 import { ClassDot } from '../components/cards';
 import { ActivitySelect, DateField, TimeField } from '../components/forms';
@@ -73,6 +74,7 @@ export function LessonPage() {
   };
 
   const planned = lesson.start && lesson.end ? durationOf(lesson.start, lesson.end) : 0;
+  const venue = venueOf(data.settings, lesson);
   const total = lessonTotalMinutes(lesson);
 
   const onDateChange = (date: string | null) => {
@@ -211,6 +213,18 @@ export function LessonPage() {
           <Field label="Fin">
             <TimeField value={lesson.end} onChange={(v) => patch({ end: v })} />
           </Field>
+          <Field label="Lieu">
+            <Select
+              value={lesson.venueId ?? ''}
+              placeholder="Non précisé"
+              onChange={(v) => patch({ venueId: v || null })}
+              options={[
+                // Un lieu supprimé des réglages reste choisi : on l'indique plutôt que d'afficher « Non précisé ».
+                ...(lesson.venueId && !venue ? [{ value: lesson.venueId, label: 'Lieu supprimé' }] : []),
+                ...data.settings.venues.map((v) => ({ value: v.id, label: v.name })),
+              ]}
+            />
+          </Field>
           <Field label="Évaluation">
             <Select
               value={lesson.evalKind ?? ''}
@@ -257,7 +271,7 @@ export function LessonPage() {
           </Button>
         }
       >
-        <Timeline lesson={lesson} planned={planned} total={total} />
+        <Timeline lesson={lesson} planned={planned} total={total} venue={venue} />
 
         {lesson.blocks.length === 0 && (
           <div className="empty empty-compact">
@@ -347,26 +361,38 @@ export function LessonPage() {
   );
 }
 
-function Timeline({ lesson, planned, total }: { lesson: Lesson; planned: number; total: number }) {
-  if (!lesson.blocks.length) return null;
-  const scale = Math.max(planned, total, 1);
-  const diff = planned ? total - planned : 0;
+function Timeline({ lesson, planned, total, venue }: { lesson: Lesson; planned: number; total: number; venue?: Venue }) {
+  const time = venueTime(venue);
+  if (!lesson.blocks.length && !time.total) return null;
+  const available = Math.max(0, planned - time.total);
+  const scale = Math.max(planned, time.total + total, 1);
+  const diff = planned ? total - available : 0;
+  const part = (minutes: number, label: string, className: string) =>
+    minutes > 0 && <div className={className} title={`${label} · ${minutes} min`} style={{ width: `${(minutes / scale) * 100}%` }} />;
   return (
     <div className="timeline">
       <div className="timeline-bar" aria-hidden>
+        {part(time.oneWay, 'Trajet aller', 'timeline-travel')}
+        {part(time.locker, 'Vestiaire', 'timeline-locker')}
         {lesson.blocks.map((b) => (
           <div key={b.id} title={`${b.title || BLOCK_KINDS[b.kind].label} · ${b.minutes} min`} style={{ width: `${(b.minutes / scale) * 100}%`, background: BLOCK_KINDS[b.kind].color }} />
         ))}
-        {planned > total && <div className="timeline-free" style={{ width: `${((planned - total) / scale) * 100}%` }} />}
+        {available > total && <div className="timeline-free" style={{ width: `${((available - total) / scale) * 100}%` }} />}
+        {part(time.oneWay, 'Trajet retour', 'timeline-travel')}
       </div>
       <div className="timeline-legend small">
         <strong>{formatDuration(total)}</strong> de contenu
         {planned > 0 && (
           <span className={cls(diff > 0 && 'warn-text')}>
             {' '}
-            · séance de {formatDuration(planned)}
+            · {time.total ? `${formatDuration(available)} disponibles sur ${formatDuration(planned)}` : `séance de ${formatDuration(planned)}`}
             {diff > 0 ? ` — dépasse de ${diff} min` : diff < 0 ? ` — reste ${-diff} min` : ' — pile le bon temps'}
           </span>
+        )}
+        {venue && (
+          <div className="muted">
+            {venue.name} : {venue.travelMinutes === null ? 'trajet à renseigner' : `trajet ${venue.travelMinutes} min × 2`} · {venue.lockerMinutes === null ? 'vestiaire à renseigner' : `vestiaire ${venue.lockerMinutes} min`}
+          </div>
         )}
       </div>
     </div>

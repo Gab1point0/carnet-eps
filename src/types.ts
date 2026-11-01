@@ -147,6 +147,8 @@ export interface Lesson extends Meta {
   date: ISODate | null;
   start: HHMM;
   end: HHMM;
+  /** Lieu de la séance (`settings.venues`). */
+  venueId: ID | null;
   status: LessonStatus;
   objective: string;
   materials: string;
@@ -285,6 +287,15 @@ export interface Activity {
   court: CourtId;
 }
 
+/** Lieu d'une séance : ce qu'il prend sur le créneau. `null` = pas encore renseigné. */
+export interface Venue {
+  id: ID;
+  name: string;
+  /** Trajet à pied, pour un aller. */
+  travelMinutes: number | null;
+  lockerMinutes: number | null;
+}
+
 export interface Settings {
   updatedAt: number;
   teacher: string;
@@ -292,6 +303,7 @@ export interface Settings {
   activities: Activity[];
   levels: string[];
   places: string[];
+  venues: Venue[];
   defaultLessonMinutes: number;
   /** Lieu des cours en plein air, pour les prévisions météo. `null` = pas renseigné. */
   weather: { label: string; lat: number; lon: number } | null;

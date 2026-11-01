@@ -11,7 +11,7 @@ import { activityOf } from '../store/selectors';
 import { aiReady } from '../lib/ai';
 import { aiAnimation, aiFiche, cleanSheet, type TeachingCtx } from '../lib/aiTasks';
 import { customDef } from '../lib/fiches';
-import { durationOf } from '../lib/dates';
+import { availableMinutes, venueOf } from '../lib/venues';
 
 /** Ce que Claude doit savoir de la classe et de la séance. */
 export function teachingCtx(data: AppData, lesson: Lesson): TeachingCtx {
@@ -22,7 +22,7 @@ export function teachingCtx(data: AppData, lesson: Lesson): TeachingCtx {
     level: klass?.level ?? lesson.classLevels?.[0] ?? '',
     cycle: cycle?.title ?? '',
     activity: activityOf(data, lesson.activityId ?? cycle?.activityId ?? null)?.name ?? '',
-    planned: lesson.start && lesson.end ? durationOf(lesson.start, lesson.end) : 0,
+    planned: availableMinutes(lesson, venueOf(data.settings, lesson)),
     activities: data.settings.activities.map((a) => a.name),
   };
 }

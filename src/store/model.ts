@@ -91,6 +91,7 @@ export function newLesson(classId: ID | null, cycleId: ID | null, order: number,
     date: null,
     start: '08:00',
     end: '10:00',
+    venueId: null,
     status: 'planned',
     objective: '',
     materials: '',
@@ -143,6 +144,7 @@ export function normalizeData(raw: unknown): AppData {
   if (!Array.isArray(settings.activities)) settings.activities = base.settings.activities;
   if (!Array.isArray(settings.levels)) settings.levels = base.settings.levels;
   if (!Array.isArray(settings.places)) settings.places = base.settings.places;
+  if (!Array.isArray(settings.venues)) settings.venues = base.settings.venues;
 
   const out: AppData = {
     schemaVersion: 1,

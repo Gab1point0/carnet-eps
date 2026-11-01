@@ -31,7 +31,7 @@ AppData { schemaVersion:1, settings, years{}, classes{}, cycles{}, lessons{}, ex
 SchoolYear { id,label:"2026-2027",start,end,zone,holidays:[{id,label,start,end,kind}] }
 Klass      { id,yearId,name,level,students,color,slots:[{id,weekday,start,end,place}],sharedWith,notes,order }
 Cycle      { id,classId|null,title,activityId,slotIds,startDate,endDate,objectives,competences,evaluation,notes,order }
-Lesson     { id,classId|null,cycleId|null,activityId,title,order,date,start,end,status:planned|done|cancelled,
+Lesson     { id,classId|null,cycleId|null,activityId,title,order,date,start,end,venueId|null,status:planned|done|cancelled,
              objective,materials,safety,blocks:[Block],bilan,tags }
 Block      { id,kind:warmup|situation|skill|game|evaluation|theory|cooldown|free,title,minutes,text,materials,animation|null }
 Exercise   { id,title,activityId,kind,minutes,tags,text,materials,animation|null }   // bibliothèque
@@ -48,6 +48,7 @@ Animation  { court,tokens:[{id,kind,label,color,size}],frames:[{id,caption,holdM
 - **Matériel** : Block.materials = une ligne `- 12 plots (usage)` par objet ; Lesson.materials = ligne `🏟 Installation : …` puis `- 15 ballons — bloc 2 (passes) ; bloc 3 (match)` (quantité max sur la séance, blocs où l'objet sert). L'application ne totalise que ces lignes (lessonMaterialTexts). Le générateur est outils/materiel-par-bloc.mjs du dépôt de données (effectif de la classe → quantités).
 - **Fiches** : Block.sheets = identifiants de fiches imprimables (src/lib/fiches.ts, ~40 fiches : observation, score, contrat, composition…). Page /fiches (liste), /fiches/:id?cycle=&copies= (impression). Les blocs affichent des boutons « Fiches à imprimer ». Les textes des situations suivent le plan **Organisation / Déroulé / Rotations et rôles / Séries et durée / Critères de réussite / Pour adapter** (générés par outils/contextualiser-situations.mjs du dépôt de données).
 - **Assistant IA** : `src/lib/ai.ts` (clé d'API et modèles dans localStorage `carnet-eps:ia`, jamais synchronisés ; appel direct depuis le navigateur) et `src/lib/aiTasks.ts` (consignes, schémas, conversions) : dictée (`aiIngest`), fiche sur mesure (`Block.customSheets`), schéma animé (`aiAnimation`). Sans clé ou en cas d'erreur, la dictée retombe sur les mots-clés (`src/lib/voiceLesson.ts`).
+- **Lieux** : `Lesson.venueId` renvoie à `settings.venues[]` `{ id,name,travelMinutes,lockerMinutes }` (`null` = inconnu). Trajet compté aller et retour, vestiaire une fois, retirés du créneau (`src/lib/venues.ts`). À ne pas confondre avec `settings.places`, simples suggestions de l'emploi du temps.
 - **Impression** : les boutons passent par `printPage` (`src/lib/printPdf.ts`) : `window.print()` sur ordinateur ; sur téléphone ou application installée, où il ne fait rien, un vrai fichier PDF (html2canvas-pro + jsPDF, chargés à la demande).
 - Les textes (`text`, `objective`…) acceptent un mini-Markdown : `**gras**`, `*italique*`, `- liste`, `## titre`.
 

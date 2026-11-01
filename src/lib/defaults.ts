@@ -80,6 +80,14 @@ export function defaultSettings(): Settings {
     activities: DEFAULT_ACTIVITIES.map((x) => ({ ...x })),
     levels: [...DEFAULT_LEVELS],
     places: ['Gymnase', 'Plateau extérieur', 'Salle de danse', 'Piscine', 'Stade'],
+    // Identifiants fixes : tous les appareils doivent parler des mêmes lieux avant toute modification.
+    venues: [
+      { id: 'picherettes', name: 'Gymnase des Picherettes', travelMinutes: 25, lockerMinutes: 5 },
+      { id: 'college', name: 'Collège', travelMinutes: 0, lockerMinutes: 5 },
+      { id: 'stade-burcq', name: 'Stade du Burcq', travelMinutes: 10, lockerMinutes: 5 },
+      { id: 'piscine', name: 'Piscine', travelMinutes: null, lockerMinutes: null },
+      { id: 'jardin-ile', name: "Jardin de l'Île", travelMinutes: 5, lockerMinutes: 5 },
+    ],
     defaultLessonMinutes: 110,
     weather: null,
   };

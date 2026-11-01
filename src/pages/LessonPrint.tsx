@@ -10,6 +10,7 @@ import { BLOCK_KINDS } from '../lib/defaults';
 import { formatDuration, formatLong } from '../lib/dates';
 import { sanitizeAnimation } from '../animation/engine';
 import { printPage } from '../lib/printPdf';
+import { venueOf, venueTime } from '../lib/venues';
 
 /** Fiche de séance imprimable (impression papier ou « Enregistrer en PDF »). */
 export function LessonPrintPage() {
@@ -22,6 +23,8 @@ export function LessonPrintPage() {
   const klass = lesson.classId ? data.classes[lesson.classId] : undefined;
   const cycle = lesson.cycleId ? data.cycles[lesson.cycleId] : undefined;
   const act = activityOf(data, lesson.activityId ?? cycle?.activityId ?? null);
+  const venue = venueOf(data.settings, lesson);
+  const time = venueTime(venue);
 
   return (
     <div className="print-page">
@@ -47,6 +50,13 @@ export function LessonPrintPage() {
             <div>
               {lesson.start}–{lesson.end} · {formatDuration(lessonTotalMinutes(lesson))} de contenu
             </div>
+            {venue && (
+              <div>
+                {venue.name}
+                {time.travel > 0 && ` · trajet ${time.oneWay} min × 2`}
+                {time.locker > 0 && ` · vestiaire ${time.locker} min`}
+              </div>
+            )}
           </div>
         </header>
 
