@@ -57,6 +57,7 @@ export function useDictation(onText: (text: string) => void) {
   const [error, setError] = useState('');
   const rec = useRef<Recognition | null>(null);
   const wanted = useRef(false);
+  const lastFinal = useRef('');
   const cb = useRef(onText);
   cb.current = onText;
 
@@ -80,7 +81,14 @@ export function useDictation(onText: (text: string) => void) {
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
         if (res.isFinal) {
-          const t = tidyTranscript(res[0].transcript);
+          let t = tidyTranscript(res[0].transcript);
+          // Sur Android, Chrome renvoie souvent toute la phrase déjà reçue : on ne garde que la nouveauté.
+          if (t === lastFinal.current) t = '';
+          else if (lastFinal.current && t.startsWith(lastFinal.current)) {
+            const whole = t;
+            t = t.slice(lastFinal.current.length).trim();
+            lastFinal.current = whole;
+          } else if (t) lastFinal.current = t;
           if (t) cb.current(t);
         } else partial += res[0].transcript;
       }

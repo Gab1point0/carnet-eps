@@ -394,3 +394,12 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .select-row { display: flex; align-items: center; gap: 10px; padding-left: 6px; }
 .select-row input[type=checkbox], .select-cycle input { width: 20px; height: 20px; flex: none; }
 .select-cycle { padding: 6px 12px 0; }
+
+/* Dictée d'une séance */
+.voice-type { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin: 10px 0; }
+.voice-type textarea { width: 100%; }
+.voice-summary { list-style: none; padding: 0; margin: 4px 0 8px; display: grid; gap: 6px; }
+.voice-summary li { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; }
+.voice-last { border-color: var(--primary) !important; }
+.voice-change { padding: 10px 12px; border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
+.voice-off { border-left-color: var(--danger); opacity: 0.6; }

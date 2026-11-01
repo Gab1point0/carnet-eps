@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Library, Play, Plus, Printer, Trash2 } from 'lucide-react';
+import { Mic } from 'lucide-react';
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
+import { VoiceLessonModal } from '../components/VoiceLessonModal';
 import { ProposalsPanel } from '../components/ProposalsPanel';
 import { MarkdownField } from '../components/MarkdownField';
 import { LevelsField } from '../components/LevelsField';
@@ -29,6 +31,7 @@ export function LessonPage() {
   const [picker, setPicker] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [dictating, setDictating] = useState(false);
 
   if (!lesson) return <Navigate to="/classes" replace />;
 
@@ -102,6 +105,9 @@ export function LessonPage() {
           <>
             <Button variant="primary" icon={<Play size={17} />} onClick={() => navigate(`/lessons/${lesson.id}/run`)}>
               Mode cours
+            </Button>
+            <Button icon={<Mic size={17} />} onClick={() => setDictating(true)}>
+              Dicter la séance
             </Button>
             {!isTemplate && (
               <Button icon={<ClipboardCheck size={17} />} onClick={() => setReviewing(true)}>
@@ -305,6 +311,7 @@ export function LessonPage() {
         />
       )}
       {reviewing && <ReviewModal lesson={lesson} onClose={() => setReviewing(false)} />}
+      {dictating && <VoiceLessonModal lesson={lesson} onClose={() => setDictating(false)} />}
       {duplicating && (
         <DuplicateLessonModal
           lesson={lesson}
