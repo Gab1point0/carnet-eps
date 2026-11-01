@@ -45,7 +45,8 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
     setLog((cur) => [...cur, ...r.understood]);
     setUnclear(r.unclear);
   };
-  const dictation = useDictation(hear);
+  // Ce qui est dicté attend dans la zone de texte : une pause ne valide rien, seul le bouton termine la partie.
+  const dictation = useDictation((text) => setTyped((cur) => (cur.trim() ? `${cur.trim()} ${text}` : text)));
 
   const kept = draft.changes.filter((c) => !rejected.has(c.id));
   const toggle = (id: string) =>
@@ -56,16 +57,20 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
       return next;
     });
 
-  const sendTyped = () => {
-    if (!typed.trim()) return;
-    hear(typed);
+  /** « J'ai terminé cette partie » : ce qui a été dit devient un changement proposé. */
+  const finishPart = () => {
+    const text = `${typed} ${dictation.flush()}`.trim();
+    if (!text) return;
+    hear(text);
     setTyped('');
   };
 
   const openReview = () => {
+    finishPart();
     dictation.stop();
     setReview(true);
   };
+  const hasPending = !!typed.trim() || !!dictation.interim.trim();
   /** Retour à la dictée : ce qui n'a pas été gardé disparaît, pour être redit autrement. */
   const backToDictation = () => {
     const next = { changes: kept, lastId: kept.some((c) => c.id === draft.lastId) ? draft.lastId : null };
@@ -117,7 +122,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
             <Button variant="ghost" onClick={close}>
               Fermer
             </Button>
-            <Button variant="primary" onClick={openReview} disabled={draft.changes.length === 0}>
+            <Button onClick={openReview} disabled={draft.changes.length === 0 && !hasPending}>
               Voir les changements ({draft.changes.length})
             </Button>
           </>
@@ -138,9 +143,9 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
           {dictation.interim && <p className="muted small dictate-interim">… {dictation.interim}</p>}
 
           <div className="voice-type">
-            <TextArea value={typed} onChange={setTyped} minRows={2} placeholder="Ou écrivez ici : « échauffement 15 minutes, éducatifs puis footing »" />
-            <Button size="sm" onClick={sendTyped} disabled={!typed.trim()}>
-              Ajouter
+            <TextArea value={typed} onChange={setTyped} minRows={3} placeholder="Ce que vous dites s'écrit ici. Prenez votre temps : les pauses ne valident rien. Vous pouvez aussi écrire ou corriger." />
+            <Button variant="primary" icon={<Check size={16} />} onClick={finishPart} disabled={!hasPending}>
+              J'ai terminé cette partie
             </Button>
           </div>
 
@@ -152,7 +157,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
 
           {draft.changes.length === 0 ? (
             <div className="muted small">
-              <p>Dites ce que vous voulez, en une fois ou petit à petit. Par exemple :</p>
+              <p>Dites une partie de la séance, puis touchez « J'ai terminé cette partie ». Par exemple :</p>
               <ul>
                 <li>« Échauffement 15 minutes, éducatifs puis footing »</li>
                 <li>« Une situation de match où les points sont bonifiés quand on tape en revers »</li>

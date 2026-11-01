@@ -58,6 +58,7 @@ export function useDictation(onText: (text: string) => void) {
   const rec = useRef<Recognition | null>(null);
   const wanted = useRef(false);
   const lastFinal = useRef('');
+  const interimRef = useRef('');
   const cb = useRef(onText);
   cb.current = onText;
 
@@ -66,6 +67,19 @@ export function useDictation(onText: (text: string) => void) {
     rec.current?.stop();
     setListening(false);
     setInterim('');
+  }, []);
+
+  /**
+   * Termine la partie en cours sans couper l'écoute : renvoie ce qui était encore en cours de reconnaissance
+   * et relance le micro, pour que ces mots ne reviennent pas une seconde fois.
+   */
+  const flush = useCallback(() => {
+    const pending = tidyTranscript(interimRef.current);
+    interimRef.current = '';
+    lastFinal.current = '';
+    setInterim('');
+    if (wanted.current) rec.current?.abort();
+    return pending;
   }, []);
 
   const start = useCallback(() => {
@@ -92,6 +106,7 @@ export function useDictation(onText: (text: string) => void) {
           if (t) cb.current(t);
         } else partial += res[0].transcript;
       }
+      interimRef.current = partial;
       setInterim(partial);
     };
     r.onerror = (e) => {
@@ -129,5 +144,5 @@ export function useDictation(onText: (text: string) => void) {
     [],
   );
 
-  return { supported, listening, interim, error, start, stop };
+  return { supported, listening, interim, error, start, stop, flush };
 }
