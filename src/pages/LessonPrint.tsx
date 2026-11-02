@@ -53,8 +53,8 @@ export function LessonPrintPage() {
             {venue && (
               <div>
                 {venue.name}
-                {time.travel > 0 && ` · trajet ${time.oneWay} min × 2`}
-                {time.locker > 0 && ` · vestiaire ${time.locker} min`}
+                {time.oneWay > 0 && ` · trajet ${time.oneWay} min × 2`}
+                {time.locker > 0 && ` · vestiaire ${time.locker} min × 2`}
               </div>
             )}
           </div>
@@ -80,6 +80,13 @@ export function LessonPrintPage() {
             <Markdown text={lesson.safety} />
           </section>
         )}
+
+        {time.before.map((s) => (
+          <p key={s.id} className="sheet-step">
+            <span>{s.icon} {s.label}</span>
+            <span>{s.minutes} min</span>
+          </p>
+        ))}
 
         {lesson.blocks.map((b, i) => {
           const anim = b.animation ? sanitizeAnimation(b.animation) : null;
@@ -124,6 +131,13 @@ export function LessonPrintPage() {
             </section>
           );
         })}
+
+        {time.after.map((s) => (
+          <p key={s.id} className="sheet-step">
+            <span>{s.icon} {s.label}</span>
+            <span>{s.minutes} min</span>
+          </p>
+        ))}
 
         <section>
           <h2>📝 Bilan</h2>

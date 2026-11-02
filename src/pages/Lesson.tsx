@@ -9,7 +9,7 @@ import { MarkdownField } from '../components/MarkdownField';
 import { LevelsField } from '../components/LevelsField';
 import { EVAL_KINDS } from '../lib/levels';
 import type { Block, BlockKind, ID, Lesson, Venue } from '../types';
-import { venueOf, venueTime } from '../lib/venues';
+import { venueOf, venueTime, type VenueStep } from '../lib/venues';
 import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea } from '../components/ui';
 import { ClassDot } from '../components/cards';
 import { ActivitySelect, DateField, TimeField } from '../components/forms';
@@ -75,6 +75,7 @@ export function LessonPage() {
 
   const planned = lesson.start && lesson.end ? durationOf(lesson.start, lesson.end) : 0;
   const venue = venueOf(data.settings, lesson);
+  const venueSteps = venueTime(venue);
   const total = lessonTotalMinutes(lesson);
 
   const onDateChange = (date: string | null) => {
@@ -280,6 +281,9 @@ export function LessonPage() {
         )}
 
         <div className="stack">
+          {venueSteps.before.map((s) => (
+            <VenueStepRow key={s.id} step={s} />
+          ))}
           {lesson.blocks.map((b, i) => (
             <BlockEditor
               key={b.id}
@@ -307,6 +311,9 @@ export function LessonPage() {
                 toast('Situation enregistrée dans la bibliothèque', { tone: 'success' });
               }}
             />
+          ))}
+          {venueSteps.after.map((s) => (
+            <VenueStepRow key={s.id} step={s} />
           ))}
         </div>
 
@@ -361,24 +368,33 @@ export function LessonPage() {
   );
 }
 
+/** Trajet ou vestiaire : calculé depuis le lieu, il se règle dans les réglages et non ici. */
+function VenueStepRow({ step }: { step: VenueStep }) {
+  return (
+    <div className={`venue-step venue-step-${step.kind}`}>
+      <span aria-hidden>{step.icon}</span>
+      <strong className="grow">{step.label}</strong>
+      <span className="muted small">{step.minutes} min</span>
+    </div>
+  );
+}
+
 function Timeline({ lesson, planned, total, venue }: { lesson: Lesson; planned: number; total: number; venue?: Venue }) {
   const time = venueTime(venue);
   if (!lesson.blocks.length && !time.total) return null;
   const available = Math.max(0, planned - time.total);
   const scale = Math.max(planned, time.total + total, 1);
   const diff = planned ? total - available : 0;
-  const part = (minutes: number, label: string, className: string) =>
-    minutes > 0 && <div className={className} title={`${label} · ${minutes} min`} style={{ width: `${(minutes / scale) * 100}%` }} />;
+  const part = (s: VenueStep, className: string) => <div key={s.id} className={className} title={`${s.label} · ${s.minutes} min`} style={{ width: `${(s.minutes / scale) * 100}%` }} />;
   return (
     <div className="timeline">
       <div className="timeline-bar" aria-hidden>
-        {part(time.oneWay, 'Trajet aller', 'timeline-travel')}
-        {part(time.locker, 'Vestiaire', 'timeline-locker')}
+        {time.before.map((s) => part(s, `timeline-${s.kind}`))}
         {lesson.blocks.map((b) => (
           <div key={b.id} title={`${b.title || BLOCK_KINDS[b.kind].label} · ${b.minutes} min`} style={{ width: `${(b.minutes / scale) * 100}%`, background: BLOCK_KINDS[b.kind].color }} />
         ))}
         {available > total && <div className="timeline-free" style={{ width: `${((available - total) / scale) * 100}%` }} />}
-        {part(time.oneWay, 'Trajet retour', 'timeline-travel')}
+        {time.after.map((s) => part(s, `timeline-${s.kind}`))}
       </div>
       <div className="timeline-legend small">
         <strong>{formatDuration(total)}</strong> de contenu
@@ -391,7 +407,7 @@ function Timeline({ lesson, planned, total, venue }: { lesson: Lesson; planned: 
         )}
         {venue && (
           <div className="muted">
-            {venue.name} : {venue.travelMinutes === null ? 'trajet à renseigner' : `trajet ${venue.travelMinutes} min × 2`} · {venue.lockerMinutes === null ? 'vestiaire à renseigner' : `vestiaire ${venue.lockerMinutes} min`}
+            {venue.name} : {venue.travelMinutes === null ? 'trajet à renseigner' : `trajet ${venue.travelMinutes} min × 2`} · {venue.lockerMinutes === null ? 'vestiaire à renseigner' : `vestiaire ${venue.lockerMinutes} min × 2`}
           </div>
         )}
       </div>

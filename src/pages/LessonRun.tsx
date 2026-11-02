@@ -11,6 +11,7 @@ import { SheetLinks } from './Fiche';
 import { Button, IconButton } from '../components/ui';
 import { BLOCK_KINDS } from '../lib/defaults';
 import { cls } from '../lib/util';
+import { venueOf, venueTime } from '../lib/venues';
 
 function beep() {
   try {
@@ -120,6 +121,7 @@ export function LessonRunPage() {
   const totalMinutes = blocks.reduce((s, b) => s + b.minutes, 0) || 1;
   const progress = step < 0 ? 0 : step >= blocks.length ? 100 : ((doneMinutes * 60 + Math.min(elapsed, (block?.minutes ?? 0) * 60)) / (totalMinutes * 60)) * 100;
   const kind = block ? BLOCK_KINDS[block.kind] : null;
+  const venueSteps = venueTime(venueOf(data.settings, lesson));
 
   return (
     <div className="run" style={{ ['--kind' as string]: kind?.color ?? 'var(--primary)' }}>
@@ -188,6 +190,13 @@ export function LessonRunPage() {
                 <p className="muted">Cette séance n'a pas encore de contenu.</p>
               ) : (
                 <ol className="run-outline">
+                  {venueSteps.before.map((s) => (
+                    <li key={s.id} className="run-outline-step">
+                      <span aria-hidden>{s.icon}</span>
+                      <span className="grow">{s.label}</span>
+                      <span className="muted">{s.minutes} min</span>
+                    </li>
+                  ))}
                   {blocks.map((b, i) => (
                     <li key={b.id}>
                       <button type="button" onClick={() => go(i)}>
@@ -195,6 +204,13 @@ export function LessonRunPage() {
                         <span className="grow">{b.title || BLOCK_KINDS[b.kind].label}</span>
                         <span className="muted">{b.minutes} min</span>
                       </button>
+                    </li>
+                  ))}
+                  {venueSteps.after.map((s) => (
+                    <li key={s.id} className="run-outline-step">
+                      <span aria-hidden>{s.icon}</span>
+                      <span className="grow">{s.label}</span>
+                      <span className="muted">{s.minutes} min</span>
                     </li>
                   ))}
                 </ol>

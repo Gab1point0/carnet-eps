@@ -8,17 +8,27 @@ const venue = (id: string) => venueOf(settings, { venueId: id });
 
 describe('lieux de séance', () => {
   it('propose les lieux de l\'enseignant', () => {
-    expect(venueTime(venue('picherettes'))).toEqual({ oneWay: 25, travel: 50, locker: 5, total: 55 });
-    expect(venueTime(venue('stade-burcq')).total).toBe(25);
-    expect(venueTime(venue('jardin-ile')).total).toBe(15);
-    expect(venueTime(venue('college')).total).toBe(5);
+    expect(venueTime(venue('picherettes')).total).toBe(60);
+    expect(venueTime(venue('stade-burcq')).total).toBe(30);
+    expect(venueTime(venue('jardin-ile')).total).toBe(20);
+    expect(venueTime(venue('college')).total).toBe(10);
     expect(venueTime(venue('piscine')).total).toBe(0);
+  });
+
+  it('place le trajet et le vestiaire avant et après la séance', () => {
+    const steps = (id: string) => {
+      const { before, after } = venueTime(venue(id));
+      return [...before, ...after].map((s) => `${s.label} ${s.minutes}`);
+    };
+    expect(steps('picherettes')).toEqual(['Trajet aller 25', 'Vestiaire 5', 'Vestiaire 5', 'Trajet retour 25']);
+    expect(steps('college')).toEqual(['Vestiaire 5', 'Vestiaire 5']);
+    expect(steps('piscine')).toEqual([]);
   });
 
   it('retire le trajet et le vestiaire du créneau', () => {
     const lesson = { start: '10:00', end: '12:00' };
     expect(availableMinutes(lesson, undefined)).toBe(120);
-    expect(availableMinutes(lesson, venue('picherettes'))).toBe(65);
+    expect(availableMinutes(lesson, venue('picherettes'))).toBe(60);
     expect(availableMinutes({ start: '10:00', end: '10:30' }, venue('picherettes'))).toBe(0);
   });
 

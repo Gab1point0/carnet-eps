@@ -248,7 +248,7 @@ function VenuesSection() {
   return (
     <Section title="Lieux des séances">
       <Card className="stack">
-        <p className="muted small">Chaque séance peut indiquer son lieu : le trajet (compté à l'aller et au retour) et le vestiaire sont retirés du temps disponible. Laissez une case vide si vous ne connaissez pas encore la durée.</p>
+        <p className="muted small">Chaque séance peut indiquer son lieu : le trajet (aller et retour) et le vestiaire (avant et après) s'affichent dans le déroulé et sont retirés du temps disponible. Laissez une case vide si vous ne connaissez pas encore la durée.</p>
         {settings.venues.map((v) => (
           <div key={v.id} className="venue-row">
             <Field label="Nom">
