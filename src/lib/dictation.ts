@@ -30,6 +30,19 @@ function ctor(): (new () => Recognition) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/**
+ * Navigateurs qui proposent l'outil de dictée mais ne transcrivent rien (ils n'ont pas accès au service de Google) :
+ * le micro s'ouvre, mais aucun mot n'arrive. Renvoie leur nom pour l'annoncer avant même d'essayer.
+ */
+export function silentDictationBrowser(): string | null {
+  if (typeof window === 'undefined') return null;
+  const ua = navigator.userAgent;
+  if (/\bOPR\/|\bOPX\/|\bOPT\//.test(ua) || 'opr' in window) return ua.includes('OPX/') || /GX/i.test(ua) ? 'Opera GX' : 'Opera';
+  if ('brave' in navigator) return 'Brave';
+  if (/\bVivaldi\//.test(ua)) return 'Vivaldi';
+  return null;
+}
+
 /** Ordinateur (souris) plutôt que téléphone ou tablette. */
 export const isDesktop = () => typeof window !== 'undefined' && !window.matchMedia?.('(pointer: coarse)').matches;
 
@@ -78,7 +91,8 @@ export function tidyTranscript(s: string): string {
 
 /** Dictée continue en français : appelle `onText` à chaque phrase terminée. */
 export function useDictation(onText: (text: string) => void) {
-  const supported = typeof window !== 'undefined' && ctor() !== null;
+  const silentBrowser = silentDictationBrowser();
+  const supported = typeof window !== 'undefined' && ctor() !== null && !silentBrowser;
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState('');
   const [error, setError] = useState('');
@@ -208,5 +222,10 @@ export function useDictation(onText: (text: string) => void) {
     [],
   );
 
-  return { supported, listening, interim, error, start, stop, flush };
+  /** Message à afficher quand le bouton de dictée n'est pas proposé. */
+  const unsupportedMessage = silentBrowser
+    ? `${silentBrowser} ouvre le micro mais ne transcrit pas la voix : la dictée de l'application ne marche donc pas dans ce navigateur. Ouvrez l'application dans Microsoft Edge (déjà installé sur Windows) ou Google Chrome. En attendant, cliquez dans la zone ci-dessous puis appuyez sur Windows + H pour dicter avec Windows.`
+    : "La dictée n'est pas disponible dans ce navigateur (essayez Chrome, Edge ou Safari). Sur téléphone, utilisez le micro du clavier dans la zone ci-dessous ; sur ordinateur Windows, cliquez dans la zone puis appuyez sur Windows + H.";
+
+  return { supported, unsupportedMessage, listening, interim, error, start, stop, flush };
 }

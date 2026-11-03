@@ -146,7 +146,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
               <span>{dictation.listening ? 'Je vous écoute… touchez pour arrêter' : 'Parler'}</span>
             </button>
           ) : (
-            <p className="muted small">La dictée n'est pas disponible dans ce navigateur (essayez Chrome, Edge ou Safari). Sur téléphone, utilisez le micro du clavier dans la zone ci-dessous ; sur ordinateur Windows, cliquez dans la zone puis appuyez sur Windows + H.</p>
+            <p className="muted small">{dictation.unsupportedMessage}</p>
           )}
           {dictation.error && <p className="error-text small">{dictation.error}</p>}
           {dictation.interim && <p className="muted small dictate-interim">… {dictation.interim}</p>}
