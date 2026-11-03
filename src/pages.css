@@ -305,6 +305,18 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .fiche-table .pts { width: 70px; text-align: center; vertical-align: middle; font-weight: 700; }
 .fiche-table .total { text-align: right; font-weight: 700; }
 .crit { font-weight: 650; }
+/* Mise en page libre : grille de 12 colonnes, chaque partie prend toute la largeur, la moitié, un tiers ou deux tiers. */
+.fiche-body { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px 14px; align-items: start; }
+.fiche-half .fiche-body { gap: 10px 12px; }
+.fiche-part { min-width: 0; grid-column: 1 / -1; }
+.fiche-part > :first-child { margin-top: 0; }
+.fiche-span-half { grid-column: span 6; }
+.fiche-span-third { grid-column: span 4; }
+.fiche-span-two-thirds { grid-column: span 8; }
+.fiche-table-fixed { table-layout: fixed; }
+.fiche-table-fixed th, .fiche-table-fixed td { overflow-wrap: anywhere; }
+.fiche-heading { font-size: 1.05rem; border-bottom: 1px solid #94a3b8; padding-bottom: 2px; margin: 4px 0 0; }
+.fiche-box { border: 1.5px solid #94a3b8; border-radius: 8px; margin: 4px 0; }
 .fiche-q { font-weight: 650; margin-top: 10px; }
 .fiche-lines { height: 80px; background: repeating-linear-gradient(to bottom, transparent 0 25px, #cbd5e1 25px 26px); }
 @media print {
@@ -427,3 +439,15 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .lib-pick { display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 10px 12px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
 .lib-pick-on { border-color: var(--primary); background: var(--primary-soft); }
 .lib-pick:disabled { opacity: 0.6; cursor: default; }
+
+/* Éditeur de fiche : tableau modifiable case par case. */
+.input-sm { padding: 4px 6px; font-size: 0.85rem; width: auto; min-height: 0; }
+.grid-edit-wrap { overflow-x: auto; }
+.grid-edit { border-collapse: collapse; }
+.grid-edit th, .grid-edit td { padding: 2px; vertical-align: middle; }
+.grid-edit .input { min-width: 90px; padding: 6px 8px; font-size: 0.9rem; }
+.grid-edit thead .input { font-weight: 700; }
+.grid-edit-cell { display: flex; align-items: center; gap: 2px; }
+.grid-edit-width { display: flex; flex-direction: column; gap: 2px; }
+.grid-edit-width .input { width: 72px; }
+.fiche-live { border-top: 1px dashed var(--border); padding-top: 10px; }

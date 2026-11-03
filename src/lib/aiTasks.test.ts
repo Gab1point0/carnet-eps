@@ -51,7 +51,7 @@ describe('dictée par Claude', () => {
 
 describe('fiche sur mesure', () => {
   it('écarte les sections incomplètes et se construit comme une fiche', () => {
-    const none = { title: null, head: null, cols: null, rows: null, tall: null, items: null, levels: null, n: null, fields: null, text: null };
+    const none = { span: null, title: null, head: null, cols: null, rows: null, cells: null, widths: null, tall: null, items: null, levels: null, n: null, fields: null, text: null };
     const sheet = toCustomSheet({
       title: 'Observer le revers',
       who: 'observateur',
@@ -59,13 +59,46 @@ describe('fiche sur mesure', () => {
       ident: ['Observateur'],
       sections: [
         { ...none, type: 'table', head: 'Set', cols: ['Revers tentés', 'Points'], rows: ['Set 1'] },
-        { ...none, type: 'table', cols: ['Vide'] },
+        { ...none, type: 'table', cols: [''] },
         { ...none, type: 'lines', title: 'Conseil', n: 50 },
       ],
     });
     expect(sheet.sections.map((s) => s.type)).toEqual(['table', 'lines']);
-    expect(sheet.sections[1]).toMatchObject({ n: 8 });
+    expect(sheet.sections[1]).toMatchObject({ n: 12 });
     expect(customDef(sheet).build({ criteria: [] })).toHaveLength(2);
+  });
+});
+
+describe('mise en page libre', () => {
+  const none = { span: null, title: null, head: null, cols: null, rows: null, cells: null, widths: null, tall: null, items: null, levels: null, n: null, fields: null, text: null };
+
+  it('aligne deux tableaux côte à côte avec les mêmes largeurs', () => {
+    const table = { ...none, type: 'table' as const, span: 'half' as const, head: 'Joueur', cols: ['Réussites', 'Échecs'], rows: ['A', 'B'], widths: [2, 1, 1] };
+    const sheet = toCustomSheet({ title: 'Duel', who: 'observateur', size: 'full', ident: [], sections: [table, { ...table, rows: ['C', 'D'] }] });
+    expect(sheet.sections).toHaveLength(2);
+    for (const s of sheet.sections) expect(s).toMatchObject({ span: 'half', widths: [50, 25, 25] });
+  });
+
+  it('accepte un tableau sans libellés, avec lignes vierges et cases pré-remplies', () => {
+    const sheet = toCustomSheet({
+      title: 'Score',
+      who: 'groupe',
+      size: 'half',
+      ident: [],
+      sections: [
+        { ...none, type: 'table', cols: ['Équipe A', 'Équipe B'], rows: ['', '', ''], cells: [['0', '0']], widths: [50, 50] },
+        { ...none, type: 'table', cols: ['X'], rows: ['Ligne'], widths: [50] },
+        { ...none, type: 'heading', text: 'Après le match' },
+        { ...none, type: 'box', title: 'Dessine ton attaque', n: 99 },
+      ],
+    });
+    expect(sheet.sections[0]).toMatchObject({ rows: ['', '', ''], cells: [['0', '0'], ['', ''], ['', '']], widths: [50, 50] });
+    // Une largeur par colonne affichée : ici il en faut deux (libellés + X), la largeur fausse est ignorée.
+    expect(sheet.sections[1]).not.toHaveProperty('widths');
+    expect(sheet.sections.slice(2)).toEqual([
+      { type: 'heading', text: 'Après le match' },
+      { type: 'box', title: 'Dessine ton attaque', n: 30 },
+    ]);
   });
 });
 

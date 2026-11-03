@@ -1,5 +1,5 @@
 import type { Animation, Arrow, ArrowStyle, Block, BlockKind, CourtId, CustomSheet, Lesson, Token, TokenKind, TokenPos } from '../types';
-import type { FicheSection } from './fiches';
+import { tableHasLabels, type FicheSection, type SectionSpan } from './fiches';
 import { callClaude } from './ai';
 import type { Change, Draft, FieldKey, VoiceCtx } from './voiceLesson';
 import { sanitizeAnimation } from '../animation/engine';
@@ -177,12 +177,18 @@ export async function aiIngest(draft: Draft, lesson: Lesson, spoken: string, ctx
 
 // ── Fiche adaptée ───────────────────────────────────────────────────────────
 
+const SECTION_TYPES = ['table', 'levels', 'checks', 'lines', 'fields', 'text', 'heading', 'box'] as const;
+const SPANS: SectionSpan[] = ['full', 'half', 'third', 'two-thirds'];
+
 interface RawSection {
   type: FicheSection['type'];
+  span: SectionSpan | null;
   title: string | null;
   head: string | null;
   cols: string[] | null;
   rows: string[] | null;
+  cells: string[][] | null;
+  widths: number[] | null;
   tall: boolean | null;
   items: string[] | null;
   levels: string[] | null;
@@ -206,11 +212,14 @@ export const FICHE_SCHEMA = obj({
   sections: {
     type: 'array',
     items: obj({
-      type: { type: 'string', enum: ['table', 'levels', 'checks', 'lines', 'fields', 'text'] },
+      type: { type: 'string', enum: [...SECTION_TYPES] },
+      span: nullableEnum(SPANS),
       title: nullable('string'),
       head: nullable('string'),
       cols: nullableStrings,
       rows: nullableStrings,
+      cells: { type: ['array', 'null'], items: strings },
+      widths: { type: ['array', 'null'], items: { type: 'number' } },
       tall: nullable('boolean'),
       items: nullableStrings,
       levels: nullableStrings,
@@ -227,66 +236,127 @@ Tu crées une fiche à imprimer, propre à la situation décrite : ce que l'él�
 
 Adapte la fiche à la classe : très guidée et courte en 6e et 5e (peu de critères, mots simples), plus d'analyse et de justification en 3e et au lycée. N'écris pas les attendus officiels (AFC, AFL, socle) sur la fiche.
 
+Quand l'enseignant demande une mise en page précise (tailles, alignement, disposition côte à côte, cases pré-remplies…), respecte-la exactement : tu disposes des réglages ci-dessous pour le faire.
+
 Champs :
 - title : titre court. who : à qui elle sert. size : half pour une fiche courte (2 par page A4), full pour une page entière. ident : champs d'identification à remplir à la main (ex. Observateur, Joueur observé, Classe, Date).
-- sections, dans l'ordre d'utilisation. Selon type :
-  - table : tableau à remplir. head = en-tête de la première colonne, cols = autres colonnes, rows = lignes, tall = true si les cases doivent être hautes.
+- sections, dans l'ordre de lecture. Selon type :
+  - table : tableau. head = en-tête de la première colonne (celle des libellés), cols = en-têtes des autres colonnes, rows = libellés des lignes ("" pour une ligne vierge à remplir ; plusieurs "" pour plusieurs lignes vierges). Sans head et avec des libellés tous vides, la première colonne n'existe pas. cells = cases pré-remplies, une liste par ligne, une chaîne par colonne de cols ("" = case vide). widths = largeur en % de chaque colonne affichée (première colonne comprise si elle existe ; total 100). tall = true pour des cases hautes.
   - levels : critères à cocher par degré. items = critères, levels = degrés.
   - checks : cases à cocher. title, items.
-  - lines : lignes d'écriture. title, n = nombre de lignes.
-  - fields : champs courts. fields = libellés.
-  - text : phrase de consigne. text.
-Mets null dans les champs qui ne servent pas à ce type. Une fiche half tient en 2 à 3 sections courtes.`;
+  - lines : lignes d'écriture. title, n = nombre de lignes (1 à 12).
+  - fields : champs courts sur une ligne. fields = libellés.
+  - text : consigne ; accepte **gras**, *italique* et les listes "- ".
+  - heading : intertitre. text.
+  - box : cadre vide pour dessiner (schéma, terrain, parcours). title, n = hauteur en lignes (2 à 30).
+- Mise en page :
+  - span (toutes les sections) : full (toute la largeur, par défaut), half, third, two-thirds. Des sections successives dont les largeurs font une ligne complète (half + half, third ×3, two-thirds + third) se placent côte à côte.
+  - Pour que deux tableaux aient la même taille et des colonnes alignées : même span, même nombre de colonnes affichées, même widths.
+Mets null dans les champs qui ne servent pas. Une fiche half tient en 2 à 3 sections courtes.`;
+
+const list = (v?: string[] | null) => (v ?? []).map((x) => x.trim()).filter(Boolean);
+const opt = (v?: string | null) => v?.trim() || undefined;
+
+/**
+ * Vérifie une partie de fiche (venue de Claude ou de l'éditeur) : textes nettoyés, dimensions bornées,
+ * cases et largeurs ajustées au tableau. Renvoie `null` pour une partie vide.
+ */
+export function tidySection(s: FicheSection): FicheSection | null {
+  const span = s.span && s.span !== 'full' && SPANS.includes(s.span) ? { span: s.span } : {};
+  switch (s.type) {
+    case 'table': {
+      const cols = s.cols.map((c) => c.trim());
+      const head = opt(s.head);
+      let rows = (Array.isArray(s.rows) ? s.rows : Array.from({ length: s.rows }, () => '')).map((r) => r.trim());
+      if (!rows.length) rows = Array.from({ length: Math.max(4, s.cells?.length ?? 0) }, () => '');
+      const cells = rows.map((_, i) => cols.map((_, j) => (s.cells?.[i]?.[j] ?? '').trim()));
+      const hasCells = cells.some((r) => r.some(Boolean));
+      if (!cols.length || (!cols.some(Boolean) && !hasCells)) return null;
+      const title = opt(s.title);
+      const shown = cols.length + (tableHasLabels({ head, rows }) || title ? 1 : 0);
+      const w = s.widths?.map(Number);
+      const okWidths = w?.length === shown && w.every((x) => Number.isFinite(x) && x > 0);
+      const sum = okWidths ? w.reduce((a, b) => a + b, 0) : 0;
+      return {
+        ...span,
+        type: 'table',
+        title,
+        head,
+        cols,
+        rows,
+        ...(hasCells ? { cells } : {}),
+        ...(okWidths ? { widths: w.map((x) => Math.round((x / sum) * 1000) / 10) } : {}),
+        ...(s.tall ? { tall: true } : {}),
+      };
+    }
+    case 'levels': {
+      const items = list(s.items);
+      const levels = list(s.levels);
+      return items.length ? { ...span, type: 'levels', title: opt(s.title), items, levels: levels.length ? levels : undefined } : null;
+    }
+    case 'checks': {
+      const items = list(s.items);
+      return items.length ? { ...span, type: 'checks', title: opt(s.title), items } : null;
+    }
+    case 'lines':
+      return { ...span, type: 'lines', title: opt(s.title), n: Math.max(1, Math.min(12, Math.round(s.n ?? 2))) };
+    case 'fields': {
+      const fields = list(s.fields);
+      return fields.length ? { ...span, type: 'fields', fields } : null;
+    }
+    case 'text':
+    case 'heading': {
+      const text = s.text.trim();
+      return text ? { ...span, type: s.type, text } : null;
+    }
+    case 'box':
+      return { ...span, type: 'box', title: opt(s.title), n: Math.max(2, Math.min(30, Math.round(s.n ?? 6))) };
+  }
+  return null;
+}
+
+/** Section brute de Claude → section de fiche (avant vérification). */
+function fromRaw(s: RawSection): FicheSection | null {
+  const span = s.span ?? undefined;
+  switch (s.type) {
+    case 'table':
+      return { span, type: 'table', title: s.title ?? undefined, head: s.head ?? undefined, cols: s.cols ?? [], rows: s.rows ?? [], cells: s.cells ?? undefined, widths: s.widths ?? undefined, tall: !!s.tall };
+    case 'levels':
+      return { span, type: 'levels', title: s.title ?? undefined, items: s.items ?? [], levels: s.levels ?? undefined };
+    case 'checks':
+      return { span, type: 'checks', title: s.title ?? undefined, items: s.items ?? [] };
+    case 'lines':
+    case 'box':
+      return { span, type: s.type, title: s.title ?? undefined, n: s.n ?? undefined };
+    case 'fields':
+      return { span, type: 'fields', fields: s.fields ?? [] };
+    case 'text':
+    case 'heading':
+      return { span, type: s.type, text: s.text ?? '' };
+  }
+  return null;
+}
+
+function tidySheet(raw: Omit<CustomSheet, 'id' | 'sections'>, sections: FicheSection[]): Omit<CustomSheet, 'id'> {
+  const ident = list(raw.ident);
+  return {
+    title: raw.title.trim() || 'Fiche sur mesure',
+    who: ['élève', 'observateur', 'groupe', 'enseignant'].includes(raw.who) ? raw.who : 'observateur',
+    size: raw.size === 'full' ? 'full' : 'half',
+    ident: ident.length ? ident : ['Nom', 'Classe', 'Date'],
+    sections: sections.map(tidySection).filter((s): s is FicheSection => !!s),
+  };
+}
 
 /** Réponse de Claude → fiche enregistrable. Les sections incomplètes sont écartées. */
 export function toCustomSheet(raw: RawSheet): CustomSheet {
-  const sections: FicheSection[] = [];
-  for (const s of raw.sections ?? []) {
-    if (s.type === 'table' && s.cols?.length && s.rows?.length) sections.push({ type: 'table', title: s.title ?? undefined, head: s.head ?? undefined, cols: s.cols, rows: s.rows, tall: !!s.tall });
-    else if (s.type === 'levels' && s.items?.length) sections.push({ type: 'levels', title: s.title ?? undefined, items: s.items, levels: s.levels?.length ? s.levels : undefined });
-    else if (s.type === 'checks' && s.items?.length) sections.push({ type: 'checks', title: s.title ?? undefined, items: s.items });
-    else if (s.type === 'lines') sections.push({ type: 'lines', title: s.title ?? undefined, n: Math.max(1, Math.min(8, s.n ?? 2)) });
-    else if (s.type === 'fields' && s.fields?.length) sections.push({ type: 'fields', fields: s.fields });
-    else if (s.type === 'text' && s.text) sections.push({ type: 'text', text: s.text });
-  }
-  return {
-    id: uid(),
-    title: raw.title || 'Fiche sur mesure',
-    who: ['élève', 'observateur', 'groupe', 'enseignant'].includes(raw.who) ? raw.who : 'observateur',
-    size: raw.size === 'full' ? 'full' : 'half',
-    ident: raw.ident?.length ? raw.ident : ['Nom', 'Classe', 'Date'],
-    sections,
-  };
+  const sections = (raw.sections ?? []).map(fromRaw).filter((s): s is FicheSection => !!s);
+  return { id: uid(), ...tidySheet({ title: raw.title ?? '', who: raw.who, size: raw.size, ident: raw.ident ?? [] }, sections) };
 }
 
 /** Fiche modifiée à la main → fiche enregistrable : mêmes règles qu'à la création, sans les lignes laissées vides. */
 export function cleanSheet(sheet: CustomSheet): CustomSheet {
-  const list = (v?: string[]) => (v ?? []).map((x) => x.trim()).filter(Boolean);
-  const none = { title: null, head: null, cols: null, rows: null, tall: null, items: null, levels: null, n: null, fields: null, text: null };
-  const clean = toCustomSheet({
-    title: sheet.title.trim(),
-    who: sheet.who,
-    size: sheet.size,
-    ident: list(sheet.ident),
-    sections: sheet.sections.map((s): RawSection => {
-      const title = 'title' in s ? s.title?.trim() || null : null;
-      switch (s.type) {
-        case 'table':
-          return { ...none, type: s.type, title, head: s.head?.trim() || null, cols: list(s.cols), rows: list(Array.isArray(s.rows) ? s.rows : []), tall: !!s.tall };
-        case 'levels':
-          return { ...none, type: s.type, title, items: list(s.items), levels: list(s.levels) };
-        case 'checks':
-          return { ...none, type: s.type, title, items: list(s.items) };
-        case 'lines':
-          return { ...none, type: s.type, title, n: s.n ?? 2 };
-        case 'fields':
-          return { ...none, type: s.type, fields: list(s.fields) };
-        case 'text':
-          return { ...none, type: s.type, text: s.text.trim() };
-      }
-    }),
-  });
-  return { ...clean, id: sheet.id };
+  return { id: sheet.id, ...tidySheet(sheet, sheet.sections) };
 }
 
 function blockPrompt(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text'>, ctx: TeachingCtx, previous: unknown, instruction: string) {

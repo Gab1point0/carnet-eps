@@ -185,7 +185,15 @@ function AiPreviewModal({
             {byHand ? 'Voir la fiche' : 'Modifier à la main'}
           </Button>
           {byHand ? (
-            <FicheEditor sheet={sheet} onChange={setSheet} />
+            <>
+              <FicheEditor sheet={sheet} onChange={setSheet} />
+              <div className="fiche-live stack">
+                <strong className="small">Aperçu</strong>
+                <div className="fiche-preview">
+                  <FicheView def={customDef(cleanSheet(sheet))} ctx={{ criteria: [] }} />
+                </div>
+              </div>
+            </>
           ) : (
             <div className="fiche-preview">
               <FicheView def={customDef(sheet)} ctx={{ criteria: [] }} />

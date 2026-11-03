@@ -4,10 +4,11 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { ChevronLeft, Printer } from 'lucide-react';
 import { useData } from '../store/data';
 import { Button, Card, PageHeader, Section } from '../components/ui';
-import { FICHES, FICHE_BY_ID, FICHE_GROUPS, LEVEL_KEYS, LEVEL_LABELS, buildFiche, customDef, fichesOfActivity, levelKeyOf, type FicheCtx, type FicheDef, type FicheSection, type LevelKey } from '../lib/fiches';
+import { FICHES, FICHE_BY_ID, FICHE_GROUPS, LEVEL_KEYS, LEVEL_LABELS, buildFiche, customDef, tableHasLabels, fichesOfActivity, levelKeyOf, type FicheCtx, type FicheDef, type FicheSection, type LevelKey } from '../lib/fiches';
 import { criteriaOf } from '../lib/materials';
 import { printPage } from '../lib/printPdf';
 import { cls } from '../lib/util';
+import { Markdown } from '../components/Markdown';
 
 function Blank({ short }: { short?: boolean }) {
   return <span className={cls('blank', short && 'short')} />;
@@ -26,7 +27,16 @@ function Section_({ s }: { s: FicheSection }) {
         </div>
       );
     case 'text':
-      return <p className="fiche-obj">{s.text}</p>;
+      return <Markdown text={s.text} className="fiche-obj" />;
+    case 'heading':
+      return <h2 className="fiche-heading">{s.text}</h2>;
+    case 'box':
+      return (
+        <>
+          {s.title && <p className="fiche-q">{s.title} :</p>}
+          <div className="fiche-box" style={{ height: `${(s.n ?? 6) * 26}px` }} />
+        </>
+      );
     case 'lines':
       return (
         <>
@@ -78,24 +88,38 @@ function Section_({ s }: { s: FicheSection }) {
     }
     case 'table': {
       const rows = typeof s.rows === 'number' ? Array.from({ length: s.rows }, () => '') : s.rows;
+      const labels = tableHasLabels(s) || !!s.title?.trim();
+      const shown = s.cols.length + (labels ? 1 : 0);
+      // Largeurs fixées : le tableau ne s'adapte plus à son contenu, ses colonnes s'alignent sur celles d'un tableau voisin.
+      const widths = s.widths?.length === shown ? s.widths : null;
+      const sum = widths?.reduce((a, b) => a + b, 0) || 1;
       return (
-        <table className="fiche-table">
+        <table className={cls('fiche-table', widths && 'fiche-table-fixed')}>
+          {widths && (
+            <colgroup>
+              {widths.map((w, i) => (
+                <col key={i} style={{ width: `${(w / sum) * 100}%` }} />
+              ))}
+            </colgroup>
+          )}
           <thead>
             <tr>
-              <th>{s.head ?? s.title ?? ''}</th>
-              {s.cols.map((c) => (
-                <th key={c}>{c}</th>
+              {labels && <th>{s.head || s.title || ''}</th>}
+              {s.cols.map((c, j) => (
+                <th key={j}>{c}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r}-${i}`} className={s.tall ? 'tall' : undefined}>
-                <td>
-                  <span className="crit">{r}</span>
-                </td>
-                {s.cols.map((c, j) => (
-                  <td key={c} className={s.cells ? 'box' : undefined}>
+              <tr key={i} className={s.tall ? 'tall' : undefined}>
+                {labels && (
+                  <td>
+                    <span className="crit">{r}</span>
+                  </td>
+                )}
+                {s.cols.map((_, j) => (
+                  <td key={j} className={s.cells && !/[a-z]{3}/i.test(s.cells[i]?.[j] ?? '') ? 'box' : undefined}>
                     {s.cells?.[i]?.[j] ?? ''}
                   </td>
                 ))}
@@ -125,9 +149,13 @@ export function FicheView({ def, ctx, subtitle }: { def: FicheDef; ctx: FicheCtx
           ))}
         </div>
       </header>
-      {buildFiche(def, ctx).map((s, i) => (
-        <Section_ key={i} s={s} />
-      ))}
+      <div className="fiche-body">
+        {buildFiche(def, ctx).map((s, i) => (
+          <div key={i} className={`fiche-part fiche-span-${s.span ?? 'full'}`}>
+            <Section_ s={s} />
+          </div>
+        ))}
+      </div>
     </article>
   );
 }

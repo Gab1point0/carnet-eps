@@ -2,13 +2,37 @@ import type { CustomSheet } from '../types';
 
 // Bibliothèque de fiches imprimables. Chaque fiche est décrite par des sections (tableaux, cases à cocher,
 // lignes à remplir) : la page `/fiches/:id` les met en forme pour l'impression. Aucun nom d'élève n'est stocké.
-export type FicheSection =
-  | { type: 'table'; title?: string; cols: string[]; rows: string[] | number; head?: string; tall?: boolean; cells?: string[][] }
+// Mise en page libre (fiches sur mesure) : `span` place des parties côte à côte (grille de 12 colonnes) ;
+// `widths` fixe la largeur des colonnes d'un tableau en % : deux tableaux aux mêmes largeurs ont leurs colonnes alignées.
+export type SectionSpan = 'full' | 'half' | 'third' | 'two-thirds';
+export type FicheSection = { span?: SectionSpan } & (
+  | {
+      type: 'table';
+      title?: string;
+      cols: string[];
+      /** Libellés de la première colonne ; une chaîne vide = ligne à remplir. Sans en-tête ni libellé, la colonne disparaît. */
+      rows: string[] | number;
+      head?: string;
+      tall?: boolean;
+      /** Cases pré-remplies : cells[ligne][colonne] (colonnes de `cols`). */
+      cells?: string[][];
+      /** Largeur de chaque colonne affichée (première colonne comprise si elle s'affiche), en %. */
+      widths?: number[];
+    }
   | { type: 'levels'; title?: string; items: string[]; levels?: string[] }
   | { type: 'checks'; title?: string; items: string[] }
   | { type: 'lines'; title?: string; n?: number }
   | { type: 'fields'; fields: string[] }
-  | { type: 'text'; text: string };
+  | { type: 'text'; text: string }
+  | { type: 'heading'; text: string }
+  /** Cadre vide pour dessiner (schéma, terrain, parcours) ; n = hauteur en lignes. */
+  | { type: 'box'; title?: string; n?: number }
+);
+
+/** La première colonne d'un tableau s'affiche-t-elle (en-tête ou au moins un libellé de ligne) ? */
+export function tableHasLabels(s: { head?: string; rows: string[] | number }): boolean {
+  return !!s.head?.trim() || (Array.isArray(s.rows) && s.rows.some((r) => r.trim()));
+}
 
 export type LevelKey = '6e' | '5e' | '4e' | '3e' | '2nde' | '1re' | 'Tle';
 
