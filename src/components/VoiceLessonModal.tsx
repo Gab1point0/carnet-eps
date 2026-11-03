@@ -22,7 +22,13 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [rejected, setRejected] = useState<Set<string>>(new Set());
   const [review, setReview] = useState(false);
-  const [typed, setTyped] = useState('');
+  const [typed, setTypedState] = useState('');
+  // Copie immédiate de la zone de texte : le moteur intégré écrit après coup, pendant qu'on attend la fin de la partie.
+  const typedRef = useRef('');
+  const setTyped = (v: string) => {
+    typedRef.current = v;
+    setTypedState(v);
+  };
   const [log, setLog] = useState<string[]>([]);
   const [unclear, setUnclear] = useState<string[]>([]);
 
@@ -55,7 +61,10 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
     setUnclear(r.unclear);
   };
   // Ce qui est dicté attend dans la zone de texte : une pause ne valide rien, seul le bouton termine la partie.
-  const dictation = useDictation((text) => setTyped((cur) => (cur.trim() ? `${cur.trim()} ${text}` : text)));
+  const dictation = useDictation((text) => {
+    const cur = typedRef.current.trim();
+    setTyped(cur ? `${cur} ${text}` : text);
+  });
 
   const kept = draft.changes.filter((c) => !rejected.has(c.id));
   const toggle = (id: string) =>
@@ -68,7 +77,8 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
 
   /** « J'ai terminé cette partie » : ce qui a été dit devient un changement proposé. */
   const finishPart = async () => {
-    const text = `${typed} ${dictation.flush()}`.trim();
+    const pending = await dictation.flush();
+    const text = `${typedRef.current} ${pending}`.trim();
     if (!text) return;
     setTyped('');
     await hear(text);
@@ -79,7 +89,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
     await finishPart();
     setReview(true);
   };
-  const hasPending = !!typed.trim() || !!dictation.interim.trim();
+  const hasPending = !!typed.trim() || !!dictation.interim.trim() || dictation.pending;
   /** Retour à la dictée : ce qui n'a pas été gardé disparaît, pour être redit autrement. */
   const backToDictation = () => {
     const next = { changes: kept, lastId: kept.some((c) => c.id === draft.lastId) ? draft.lastId : null };
@@ -150,6 +160,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
           )}
           {dictation.error && <p className="error-text small">{dictation.error}</p>}
           {dictation.interim && <p className="muted small dictate-interim">… {dictation.interim}</p>}
+          {dictation.status && <p className="muted small dictate-interim">{dictation.status}</p>}
 
           <div className="voice-type">
             <TextArea value={typed} onChange={setTyped} minRows={3} placeholder="Ce que vous dites s'écrit ici. Prenez votre temps : les pauses ne valident rien. Vous pouvez aussi écrire ou corriger." />

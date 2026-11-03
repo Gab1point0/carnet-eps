@@ -35,10 +35,14 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
   // Dictée : chaque phrase s'ajoute au bilan ; ressenti et « à ajuster » sont devinés si pas déjà renseignés.
   const dictation = useDictation((t) => {
     const next = bilanRef.current.trim() ? `${bilanRef.current.trim()} ${t}` : t;
+    bilanRef.current = next;
     setBilan(next);
     if (ratingRef.current === null) {
       const s = sentimentOf(next);
-      if (s) setRating(s);
+      if (s) {
+        ratingRef.current = s;
+        setRating(s);
+      }
     }
     if (evalRef.current) {
       const parsed = parseLevels(next);
@@ -49,13 +53,15 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
   });
   const found = [...themesOf(bilan)].length;
 
-  const save = () => {
+  const save = async () => {
     dictation.stop();
+    // Le moteur intégré peut encore écrire la dernière phrase : on l'attend avant d'enregistrer.
+    await dictation.flush();
     useData.getState().patch('lessons', lesson.id, {
       status,
-      rating: status === 'cancelled' ? null : rating,
+      rating: status === 'cancelled' ? null : ratingRef.current,
       adjust,
-      bilan,
+      bilan: bilanRef.current,
       evalKind,
       levels: evalKind && total(levels) > 0 ? levels : null,
     });
@@ -161,6 +167,7 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
         )}
         {dictation.error && <p className="error-text small">{dictation.error}</p>}
         {dictation.interim && <p className="muted small dictate-interim">… {dictation.interim}</p>}
+        {dictation.status && <p className="muted small dictate-interim">{dictation.status}</p>}
         <TextArea value={bilan} onChange={setBilan} minRows={4} placeholder="Ce qui a marché, ce qu'il faut changer, élèves à suivre… Vous pouvez dire « virgule », « point », « à la ligne »." />
         {found > 0 && <p className="muted small">💡 {found} point{found > 1 ? 's' : ''} repéré{found > 1 ? 's' : ''} : des ajustements vous seront proposés sur la séance suivante.</p>}
       </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocalDictation } from './localDictation';
 
 // Reconnaissance vocale du navigateur (Chrome, Edge, Safari, Chrome Android). Pas disponible sur Firefox.
 interface SpeechAlt {
@@ -89,8 +90,8 @@ export function tidyTranscript(s: string): string {
     .trim();
 }
 
-/** Dictée continue en français : appelle `onText` à chaque phrase terminée. */
-export function useDictation(onText: (text: string) => void) {
+/** Dictée du navigateur, continue, en français : appelle `onText` à chaque phrase terminée. */
+function useBrowserDictation(onText: (text: string) => void) {
   const silentBrowser = silentDictationBrowser();
   const supported = typeof window !== 'undefined' && ctor() !== null && !silentBrowser;
   const [listening, setListening] = useState(false);
@@ -228,4 +229,17 @@ export function useDictation(onText: (text: string) => void) {
     : "La dictée n'est pas disponible dans ce navigateur (essayez Chrome, Edge ou Safari). Sur téléphone, utilisez le micro du clavier dans la zone ci-dessous ; sur ordinateur Windows, cliquez dans la zone puis appuyez sur Windows + H.";
 
   return { supported, unsupportedMessage, listening, interim, error, start, stop, flush };
+}
+
+/**
+ * Dictée en français : celle du navigateur quand elle fonctionne (Chrome, Edge, Safari, téléphones),
+ * sinon le moteur intégré à l'application (Opera, Brave…). `flush` termine la partie en cours
+ * et renvoie le texte encore en attente, une fois tout écrit.
+ */
+export function useDictation(onText: (text: string) => void) {
+  const browser = useBrowserDictation(onText);
+  const local = useLocalDictation(onText);
+  if (browser.supported) return { ...browser, engine: 'browser' as const, pending: false, status: '', flush: async () => browser.flush() };
+  if (local.supported) return { ...local, engine: 'local' as const, unsupportedMessage: '' };
+  return { ...browser, engine: 'none' as const, pending: false, status: '', flush: async () => browser.flush() };
 }
