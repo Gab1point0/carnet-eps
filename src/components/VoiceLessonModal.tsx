@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
-import { Check, Loader, Mic, MicOff, X } from 'lucide-react';
+import { Check, Loader, Mic, MicOff, Sparkles, X } from 'lucide-react';
 import type { Lesson } from '../types';
-import { Button, Modal, TextArea } from './ui';
+import { Button, Modal, Tabs, TextArea } from './ui';
 import { Markdown } from './Markdown';
 import { useData } from '../store/data';
 import { teachingCtx } from './AiBlockTools';
@@ -9,7 +9,8 @@ import { confirmDialog, toast } from '../store/ui';
 import { useDictation } from '../lib/dictation';
 import { applyChanges, emptyDraft, fieldLabel, ingest, type Change, type Draft } from '../lib/voiceLesson';
 import { aiReady } from '../lib/ai';
-import { aiIngest, type TeachingCtx } from '../lib/aiTasks';
+import { aiFromObjective, aiIngest, type CycleCtx, type TeachingCtx } from '../lib/aiTasks';
+import { cycleLessons } from '../store/selectors';
 import { BLOCK_KINDS } from '../lib/defaults';
 import { durationOf } from '../lib/dates';
 import { cls } from '../lib/util';
@@ -33,8 +34,25 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
   const [unclear, setUnclear] = useState<string[]>([]);
 
   const ctx: TeachingCtx = useMemo(() => teachingCtx(data, lesson), [data, lesson]);
+  // « Dicter le déroulé » : bloc par bloc. « À partir d'un objectif » : Claude construit toute la séance.
+  const [mode, setMode] = useState<'dictate' | 'objective'>('dictate');
+  const cycleCtx: CycleCtx | null = useMemo(() => {
+    const cycle = lesson.cycleId ? data.cycles[lesson.cycleId] : undefined;
+    if (!cycle) return null;
+    const lessons = cycleLessons(data, cycle.id);
+    const i = lessons.findIndex((l) => l.id === lesson.id);
+    return {
+      objectives: cycle.objectives,
+      evaluation: cycle.evaluation,
+      position: i >= 0 ? i + 1 : null,
+      count: lessons.length || null,
+      // Les trois séances d'avant suffisent pour la progression.
+      previous: (i >= 0 ? lessons.slice(Math.max(0, i - 3), i) : []).map((l) => ({ title: l.title, objective: l.objective, bilan: l.bilan })),
+    };
+  }, [data, lesson]);
   const useAi = aiReady();
   const [busy, setBusy] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [notice, setNotice] = useState('');
 
   const draftRef = useRef(draft);
@@ -82,6 +100,31 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
     if (!text) return;
     setTyped('');
     await hear(text);
+  };
+
+  /** « Construire la séance » : Claude part de l'objectif dicté et propose une séance complète, à valider. */
+  const build = async () => {
+    const pending = await dictation.flush();
+    const objective = `${typedRef.current} ${pending}`.trim();
+    if (!objective) return;
+    dictation.stop();
+    setNotice('');
+    setBuilding(true);
+    try {
+      const r = await aiFromObjective(draftRef.current, lesson, objective, ctx, cycleCtx);
+      draftRef.current = r.draft;
+      setDraft(r.draft);
+      setLog((cur) => [...cur, ...r.understood]);
+      setUnclear(r.unclear);
+      setTyped('');
+      // Les retouches se font ensuite en dictant normalement.
+      setMode('dictate');
+      if (r.draft.changes.length) setReview(true);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : 'Claude est indisponible.');
+    } finally {
+      setBuilding(false);
+    }
   };
 
   const openReview = async () => {
@@ -150,6 +193,20 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
     >
       {!review && (
         <>
+          <Tabs
+            value={mode}
+            onChange={setMode}
+            tabs={[
+              { id: 'dictate', label: 'Dicter le déroulé' },
+              { id: 'objective', label: <><Sparkles size={14} /> À partir d'un objectif</> },
+            ]}
+          />
+          {mode === 'objective' && (
+            <p className="muted small">
+              Dites l'objectif de la séance, avec vos contraintes si besoin (matériel, organisation, situation à garder). Claude construit la séance entière d'après la classe, le créneau et le cycle ; vous validez ensuite chaque bloc, et vous pouvez la retoucher en dictant.
+            </p>
+          )}
+          {mode === 'objective' && !useAi && <p className="error-text small">Cette option a besoin de Claude : ajoutez une clé dans Réglages, « Assistant IA ».</p>}
           {dictation.supported ? (
             <button type="button" className={cls('dictate-btn', dictation.listening && 'dictate-on')} onClick={dictation.listening ? dictation.stop : dictation.start}>
               {dictation.listening ? <MicOff size={22} /> : <Mic size={22} />}
@@ -163,12 +220,32 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
           {dictation.status && <p className="muted small dictate-interim">{dictation.status}</p>}
 
           <div className="voice-type">
-            <TextArea value={typed} onChange={setTyped} minRows={3} placeholder="Ce que vous dites s'écrit ici. Prenez votre temps : les pauses ne valident rien. Vous pouvez aussi écrire ou corriger." />
-            <Button variant="primary" icon={<Check size={16} />} onClick={finishPart} disabled={!hasPending || busy}>
-              J'ai terminé cette partie
-            </Button>
+            <TextArea
+              value={typed}
+              onChange={setTyped}
+              minRows={3}
+              placeholder={
+                mode === 'objective'
+                  ? "Par exemple : « Être capable de créer le surnombre en attaque pour marquer », « Améliorer la régularité au service, on n'a que 6 tables »."
+                  : "Ce que vous dites s'écrit ici. Prenez votre temps : les pauses ne valident rien. Vous pouvez aussi écrire ou corriger."
+              }
+            />
+            {mode === 'objective' ? (
+              <Button variant="primary" icon={<Sparkles size={16} />} onClick={build} disabled={!hasPending || busy || building || !useAi}>
+                Construire la séance
+              </Button>
+            ) : (
+              <Button variant="primary" icon={<Check size={16} />} onClick={finishPart} disabled={!hasPending || busy || building}>
+                J'ai terminé cette partie
+              </Button>
+            )}
           </div>
 
+          {building && (
+            <p className="muted small row" style={{ gap: 6 }}>
+              <Loader size={14} className="spin" /> Claude construit la séance à partir de l'objectif… (jusqu'à une minute)
+            </p>
+          )}
           {busy && (
             <p className="muted small row" style={{ gap: 6 }}>
               <Loader size={14} className="spin" /> Claude met en forme cette partie…
@@ -182,7 +259,7 @@ export function VoiceLessonModal({ lesson, onClose }: { lesson: Lesson; onClose:
             </p>
           ))}
 
-          {draft.changes.length === 0 ? (
+          {mode === 'objective' && draft.changes.length === 0 ? null : draft.changes.length === 0 ? (
             <div className="muted small">
               <p>Dites une partie de la séance, puis touchez « J'ai terminé cette partie ». Par exemple :</p>
               <ul>

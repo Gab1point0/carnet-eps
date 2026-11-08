@@ -175,6 +175,44 @@ export async function aiIngest(draft: Draft, lesson: Lesson, spoken: string, ctx
   return applyOps(draft, lesson, r.operations, spoken);
 }
 
+// ── Séance construite à partir d'un objectif ────────────────────────────────
+
+const OBJECTIVE_SYSTEM = `${LESSON_SYSTEM}
+
+Cette fois, l'enseignant ne dicte pas le déroulé : il donne l'objectif de la séance et te laisse la construire en entier.
+- Construis une séance complète au service de cet objectif : un échauffement en lien avec l'activité et l'objectif, des situations d'apprentissage progressives (de la plus simple à la plus complexe), un temps de jeu ou de mise en application quand c'est pertinent, un retour au calme avec un court bilan.
+- Renseigne aussi les champs objective (l'objectif reformulé de façon claire et observable), title (titre court) et, si l'activité le demande, safety. Ne renseigne pas le champ materials de la séance : le matériel va dans chaque bloc.
+- Les durées remplissent le créneau disponible (creneau_minutes) sans le dépasser ; estimated = false pour les durées que tu fixes. Sans créneau connu, vise 55 minutes.
+- Tiens compte de la place de la séance dans le cycle et des séances précédentes (progression), sans les répéter.
+- Si la séance contient déjà des blocs : garde ceux qui servent l'objectif (update si besoin) et retire les autres (remove).
+- Respecte les précisions données avec l'objectif (situation imposée, matériel disponible, organisation, durée).`;
+
+/** Ce que l'on sait du cycle autour de la séance : objectifs, évaluation, séances précédentes. */
+export interface CycleCtx {
+  objectives: string;
+  evaluation: string;
+  /** Numéro de la séance dans le cycle (1, 2…) et nombre de séances. */
+  position: number | null;
+  count: number | null;
+  previous: Array<{ title: string; objective: string; bilan: string }>;
+}
+
+export async function aiFromObjective(draft: Draft, lesson: Lesson, objective: string, ctx: TeachingCtx, cycle: CycleCtx | null) {
+  const state = {
+    ...describe(ctx),
+    cycle_objectifs: cycle?.objectives || null,
+    cycle_evaluation: cycle?.evaluation || null,
+    seance_numero: cycle?.position ?? null,
+    nombre_de_seances: cycle?.count ?? null,
+    seances_precedentes: cycle?.previous ?? [],
+    blocs_de_la_seance: lesson.blocks.map((b) => ({ id: b.id, kind: b.kind, title: b.title, minutes: b.minutes, text: b.text })),
+    changements_en_attente: draft.changes.map((c) => ({ id: c.id, action: c.op, kind: c.kind, title: c.title, minutes: c.minutes, text: c.text, field: c.field ?? null, value: c.value ?? null })),
+  };
+  const user = `Contexte :\n${JSON.stringify(state)}\n\nObjectif de la séance, dicté par l'enseignant :\n<objectif>${objective}</objectif>`;
+  const r = await callClaude<{ operations: LessonOp[] }>({ task: 'lesson', system: OBJECTIVE_SYSTEM, user, schema: LESSON_SCHEMA });
+  return applyOps(draft, lesson, r.operations, objective);
+}
+
 // ── Fiche adaptée ───────────────────────────────────────────────────────────
 
 const SECTION_TYPES = ['table', 'levels', 'checks', 'lines', 'fields', 'text', 'heading', 'box'] as const;
