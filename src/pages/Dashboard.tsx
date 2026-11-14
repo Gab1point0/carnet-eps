@@ -4,6 +4,7 @@ import { CalendarOff, CalendarPlus, ClipboardCheck, ClipboardList, Play, Plus, S
 import { Button, Card, EmptyState, PageHeader, Section } from '../components/ui';
 import { ReviewModal } from '../components/ReviewModal';
 import { TodoSection } from '../components/TodoSection';
+import { EvaluationsToGrade } from '../components/EvaluationsToGrade';
 import { ClosureModal } from '../components/ClosureModal';
 import { ClassDot, LessonRow, StatusIcon } from '../components/cards';
 import { NewYearModal } from '../components/YearModals';
@@ -193,6 +194,8 @@ export function DashboardPage() {
           </Section>
 
           <TodoSection lessons={lessons} today={today} />
+
+          <EvaluationsToGrade lessons={lessons} classById={classById} today={today} nowHM={nowHM} />
 
           {toReview.length > 0 && (
             <Section title={`Bilans à faire (${toReview.length})`} actions={<span className="muted small">30 secondes par séance</span>}>

@@ -451,3 +451,6 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .grid-edit-width { display: flex; flex-direction: column; gap: 2px; }
 .grid-edit-width .input { width: 72px; }
 .fiche-live { border-top: 1px dashed var(--border); padding-top: 10px; }
+
+.grade-check { display: grid; place-items: center; padding: 0 4px 0 8px; cursor: pointer; }
+.grade-check input { width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary); }

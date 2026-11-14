@@ -3,6 +3,7 @@ import { cycleLessons, sortCycles } from '../store/selectors';
 import { pendingProposals } from '../components/ProposalsPanel';
 import { prepState } from '../pages/Preparation';
 import { EVAL_KINDS } from './levels';
+import { GRADED } from './evaluations';
 import { FICHE_BY_ID } from './fiches';
 import { diffDays, formatShort } from './dates';
 import { risksFor, type Hour } from './weather';
@@ -71,7 +72,7 @@ export function tasksFor(data: AppData, l: Lesson, today: ISODate, weather: Weat
   if (prev?.evalKind && prev.status === 'done') {
     const k = EVAL_KINDS[prev.evalKind].label.toLowerCase();
     // Une évaluation diagnostique n'est jamais notée : rien à saisir sur École Directe.
-    if (prev.evalKind !== 'diagnostic') auto(`ed:${prev.id}`, `Saisir l'évaluation ${k} sur École Directe`, { detail: `« ${prev.title || 'Séance'} » (${prev.date ?? ''})`, to: `/lessons/${prev.id}` });
+    if (prev.evalKind !== 'diagnostic' && !prev.tasksDone.includes(GRADED)) auto(`ed:${prev.id}`, `Saisir l'évaluation ${k} sur École Directe`, { detail: `« ${prev.title || 'Séance'} » (${prev.date ?? ''})`, to: `/lessons/${prev.id}` });
     if (!prev.levels) auto(`levels:${prev.id}`, `Relever le niveau de la classe (évaluation ${k})`, { detail: 'Ouvrez le bilan et dictez les effectifs par degré.', to: `/lessons/${prev.id}` });
   }
   // Propositions d'ajustement en attente.
