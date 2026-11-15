@@ -4,7 +4,7 @@ import { ChevronLeft, Copy, ListPlus, Trash2 } from 'lucide-react';
 import type { BlockKind, ID } from '../types';
 import { MarkdownField } from '../components/MarkdownField';
 import { LevelsField } from '../components/LevelsField';
-import { Button, Card, Field, Menu, Modal, NumberInput, PageHeader, Select, TagInput, TextArea, TextInput } from '../components/ui';
+import { Button, Card, Field, Menu, Modal, NumberInput, PageHeader, Select, TagInput, TextArea, TextInput , TitleInput } from '../components/ui';
 import { ActivitySelect } from '../components/forms';
 import { AnimationField } from '../components/AnimationField';
 import { useData } from '../store/data';
@@ -38,13 +38,7 @@ export function ExerciseEditorPage() {
           </Link>
         }
         title={
-          <input
-            className="title-input"
-            value={ex.title}
-            placeholder="Titre de la situation"
-            onChange={(e) => patch({ title: e.target.value })}
-            aria-label="Titre de la situation"
-          />
+          <TitleInput value={ex.title} placeholder="Titre de la situation" onChange={(title) => patch({ title })} label="Titre de la situation" />
         }
         actions={
           <>

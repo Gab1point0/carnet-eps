@@ -71,7 +71,9 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 
 .lesson-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; align-items: end; }
 .lesson-meta-state { grid-column: 1 / -1; }
-@media (min-width: 900px) { .lesson-meta-state { grid-column: auto; } }
+@media (min-width: 900px) { .lesson-meta-state { grid-column: span 2; } }
+.lesson-nav { gap: 12px; }
+.lesson-nav-steps { gap: 14px; }
 
 /* ── Déroulé de séance ──────────────────────────────────────────────────── */
 
@@ -454,3 +456,11 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 
 .grade-check { display: grid; place-items: center; padding: 0 4px 0 8px; cursor: pointer; }
 .grade-check input { width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary); }
+.cycle-toggle { background: none; border: 0; padding: 4px 0 2px; cursor: pointer; font-weight: 600; text-align: left; }
+.cycle-toggle:hover { color: var(--text); }
+.lesson-nav { flex-wrap: nowrap; }
+.lesson-nav > .back-link { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.lesson-nav > .back-link svg { vertical-align: -3px; }
+.lesson-nav-steps { flex-wrap: nowrap; flex: 0 0 auto; }
+.lesson-nav-steps .back-link { padding: 4px 2px; }
+@media (max-width: 560px) { .hide-sm { display: none; } .lesson-nav-steps { gap: 18px; } }

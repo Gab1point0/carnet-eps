@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, BookmarkPlus, ChevronDown, ChevronRight, Copy, Film, Trash2 } from 'lucide-react';
 import type { Block, BlockKind, CourtId, ID, Lesson } from '../types';
 import { AiBlockTools } from './AiBlockTools';
@@ -7,7 +7,8 @@ import { AnimationField } from './AnimationField';
 import { Markdown } from './Markdown';
 import { MarkdownField } from './MarkdownField';
 import { SheetLinks } from '../pages/Fiche';
-import { FICHES } from '../lib/fiches';
+import { FICHES, fichesOfActivity } from '../lib/fiches';
+import { useData } from '../store/data';
 import { BLOCK_KINDS, BLOCK_KIND_ORDER } from '../lib/defaults';
 import { cls, uid } from '../lib/util';
 
@@ -52,7 +53,15 @@ export function BlockEditor({
 }) {
   const [open, setOpen] = useState(true);
   const kind = BLOCK_KINDS[block.kind];
-  void activityId;
+  const activityName = useData((s) => s.data.settings.activities.find((a) => a.id === activityId)?.name ?? '');
+  const sheetGroups = useMemo(() => {
+    const mine = activityName ? fichesOfActivity(activityName) : [];
+    const rest = FICHES.filter((f) => !mine.includes(f));
+    return [
+      ...(mine.length ? [{ label: `${activityName} et fiches communes`, fiches: mine }] : []),
+      ...[...new Set(rest.map((f) => f.group))].map((g) => ({ label: mine.length ? `Autres : ${g}` : g, fiches: rest.filter((f) => f.group === g) })),
+    ];
+  }, [activityName]);
 
   return (
     <div className={cls('block', !open && 'block-closed')} style={{ ['--kind' as string]: kind.color }}>
@@ -99,6 +108,7 @@ export function BlockEditor({
             placeholder={'Organisation, consignes, critères de réussite, variables…\n- une ligne par idée\n**gras** pour insister'}
             onChange={(v) => onChange({ text: v })}
           />
+          <span className="field-label">🧰 Matériel du bloc</span>
           <MarkdownField
             value={block.materials}
             minRows={2}
@@ -115,10 +125,15 @@ export function BlockEditor({
               onChange={(e) => e.target.value && onChange({ sheets: [...new Set([...(block.sheets ?? []), e.target.value])] })}
             >
               <option value="">+ Fiche à imprimer…</option>
-              {FICHES.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.group} — {f.title}
-                </option>
+              {/* Les fiches de l'activité d'abord : les autres restent accessibles en dessous. */}
+              {sheetGroups.map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.fiches.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.title}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>

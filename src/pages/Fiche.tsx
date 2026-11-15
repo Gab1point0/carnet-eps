@@ -252,7 +252,7 @@ export function FichesHubPage() {
         }
       />
       <p className="muted">
-        Choisissez le niveau de la classe, puis une fiche : le vocabulaire, le nombre de critères et d'essais et le niveau d'analyse demandé s'adaptent (très guidé en 6e et 5e, de plus en plus autonome ensuite). Réglez ensuite le nombre d'exemplaires et imprimez. Les critères viennent de la fiche « Évaluation » du cycle quand vous ouvrez les fiches depuis un cycle.
+        Le niveau choisi adapte le vocabulaire, le nombre de critères et d'essais.
       </p>
       <label className="row" style={{ gap: 8, marginBottom: 12 }}>
         <strong>Niveau de la classe</strong>

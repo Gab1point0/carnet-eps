@@ -91,13 +91,22 @@ export function LibraryPage() {
     }
   };
 
+  // Seules les activités qui ont du contenu dans l'onglet ouvert, avec leur nombre.
+  const activityOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    const items: Array<{ activityId: ID | null }> = tab === 'exercises' ? exercises : tab === 'lessons' ? Object.values(data.lessons).filter((l) => !l.classId) : Object.values(data.cycles).filter((c) => !c.classId);
+    for (const it of items) if (it.activityId) counts.set(it.activityId, (counts.get(it.activityId) ?? 0) + 1);
+    return settings.activities
+      .filter((a) => counts.has(a.id) || a.id === activity)
+      .map((a) => ({ value: a.id, label: `${a.emoji} ${a.name} (${counts.get(a.id) ?? 0})` }));
+  }, [tab, exercises, data, settings.activities, activity]);
+
   const createLabel = tab === 'exercises' ? 'Nouvelle situation' : tab === 'lessons' ? 'Nouvelle séance modèle' : 'Nouveau cycle modèle';
 
   return (
     <>
       <PageHeader
         title="Bibliothèque"
-        subtitle="Vos situations, séances et cycles réutilisables d'une classe et d'une année à l'autre."
         actions={
           <Button variant="primary" icon={<Plus size={18} />} onClick={create}>
             {createLabel}
@@ -126,7 +135,7 @@ export function LibraryPage() {
           value={activity}
           onChange={(v) => setActivity(v)}
           placeholder="Toutes les activités"
-          options={settings.activities.map((a) => ({ value: a.id, label: `${a.emoji} ${a.name}` }))}
+          options={activityOptions}
         />
         <Select<string>
           value={level}

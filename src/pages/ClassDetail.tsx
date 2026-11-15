@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { BookmarkPlus, CheckSquare, ChevronLeft, Eraser, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { Button, Card, Chip, EmptyState, Menu, PageHeader, Section, TextArea } from '../components/ui';
+import { Button, Card, Chip, EmptyState, Menu, PageHeader, Section, TextArea, TitleInput } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ClassFormModal } from '../components/ClassForm';
 import { NewCycleModal } from '../components/CycleModals';
@@ -10,7 +10,8 @@ import { classCycles, cycleLessons } from '../store/selectors';
 import { clearLessons, saveLessonAsTemplate } from '../store/actions';
 import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { slotsSummary } from './Classes';
-import { plural } from '../lib/util';
+import { levelIsNew, plural } from '../lib/util';
+import { addDays, todayISO } from '../lib/dates';
 
 export function ClassDetailPage() {
   const { id = '' } = useParams();
@@ -21,6 +22,10 @@ export function ClassDetailPage() {
   const [newCycle, setNewCycle] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Cycles dépliés à la main ; par défaut, seuls ceux en cours ou qui commencent dans les 3 semaines le sont.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const today = todayISO();
+  const isCurrent = (c: { startDate: string | null; endDate: string | null }) => (!c.endDate || c.endDate >= today) && (!c.startDate || c.startDate <= addDays(today, 21));
 
   if (!klass) return <Navigate to="/classes" replace />;
 
@@ -85,17 +90,12 @@ export function ClassDetailPage() {
         title={
           <span className="row" style={{ flexWrap: 'nowrap' }}>
             <ClassDot color={klass.color} size={16} />
-            <input
-              className="title-input"
-              value={klass.name}
-              onChange={(e) => patch({ name: e.target.value })}
-              aria-label="Nom de la classe"
-            />
+            <TitleInput value={klass.name} onChange={(name) => patch({ name })} label="Nom de la classe" />
           </span>
         }
         subtitle={
           <span className="row" style={{ gap: 8 }}>
-            {klass.level && <Chip>{klass.level}</Chip>}
+            {levelIsNew(klass.name, klass.level) && <Chip>{klass.level}</Chip>}
             {klass.students != null && <span>{plural(klass.students, 'élève')}</span>}
             <span>{slotsSummary(klass)}</span>
             {klass.sharedWith && <span className="chip chip-shared">👥 En commun : {klass.sharedWith}</span>}
@@ -178,6 +178,7 @@ export function ClassDetailPage() {
             {cycles.map((c) => {
               const lessons = cycleLessons(data, c.id);
               const prepared = lessons.filter((l) => l.blocks.length > 0).length;
+              const open = selecting || opened.has(c.id) || isCurrent(c);
               return (
                 <Card key={c.id} className="cycle-card">
                   {selecting && lessons.length > 0 && (
@@ -195,7 +196,12 @@ export function ClassDetailPage() {
                     </div>
                     <ActivityChip activityId={c.activityId} />
                   </Link>
-                  {lessons.length > 0 && (
+                  {lessons.length > 0 && !open && (
+                    <button type="button" className="cycle-toggle muted small" onClick={() => setOpened((cur) => new Set(cur).add(c.id))}>
+                      Voir les {plural(lessons.length, 'séance')}
+                    </button>
+                  )}
+                  {lessons.length > 0 && open && (
                     <div className="lesson-list">
                       {lessons.map((l) =>
                         selecting ? (

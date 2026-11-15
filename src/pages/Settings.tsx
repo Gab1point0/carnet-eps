@@ -26,7 +26,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Réglages" subtitle="Années, vacances, activités, sauvegarde et synchronisation." />
+      <PageHeader title="Réglages" />
       <ProfileSection />
       <AiSection />
       <YearsSection />
@@ -377,6 +377,7 @@ function download(name: string, text: string) {
 }
 
 function DataSection() {
+  const hasClasses = useData((s) => Object.keys(s.data.classes).length > 0);
   const fileRef = useRef<HTMLInputElement>(null);
   const [backups, setBackups] = useState<Array<{ key: string; date: string }>>([]);
 
@@ -441,18 +442,18 @@ function DataSection() {
               e.target.value = '';
             }}
           />
-          <Button
-            icon={<FolderOpen size={17} />}
-            onClick={async () => {
-              if (Object.keys(useData.getState().data.years).length) {
-                toast('Un exemple ne se charge que sur un carnet vide ou en plus de vos données : les éléments existants ne sont pas modifiés.', { ms: 5000 });
-              }
-              loadSample();
-              toast('Données d’exemple ajoutées', { tone: 'success' });
-            }}
-          >
-            Ajouter des données d'exemple
-          </Button>
+          {/* Un exemple mêlé à un vrai carnet (et synchronisé) serait à défaire à la main : proposé seulement sur un carnet vide. */}
+          {!hasClasses && (
+            <Button
+              icon={<FolderOpen size={17} />}
+              onClick={() => {
+                loadSample();
+                toast('Données d’exemple ajoutées', { tone: 'success' });
+              }}
+            >
+              Ajouter des données d'exemple
+            </Button>
+          )}
         </div>
         <p className="muted small">
           Vos données sont enregistrées dans ce navigateur et sauvegardées automatiquement chaque jour (7 jours conservés). Pour les retrouver sur un autre appareil, activez la synchronisation GitHub ci-dessous.

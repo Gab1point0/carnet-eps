@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ClipboardCheck, Copy, Library, Play, Plus, Printer, RefreshCw, Trash2 } from 'lucide-react';
+import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ChevronRight, ClipboardCheck, Copy, Library, Play, Plus, Printer, RefreshCw, Trash2 } from 'lucide-react';
 import { Mic } from 'lucide-react';
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import { VoiceLessonModal } from '../components/VoiceLessonModal';
@@ -10,13 +10,13 @@ import { LevelsField } from '../components/LevelsField';
 import { EVAL_KINDS } from '../lib/levels';
 import type { Block, BlockKind, ID, Lesson, Venue } from '../types';
 import { venueOf, venueTime, type VenueStep } from '../lib/venues';
-import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea } from '../components/ui';
+import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea , TitleInput } from '../components/ui';
 import { ClassDot } from '../components/cards';
 import { ActivitySelect, DateField, TimeField } from '../components/forms';
 import { BlockEditor, DEFAULT_MINUTES, cloneBlockWithNewId } from '../components/BlockEditor';
 import { ExercisePicker } from '../components/ExercisePicker';
 import { useData } from '../store/data';
-import { activityOf, classCycles, lessonTotalMinutes, useYearClasses } from '../store/selectors';
+import { activityOf, classCycles, cycleLessons, lessonTotalMinutes, useYearClasses } from '../store/selectors';
 import { blockFromExercise, cancelAndShift, duplicateLesson, postponeLesson, saveBlockAsExercise, saveLessonAsTemplate } from '../store/actions';
 import { newBlock } from '../store/model';
 import { confirmDialog, toast, toastUndo } from '../store/ui';
@@ -90,25 +90,43 @@ export function LessonPage() {
     patch(p);
   };
 
-  const backTo = cycle ? `/cycles/${cycle.id}` : klass ? `/classes/${klass.id}` : '/library';
+  // Séances voisines du même cycle : passer de l'une à l'autre sans revenir à la liste.
+  const siblings = (() => {
+    if (!cycle) return {};
+    const list = cycleLessons(data, cycle.id);
+    const i = list.findIndex((l) => l.id === lesson.id);
+    return { prev: i > 0 ? list[i - 1] : undefined, next: i >= 0 ? list[i + 1] : undefined };
+  })();
+
+  const backTo = cycle ?`/cycles/${cycle.id}` : klass ? `/classes/${klass.id}` : '/library';
   const backLabel = cycle ? cycle.title || 'Cycle' : klass ? klass.name : 'Bibliothèque';
 
   return (
     <>
       <PageHeader
         back={
-          <Link to={backTo} className="back-link">
-            <ChevronLeft size={16} /> {backLabel}
-          </Link>
+          <div className="row-between lesson-nav">
+            <Link to={backTo} className="back-link">
+              <ChevronLeft size={16} /> {backLabel}
+            </Link>
+            {(siblings.prev || siblings.next) && (
+              <div className="row lesson-nav-steps">
+                {siblings.prev && (
+                  <Link to={`/lessons/${siblings.prev.id}`} className="back-link" title={siblings.prev.title}>
+                    <ChevronLeft size={16} /> <span className="hide-sm">Précédente</span>
+                  </Link>
+                )}
+                {siblings.next && (
+                  <Link to={`/lessons/${siblings.next.id}`} className="back-link" title={siblings.next.title}>
+                    <span className="hide-sm">Suivante</span> <ChevronRight size={16} />
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
         }
         title={
-          <input
-            className="title-input"
-            value={lesson.title}
-            placeholder="Titre de la séance"
-            onChange={(e) => patch({ title: e.target.value })}
-            aria-label="Titre de la séance"
-          />
+          <TitleInput value={lesson.title} placeholder="Titre de la séance" onChange={(title) => patch({ title })} label="Titre de la séance" />
         }
         subtitle={
           <span className="row" style={{ gap: 8 }}>

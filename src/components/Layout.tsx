@@ -7,12 +7,15 @@ import { isConfigured, useSync } from '../store/sync';
 import { Select } from './ui';
 import { cls } from '../lib/util';
 
+// Ordinateur : tout dans la barre latérale. Téléphone : les 5 écrans du quotidien en bas, Réglages en haut.
 const NAV = [
-  { to: '/', label: 'Accueil', icon: Home, end: true },
-  { to: '/planning', label: 'Planning', icon: CalendarDays },
-  { to: '/classes', label: 'Classes', icon: Users },
-  { to: '/library', label: 'Bibliothèque', icon: Library },
-  { to: '/settings', label: 'Réglages', icon: Settings },
+  { to: '/', label: 'Accueil', icon: Home, end: true, mobile: true },
+  { to: '/planning', label: 'Planning', icon: CalendarDays, mobile: true },
+  { to: '/preparation', label: 'Préparation', icon: ClipboardList, mobile: true },
+  { to: '/fiches', label: 'Fiches', icon: Printer, mobile: false },
+  { to: '/classes', label: 'Classes', icon: Users, mobile: true },
+  { to: '/library', label: 'Bibliothèque', icon: Library, mobile: true },
+  { to: '/settings', label: 'Réglages', icon: Settings, mobile: false },
 ];
 
 function SyncButton() {
@@ -59,7 +62,7 @@ export function Layout() {
           <span className="brand-mark">🏐</span> Carnet EPS
         </NavLink>
         <nav aria-label="Navigation principale">
-          {[...NAV.slice(0, 2), { to: '/preparation', label: 'Préparation', icon: ClipboardList, end: false }, { to: '/fiches', label: 'Fiches', icon: Printer, end: false }, ...NAV.slice(2)].map(({ to, label, icon: Icon, end }) => (
+          {NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={({ isActive }) => cls('navlink', isActive && 'active')}>
               <Icon size={20} /> {label}
             </NavLink>
@@ -84,6 +87,9 @@ export function Layout() {
           <Search size={21} />
         </button>
         <SyncButton />
+        <button type="button" className="icon-btn mobile-only" aria-label="Réglages" onClick={() => navigate('/settings')}>
+          <Settings size={21} />
+        </button>
       </header>
 
       <main className="main">
@@ -93,7 +99,7 @@ export function Layout() {
       </main>
 
       <nav className="bottom-nav" aria-label="Navigation principale">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
+        {NAV.filter((n) => n.mobile).map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>
             <Icon size={22} />
             {label}

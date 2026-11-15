@@ -3,7 +3,7 @@ import { CheckCircle2, Circle, Clock, Film, XCircle } from 'lucide-react';
 import type { Cycle, Klass, Lesson } from '../types';
 import { useData } from '../store/data';
 import { activityOf, fieldOfActivity, lessonTotalMinutes } from '../store/selectors';
-import { formatDM, formatDuration, formatShort } from '../lib/dates';
+import { formatDM, formatDuration, formatShort, todayISO } from '../lib/dates';
 import { Chip } from './ui';
 import { cls } from '../lib/util';
 import { EVAL_KINDS } from '../lib/levels';
@@ -47,6 +47,8 @@ export function LessonRow({
   const minutes = lessonTotalMinutes(lesson);
   const hasAnim = lesson.blocks.some((b) => b.animation);
   const empty = lesson.blocks.length === 0;
+  // Une séance passée ne se prépare plus : elle attend son bilan.
+  const past = !!lesson.date && lesson.date < todayISO();
   return (
     <div className={cls('lesson-row', lesson.status === 'cancelled' && 'lesson-cancelled')}>
       <Link to={`/lessons/${lesson.id}`} className="lesson-row-main">
@@ -83,9 +85,9 @@ export function LessonRow({
             {EVAL_KINDS[lesson.evalKind].emoji} {EVAL_KINDS[lesson.evalKind].label}
           </Chip>
         )}
-        {lesson.rating ?<span title="Ressenti après la séance">{['', '😕', '🙂', '😀'][lesson.rating]}</span> : null}
+        {lesson.rating ? <span title="Ressenti après la séance">{['', '😕', '🙂', '😀'][lesson.rating]}</span> : null}
         {lesson.adjust && <span title="À ajuster">🔧</span>}
-        {empty && <Chip className="chip-todo">À préparer</Chip>}
+        {past && lesson.status === 'planned' ? <Chip className="chip-todo">Bilan à faire</Chip> : empty && !past && lesson.status !== 'cancelled' && <Chip className="chip-todo">À préparer</Chip>}
       </Link>
       {actions}
     </div>

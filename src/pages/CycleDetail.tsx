@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, BookmarkPlus, CalendarClock, ChevronLeft, Copy, Plus, Printer, Trash2, X } from 'lucide-react';
-import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea } from '../components/ui';
+import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea , TitleInput } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
 import { EvalPath } from '../components/EvalPath';
@@ -40,13 +40,7 @@ export function CycleDetailPage() {
           </Link>
         }
         title={
-          <input
-            className="title-input"
-            value={cycle.title}
-            placeholder="Titre du cycle"
-            onChange={(e) => patch({ title: e.target.value })}
-            aria-label="Titre du cycle"
-          />
+          <TitleInput value={cycle.title} placeholder="Titre du cycle" onChange={(title) => patch({ title })} label="Titre du cycle" />
         }
         subtitle={
           <span className="row" style={{ gap: 8 }}>

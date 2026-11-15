@@ -9,7 +9,7 @@ import { useData } from '../store/data';
 import { useCurrentYear, useYears, useYearClasses, useYearCycles, useYearLessons } from '../store/selectors';
 import { newKlass } from '../store/model';
 import { formatShort, todayISO, WEEKDAYS_SHORT } from '../lib/dates';
-import { plural } from '../lib/util';
+import { levelIsNew, plural } from '../lib/util';
 import type { Klass } from '../types';
 
 export function slotsSummary(k: Klass): string {
@@ -109,7 +109,7 @@ export function ClassesPage() {
                     <h3 className="class-card-name">
                       <ClassDot color={k.color} size={14} /> {k.name}
                     </h3>
-                    {k.level && <Chip>{k.level}</Chip>}
+                    {levelIsNew(k.name, k.level) && <Chip>{k.level}</Chip>}
                   </div>
                   <p className="muted small">{slotsSummary(k)}</p>
                   {k.sharedWith && <span className="chip chip-shared">👥 En commun : {k.sharedWith}</span>}

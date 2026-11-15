@@ -74,6 +74,34 @@ export function PageHeader({
   );
 }
 
+/** Titre modifiable sur place : passe à la ligne au lieu d'être coupé (téléphone), Entrée valide. */
+export function TitleInput({ value, onChange, placeholder, label }: { value: string; onChange: (v: string) => void; placeholder?: string; label: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      className="title-input"
+      rows={1}
+      value={value}
+      placeholder={placeholder}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value.replace(/\n/g, ' '))}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
 export function Card({ className, children, onClick, ...rest }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cls('card', onClick && 'card-click', className)} onClick={onClick} {...rest}>

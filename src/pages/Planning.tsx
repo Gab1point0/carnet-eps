@@ -21,6 +21,7 @@ import {
   fromISO,
   startOfMonth,
   startOfWeek,
+  workdayISO,
   timeToMin,
   todayISO,
   weekdayOf,
@@ -89,7 +90,7 @@ function layout(items: Item[]): Array<Item & { lane: number; lanes: number }> {
 export function PlanningPage() {
   const [params, setParams] = useSearchParams();
   const view = (params.get('view') as View) || 'week';
-  const date = params.get('d') || todayISO();
+  const date = params.get('d') || (view === 'week' ? workdayISO() : todayISO());
   const year = useCurrentYear();
   const classes = useYearClasses();
   const lessons = useYearLessons();
@@ -132,7 +133,7 @@ export function PlanningPage() {
             {view !== 'year' && (
               <div className="row" style={{ gap: 4 }}>
                 <Button size="sm" onClick={() => shift(-1)} aria-label="Précédent" icon={<ChevronLeft size={18} />} />
-                <Button size="sm" onClick={() => go(view, todayISO())}>
+                <Button size="sm" onClick={() => go(view, view === 'week' ? workdayISO() : todayISO())}>
                   Aujourd'hui
                 </Button>
                 <Button size="sm" onClick={() => shift(1)} aria-label="Suivant" icon={<ChevronRight size={18} />} />

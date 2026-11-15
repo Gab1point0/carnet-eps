@@ -8,7 +8,7 @@ import { useCurrentYear, useYearClasses, useYearLessons } from '../store/selecto
 import { pendingProposals } from '../components/ProposalsPanel';
 import { lessonMaterialTexts, mergeMaterials } from '../lib/materials';
 import { printPage } from '../lib/printPdf';
-import { addDays, formatDM, formatShort, startOfWeek, todayISO } from '../lib/dates';
+import { addDays, formatDM, formatShort, startOfWeek, todayISO, workdayISO } from '../lib/dates';
 import { cls, plural } from '../lib/util';
 
 type Tab = 'prep' | 'materiel';
@@ -48,7 +48,7 @@ function useChecked(key: string): [Set<string>, (k: string) => void] {
 
 export function PreparationPage() {
   const [params, setParams] = useSearchParams();
-  const date = params.get('d') || todayISO();
+  const date = params.get('d') || workdayISO();
   const tab = (params.get('tab') as Tab) || 'prep';
   const year = useCurrentYear();
   const classes = useYearClasses();
@@ -115,7 +115,7 @@ export function PreparationPage() {
         actions={
           <div className="row" style={{ gap: 4 }}>
             <Button size="sm" aria-label="Semaine précédente" icon={<ChevronLeft size={18} />} onClick={() => go(addDays(weekStart, -7))} />
-            <Button size="sm" onClick={() => go(todayISO())}>
+            <Button size="sm" onClick={() => go(workdayISO())}>
               Cette semaine
             </Button>
             <Button size="sm" aria-label="Semaine suivante" icon={<ChevronRight size={18} />} onClick={() => go(addDays(weekStart, 7))} />

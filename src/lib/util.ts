@@ -61,3 +61,9 @@ export function readableOn(hex: string): string {
   const b = n & 255;
   return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#111827' : '#ffffff';
 }
+
+/** Le niveau vaut-il la peine d'être affiché à côté du nom ? (« 6e Verte » le dit déjà, « 1ère » aussi pour « 1re ») */
+export function levelIsNew(name: string, level: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace('ère', 're').replace('nde', 'de').trim();
+  return !!level && !norm(name).startsWith(norm(level));
+}

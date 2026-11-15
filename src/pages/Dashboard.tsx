@@ -14,7 +14,8 @@ import { loadSample } from '../store/sample';
 import { newLesson } from '../store/model';
 import { toast } from '../store/ui';
 import { holidayOn } from '../lib/holidays';
-import { addDays, formatDay, todayISO, weekdayOf } from '../lib/dates';
+import { addDays, formatDay, formatDuration, formatShort, todayISO, weekdayOf } from '../lib/dates';
+import { lessonTotalMinutes } from '../store/selectors';
 import { plural } from '../lib/util';
 import type { Klass, Lesson, Slot } from '../types';
 
@@ -34,12 +35,14 @@ export function DashboardPage() {
   const classById = useMemo(() => new Map(classes.map((k) => [k.id, k])), [classes]);
 
   const todayLessons = lessons.filter((l) => l.date === today && l.status !== 'cancelled');
-  const upcoming = lessons.filter((l) => l.date && l.date > today && l.date <= addDays(today, 7) && l.status !== 'cancelled');
   // Séances passées sans bilan (les plus récentes d'abord).
   const toReview = lessons
     .filter((l) => l.status === 'planned' && l.date && (l.date < today || (l.date === today && l.end < nowHM)) && year && l.date >= year.start)
     .reverse();
-  const toPrepare = lessons.filter((l) => l.date && l.date >= today && l.date <= addDays(today, 14) && l.blocks.length === 0 && l.status !== 'cancelled');
+  // Pas de cours aujourd'hui : on montre le prochain jour de cours à la place.
+  const nextDay = todayLessons.length ? null : lessons.find((l) => l.date && l.date > today && l.status !== 'cancelled')?.date ?? null;
+  const nextLessons = nextDay ? lessons.filter((l) => l.date === nextDay && l.status !== 'cancelled') : [];
+  const upcoming = lessons.filter((l) => l.date && l.date > today && l.date <= addDays(today, 7) && l.date !== nextDay && l.status !== 'cancelled');
 
   // Créneaux d'aujourd'hui qui n'ont pas encore de séance.
   const freeSlots = useMemo(() => {
@@ -113,17 +116,8 @@ export function DashboardPage() {
         subtitle={<span className="cap-first">{formatDay(today)}</span>}
         actions={
           <>
-            <Button icon={<ClipboardList size={17} />} onClick={() => navigate('/preparation')}>
-              Préparation
-            </Button>
             <Button icon={<CalendarOff size={17} />} onClick={() => setClosing(true)}>
               Jour sans cours
-            </Button>
-            <Button icon={<Users size={17} />} onClick={() => navigate('/classes')}>
-              Mes classes
-            </Button>
-            <Button variant="primary" icon={<Plus size={18} />} onClick={() => navigate('/library')}>
-              Bibliothèque
             </Button>
           </>
         }
@@ -137,15 +131,15 @@ export function DashboardPage() {
 
       {classes.length > 0 && (
         <>
-          <Section title="Aujourd'hui">
+          <Section title={nextDay ? <span className="cap-first">Prochain cours : {formatDay(nextDay)}</span> : "Aujourd'hui"}>
             {holiday && (
               <Card className="callout">
                 🌴 <strong>{holiday.label}</strong> — pas de cours aujourd'hui.
               </Card>
             )}
-            {!holiday && todayLessons.length === 0 && freeSlots.length === 0 && <p className="muted">Aucun cours prévu aujourd'hui. Profitez-en pour préparer la suite !</p>}
+            {!holiday && todayLessons.length === 0 && freeSlots.length === 0 && !nextDay && <p className="muted">Aucun cours à venir.</p>}
             <div className="stack">
-              {todayLessons.map((l) => {
+              {(todayLessons.length ? todayLessons : nextLessons).map((l) => {
                 const k = l.classId ? classById.get(l.classId) : undefined;
                 return (
                   <Card key={l.id} className="today-card" style={{ ['--class' as string]: k?.color }}>
@@ -161,7 +155,7 @@ export function DashboardPage() {
                           <StatusIcon status={l.status} size={16} />
                         </div>
                         <div>{l.title || 'Séance sans titre'}</div>
-                        <div className="muted small">{l.blocks.length ? `${plural(l.blocks.length, 'bloc')} préparés` : 'Pas encore préparée'}</div>
+                        <div className="muted small">{l.blocks.length ? `${plural(l.blocks.length, 'bloc')} · ${formatDuration(lessonTotalMinutes(l))}` : 'Pas encore préparée'}</div>
                       </div>
                     </Link>
                     <Button size="sm" variant="primary" icon={<Play size={15} />} onClick={() => navigate(`/lessons/${l.id}/run`)} disabled={!l.blocks.length}>
@@ -211,7 +205,7 @@ export function DashboardPage() {
                             <strong>{k?.name}</strong> <span>{l.title || 'Séance sans titre'}</span>
                           </div>
                           <div className="lesson-row-meta muted small">
-                            {l.date} · {l.start}–{l.end}
+                            {l.date ? formatShort(l.date) : ''} · {l.start}–{l.end}
                           </div>
                         </div>
                       </Link>
@@ -223,16 +217,6 @@ export function DashboardPage() {
                 })}
               </Card>
               {toReview.length > 5 && <p className="muted small">… et {toReview.length - 5} autres séances passées sans bilan.</p>}
-            </Section>
-          )}
-
-          {toPrepare.length > 0 && (
-            <Section title={`À préparer (${toPrepare.length})`} actions={<span className="muted small">dans les 14 jours</span>}>
-              <Card style={{ padding: 6 }} className="lesson-list">
-                {toPrepare.slice(0, 6).map((l) => (
-                  <LessonRow key={l.id} lesson={l} klass={l.classId ? classById.get(l.classId) : undefined} showClass />
-                ))}
-              </Card>
             </Section>
           )}
 
@@ -267,7 +251,7 @@ export function DashboardPage() {
                 <strong>{plural(classes.length, 'classe')}</strong>
                 <span className="muted small">
                   {' '}
-                  · {stats.done} séances faites · {plural(exercisesCount, 'situation')} en bibliothèque
+                  · {plural(stats.done, 'séance')} faite{stats.done > 1 ? 's' : ''} · {plural(exercisesCount, 'situation')} en bibliothèque
                 </span>
               </div>
             </Card>

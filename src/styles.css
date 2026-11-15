@@ -193,6 +193,7 @@ img, svg { max-width: 100%; }
   .sidebar a.navlink.active { background: var(--primary-soft); color: var(--primary); }
   .sidebar .sidebar-foot { margin-top: auto; padding: 8px 10px; }
   .bottom-nav { display: none; }
+  .mobile-only, .icon-btn.mobile-only { display: none; }
   .topbar { margin-left: var(--sidebar-w); padding-left: 24px; padding-right: 24px; }
   .topbar .brand { display: none; }
   .main { margin-left: var(--sidebar-w); padding: 24px 28px 48px; max-width: none; }
@@ -416,3 +417,4 @@ input[type='checkbox'] { accent-color: var(--primary); width: 18px; height: 18px
   .ae-court { width: 150px; }
   .ae-title { display: none; }
 }
+textarea.title-input { resize: none; overflow: hidden; line-height: 1.25; display: block; }

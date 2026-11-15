@@ -33,6 +33,12 @@ export function weekdayOf(s: ISODate): number {
   return g === 0 ? 7 : g;
 }
 
+/** Jour de référence pour les vues de la semaine : aujourd'hui, ou le lundi suivant le week-end (la semaine passée n'a plus d'intérêt). */
+export function workdayISO(today: ISODate = todayISO()): ISODate {
+  const wd = weekdayOf(today);
+  return wd >= 6 ? addDays(today, 8 - wd) : today;
+}
+
 export function startOfWeek(s: ISODate): ISODate {
   return addDays(s, -(weekdayOf(s) - 1));
 }
