@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardCheck, Copy, Download, Eye, Loader, Pencil, RefreshCw, Sparkles } from 'lucide-react';
+import { ClipboardCheck, Copy, Download, Eye, FileText, Image, Loader, Paperclip, Pencil, RefreshCw, Sparkles, X } from 'lucide-react';
 import { EvalSheetEditor, cleanEvalSheet } from './EvalSheetEditor';
 import type { Lesson } from '../types';
 import { useData } from '../store/data';
 import { toast } from '../store/ui';
-import { aiReady } from '../lib/ai';
+import { aiReady, type Attachment } from '../lib/ai';
+import { MAX_TOTAL_BYTES, attachmentBytes, fileToAttachment } from '../lib/attachments';
 import { aiEvalSheet, isLyceeLevel } from '../lib/aiTasks';
 import { buildEvalWorkbook, cumulativeScript, LEVEL_NAMES, type EvalSheetSpec } from '../lib/evalSheet';
 import { activityOf } from '../store/selectors';
 import { formatLong } from '../lib/dates';
-import { Button, Field, Modal, NumberInput, TextArea } from './ui';
+import { Button, IconButton, Modal, NumberInput, TextArea } from './ui';
 
 /**
  * « Fiche d'évaluation » d'une séance : Claude prépare les critères (d'après la séance, le cycle, la classe,
@@ -29,6 +30,28 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
   const [byHand, setByHand] = useState(false);
   const navigate = useNavigate();
   const [referential, setReferential] = useState('');
+  const [showText, setShowText] = useState(false);
+  // Référentiel joint (photos, PDF) : gardé le temps de la fenêtre, pour les demandes de modification qui suivent.
+  const [docs, setDocs] = useState<Attachment[]>([]);
+  const [reading, setReading] = useState(false);
+  const addFiles = async (files: File[]) => {
+    setError('');
+    setReading(true);
+    try {
+      const added: Attachment[] = [];
+      for (const f of files) added.push(await fileToAttachment(f));
+      const next = [...docs, ...added];
+      if (next.reduce((n, d) => n + attachmentBytes(d), 0) > MAX_TOTAL_BYTES) {
+        setError('Documents trop lourds (20 Mo au plus en tout) : joignez moins de pages, ou le PDF seul.');
+        return;
+      }
+      setDocs(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Document illisible.');
+    } finally {
+      setReading(false);
+    }
+  };
   const [instruction, setInstruction] = useState('');
   const [step, setStep] = useState('');
   const [error, setError] = useState('');
@@ -55,6 +78,7 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
             blocks: lesson.blocks.map((b) => ({ kind: b.kind, title: b.title, minutes: b.minutes, text: b.text })),
           },
           referential,
+          attachments: docs,
           instruction: spec ? `${instruction}\nVersion précédente : ${JSON.stringify(spec)}` : instruction,
         },
         setStep,
@@ -135,11 +159,53 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
 
       {!aiReady() && <p className="error-text small">Il faut une clé d'API Claude : Réglages, onglet « Assistant IA ».</p>}
 
-      {lycee && (
-        <Field label="Référentiel (facultatif)" hint="Collez le référentiel de l'établissement ou de l'académie. Laissé vide, Claude cherche le référentiel officiel en ligne.">
-          <TextArea value={referential} onChange={setReferential} minRows={3} placeholder="AFL1 : … / Repères : … / Barème : …" />
-        </Field>
-      )}
+      <div className="field">
+        <span className="field-label">Référentiel (facultatif)</span>
+        <span className="field-hint">
+          Joignez le référentiel en photos (une par page) ou en PDF : Claude le lit en entier. {lycee ? 'Sans référentiel, Claude cherche le référentiel officiel en ligne.' : ''}
+        </span>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+          <label className="btn btn-secondary btn-sm">
+            <Paperclip size={15} /> Joindre des photos ou un PDF
+            <input
+              type="file"
+              accept="image/*,application/pdf,.pdf"
+              multiple
+              hidden
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                e.target.value = '';
+                void addFiles(files);
+              }}
+            />
+          </label>
+          {!showText && (
+            <Button size="sm" variant="ghost" onClick={() => setShowText(true)}>
+              Ou coller le texte
+            </Button>
+          )}
+        </div>
+        {docs.length > 0 && (
+          <ul className="attach-list">
+            {docs.map((d, i) => (
+              <li key={`${d.name}-${i}`}>
+                {d.mediaType === 'application/pdf' ? <FileText size={15} /> : <Image size={15} />}
+                <span className="grow">{d.name}</span>
+                <span className="muted small">{Math.max(1, Math.round(attachmentBytes(d) / 1024))} Ko</span>
+                <IconButton label={`Retirer ${d.name}`} onClick={() => setDocs((cur) => cur.filter((_, j) => j !== i))}>
+                  <X size={14} />
+                </IconButton>
+              </li>
+            ))}
+          </ul>
+        )}
+        {reading && (
+          <p className="muted small row" style={{ gap: 6 }}>
+            <Loader size={14} className="spin" /> Préparation des documents…
+          </p>
+        )}
+        {(showText || referential) && <TextArea value={referential} onChange={setReferential} minRows={3} placeholder="AFL1 : … / Repères : … / Barème : …" />}
+      </div>
 
       {spec && (
         <div>

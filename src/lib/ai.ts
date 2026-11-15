@@ -43,15 +43,36 @@ export const aiReady = () => !!getAiConfig().apiKey.trim();
 /** Une erreur à montrer telle quelle à l'enseignant. */
 export class AiError extends Error {}
 
+/** Pièce jointe lue par Claude : photo (JPEG, PNG…) ou PDF, en base64. */
+export interface Attachment {
+  name: string;
+  mediaType: string;
+  data: string;
+}
+
 interface CallOptions {
   task: AiTask;
   system: string;
   user: string;
   schema: Record<string, unknown>;
+  attachments?: Attachment[];
+}
+
+/** Message de l'enseignant : les documents d'abord, puis la consigne (ordre conseillé pour l'analyse de documents). */
+function userContent(user: string, attachments: Attachment[] = []) {
+  if (!attachments.length) return user;
+  return [
+    ...attachments.map((a) =>
+      a.mediaType === 'application/pdf'
+        ? { type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: a.data }, title: a.name }
+        : { type: 'image' as const, source: { type: 'base64' as const, media_type: a.mediaType as 'image/jpeg', data: a.data } },
+    ),
+    { type: 'text' as const, text: user },
+  ];
 }
 
 /** Demande à Claude une réponse JSON conforme au schéma. */
-export async function callClaude<T>({ task, system, user, schema }: CallOptions): Promise<T> {
+export async function callClaude<T>({ task, system, user, schema, attachments }: CallOptions): Promise<T> {
   const config = getAiConfig();
   if (!config.apiKey.trim()) throw new AiError('Aucune clé d\'API : ajoutez-la dans Réglages, « Assistant IA ».');
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
@@ -61,7 +82,7 @@ export async function callClaude<T>({ task, system, user, schema }: CallOptions)
     model,
     max_tokens: 16000,
     system,
-    messages: [{ role: 'user' as const, content: user }],
+    messages: [{ role: 'user' as const, content: userContent(user, attachments) as never }],
     output_config: { effort: 'medium' as const, format: { type: 'json_schema' as const, schema } },
   };
   try {

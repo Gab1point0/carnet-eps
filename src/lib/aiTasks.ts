@@ -1,6 +1,6 @@
 import type { Animation, Arrow, ArrowStyle, Block, BlockKind, CourtId, CustomSheet, Lesson, Token, TokenKind, TokenPos } from '../types';
 import { tableHasLabels, type FicheSection, type SectionSpan } from './fiches';
-import { callClaude, callClaudeResearch } from './ai';
+import { callClaude, callClaudeResearch, type Attachment } from './ai';
 import { tidyEvalSheet, type EvalSheetSpec } from './evalSheet';
 import type { Change, Draft, FieldKey, VoiceCtx } from './voiceLesson';
 import { sanitizeAnimation } from '../animation/engine';
@@ -603,13 +603,16 @@ export interface EvalSheetInput {
   lesson: { title: string; objective: string; evalKind: string | null; blocks: Array<{ kind: string; title: string; minutes: number; text: string }> };
   /** Référentiel collé par l'enseignant (bac) ; vide = recherche en ligne au lycée. */
   referential: string;
+  /** Référentiel en photos ou en PDF : Claude le lit directement (pas de recherche en ligne). */
+  attachments?: Attachment[];
   instruction: string;
 }
 
-/** Fiche d'évaluation : au lycée sans référentiel fourni, Claude le cherche d'abord en ligne. */
+/** Fiche d'évaluation : au lycée sans référentiel fourni (texte ou documents), Claude le cherche d'abord en ligne. */
 export async function aiEvalSheet(input: EvalSheetInput, onStep?: (step: string) => void): Promise<EvalSheetSpec> {
   let referential = input.referential.trim();
-  if (!referential && isLyceeLevel(input.level)) {
+  const docs = input.attachments ?? [];
+  if (!referential && !docs.length && isLyceeLevel(input.level)) {
     onStep?.('Recherche du référentiel officiel en ligne…');
     referential = await callClaudeResearch({
       system: `${STYLE}\nTu cherches en ligne les textes officiels d'évaluation en EPS (eduscol.education.fr, sites académiques) et tu en fais une synthèse fidèle, sans rien inventer.`,
@@ -617,7 +620,7 @@ export async function aiEvalSheet(input: EvalSheetInput, onStep?: (step: string)
 Donne : le champ d'apprentissage, les AFL visés (AFL1, AFL2, AFL3) avec leur formulation, la situation d'évaluation, les éléments évalués et les repères pour chaque degré, la répartition des points, et l'adresse de chaque source.`,
     });
   }
-  onStep?.('Construction de la fiche…');
+  onStep?.(docs.length ? `Claude lit le référentiel (${docs.length} document${docs.length > 1 ? 's' : ''}) et construit la fiche…` : 'Construction de la fiche…');
   const raw = await callClaude<EvalSheetSpec>({
     task: 'fiche',
     system: EVAL_SHEET_SYSTEM,
@@ -625,12 +628,16 @@ Donne : le champ d'apprentissage, les AFL visés (AFL1, AFL2, AFL3) avec leur fo
       `Classe : ${input.className} (${input.level || 'niveau non précisé'}), ${input.students ?? 'effectif inconnu'} élèves. Activité : ${input.activity || 'non précisée'}.`,
       input.cycle ? `Cycle :\n${JSON.stringify(input.cycle)}` : '',
       `Séance d'évaluation :\n<seance>${JSON.stringify(input.lesson)}</seance>`,
+      docs.length
+        ? `Le référentiel officiel est dans les documents joints (${docs.map((d) => d.name).join(', ')}) : lis toutes les pages et appuie-toi dessus en priorité (AFL, éléments évalués, repères par degré, barème). Cite-le dans sources.`
+        : '',
       referential ? `Référentiel :\n<referentiel>${referential}</referentiel>` : '',
       input.instruction.trim() ? `Demande de l'enseignant :\n<demande>${input.instruction.trim()}</demande>` : '',
     ]
       .filter(Boolean)
       .join('\n\n'),
     schema: EVAL_SHEET_SCHEMA,
+    attachments: docs,
   });
   return tidyEvalSheet(raw);
 }

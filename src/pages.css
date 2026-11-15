@@ -578,3 +578,9 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .cycle-venue { display: grid; grid-template-columns: auto minmax(0, 260px); align-items: center; gap: 4px 12px; }
 .cycle-venue .muted { grid-column: 1 / -1; }
 @media (max-width: 520px) { .cycle-venue { grid-template-columns: minmax(0, 1fr); } }
+
+/* Référentiel joint (fiche d'évaluation) */
+.attach-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
+.attach-list li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.attach-list li .grow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+label.btn { cursor: pointer; }
