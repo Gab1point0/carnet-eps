@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader, Sparkles } from 'lucide-react';
+import { Loader, Mic, MicOff, Sparkles } from 'lucide-react';
 import type { Cycle, Lesson } from '../types';
 import { useData } from '../store/data';
 import { toast, toastUndo } from '../store/ui';
 import { aiReady } from '../lib/ai';
-import { aiCycleReview, aiLessonTitles, isGenericTitle } from '../lib/aiTasks';
+import { aiCycleFields, aiCycleReview, aiLessonTitles, isGenericTitle } from '../lib/aiTasks';
+import { useDictation } from '../lib/dictation';
+import { activityOf } from '../store/selectors';
 import { classAverage } from '../lib/grading';
 import { EVAL_KINDS } from '../lib/levels';
 import { formatShort, todayISO } from '../lib/dates';
 import { cls, plural } from '../lib/util';
-import { Button, Modal, Section } from './ui';
+import { Button, Modal, Section, TextArea } from './ui';
 import { MarkdownField } from './MarkdownField';
 
 /** Frise du cycle : une pastille par séance (faite, bilan à faire, prête, à préparer), l'évaluation marquée. */
@@ -175,5 +177,75 @@ export function CycleReview({ cycle, lessons }: { cycle: Cycle; lessons: Lesson[
         placeholder={reviewed ? 'Ce qui a marché, ce qui a coincé, le niveau atteint, ce que vous changerez la prochaine fois…' : 'À écrire à la fin du cycle. Claude peut le rédiger à partir de vos bilans de séance.'}
       />
     </Section>
+  );
+}
+
+/** « Compléter avec Claude » : à l'écrit ou à l'oral, Claude remplit objectifs, attendus, évaluation et notes du cycle. */
+export function CycleAiFill({ cycle, lessons }: { cycle: Cycle; lessons: Lesson[] }) {
+  const data = useData((s) => s.data);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const textRef = useRef('');
+  const setT = (v: string) => {
+    textRef.current = v;
+    setText(v);
+  };
+  const dictation = useDictation((t) => setT(textRef.current.trim() ? `${textRef.current.trim()} ${t}` : t));
+  if (!aiReady()) return null;
+  const klass = cycle.classId ? data.classes[cycle.classId] : undefined;
+  const empty = !cycle.objectives.trim() && !cycle.competences.trim() && !cycle.evaluation.trim();
+
+  const run = async () => {
+    dictation.stop();
+    const pending = await dictation.flush();
+    const spoken = `${textRef.current} ${pending}`.trim();
+    setBusy(true);
+    try {
+      const current = { objectives: cycle.objectives, competences: cycle.competences, evaluation: cycle.evaluation, notes: cycle.notes };
+      const next = await aiCycleFields({
+        className: klass?.name ?? '',
+        level: klass?.level ?? cycle.classLevels[0] ?? '',
+        students: klass?.students ?? null,
+        activity: activityOf(data, cycle.activityId)?.name ?? '',
+        title: cycle.title,
+        dates: [cycle.startDate, cycle.endDate].filter(Boolean).join(' → '),
+        lessons: lessons.map((l) => l.title),
+        current,
+        spoken,
+      });
+      useData.getState().patch('cycles', cycle.id, next);
+      setT('');
+      toastUndo('Cycle complété par Claude', () => useData.getState().patch('cycles', cycle.id, current));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Claude est indisponible.', { tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card stack cycle-ai" style={{ gap: 8 }}>
+      <strong className="row" style={{ gap: 6 }}>
+        <Sparkles size={16} /> {empty ? 'Compléter le cycle avec Claude' : 'Modifier le cycle avec Claude'}
+      </strong>
+      <p className="muted small">
+        Dites ou écrivez ce que vous voulez (« objectif : construire le surnombre ; évaluation en tournoi par équipes »), ou laissez vide : Claude remplit objectifs, attendus (AFC ou AFL), évaluation et notes d'après la classe et l'activité.
+      </p>
+      {dictation.supported && (
+        <button type="button" className={cls('dictate-btn', dictation.listening && 'dictate-on')} onClick={dictation.listening ? dictation.stop : dictation.start}>
+          {dictation.listening ? <MicOff size={20} /> : <Mic size={20} />}
+          <span>{dictation.listening ? 'Je vous écoute… touchez pour arrêter' : 'Parler'}</span>
+        </button>
+      )}
+      {dictation.error && <p className="error-text small">{dictation.error}</p>}
+      {dictation.interim && <p className="muted small dictate-interim">… {dictation.interim}</p>}
+      {dictation.status && <p className="muted small dictate-interim">{dictation.status}</p>}
+      <TextArea value={text} onChange={setT} minRows={2} placeholder="Ce que vous voulez dans ce cycle (facultatif)" />
+      <div>
+        <Button variant="primary" size="sm" icon={busy ? <Loader size={15} className="spin" /> : <Sparkles size={15} />} onClick={run} disabled={busy}>
+          {busy ? 'Claude complète le cycle…' : empty ? 'Compléter avec Claude' : 'Appliquer avec Claude'}
+        </Button>
+      </div>
+    </div>
   );
 }

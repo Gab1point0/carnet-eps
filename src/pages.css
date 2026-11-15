@@ -524,3 +524,47 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .eval-block { padding: 10px 12px; }
 .eval-block .input { width: 70px; }
 .eval-criteria { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+
+/* Fiche d'évaluation remplie dans l'application */
+.fill-page { min-height: 100dvh; background: var(--bg); display: flex; flex-direction: column; }
+.fill-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.fill-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.fill-title strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fill-body { padding: 12px; max-width: 100vw; }
+.fill-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.fill-table { border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
+.fill-table th, .fill-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center; vertical-align: middle; }
+.fill-table thead th { background: var(--surface-2); position: sticky; top: 0; }
+.fill-block-head { border-left: 2px solid var(--border-strong); }
+.fill-crit-head { min-width: 120px; max-width: 160px; font-weight: 600; font-size: 0.78rem; }
+.fill-note-head, .fill-note { font-weight: 800; min-width: 44px; }
+.fill-name { position: sticky; left: 0; z-index: 2; background: var(--surface); text-align: left !important; min-width: 150px; max-width: 200px; }
+.fill-name span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fill-total { font-size: 1rem; }
+.fill-absent { opacity: 0.55; }
+.lvl-pick { display: inline-flex; gap: 3px; }
+.lvl-btn { min-width: 34px; height: 34px; border-radius: 8px; border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--muted); font-weight: 700; font-size: 0.75rem; cursor: pointer; padding: 0 4px; }
+.lvl-on { background: var(--lvl); border-color: var(--lvl); color: #111; }
+.lvl-single { min-width: 40px; font-size: 1rem; }
+.fill-card { display: flex; flex-direction: column; gap: 10px; }
+.fill-block { border-top: 1px solid var(--border); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.fill-crit { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fill-crit > span { min-width: 0; }
+@media (max-width: 400px) { .lvl-btn { min-width: 30px; height: 36px; } }
+
+/* Téléphone : rien ne doit dépasser de l'écran (corrections ciblées). */
+.section-head { flex-wrap: wrap; }
+.section-actions { flex-wrap: wrap; justify-content: flex-end; }
+.print-bar { flex-wrap: wrap; gap: 8px; }
+.holiday-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.holiday-row > :first-child { grid-column: 1 / -1; }
+.holiday-row > :last-child { grid-row: auto; grid-column: auto; }
+.holiday-row .input { min-width: 0; }
+@media (min-width: 700px) {
+  .holiday-row { grid-template-columns: 1.6fr 1fr 1fr auto; }
+  .holiday-row > :first-child { grid-column: auto; }
+}
+/* Fiches à imprimer sur un petit écran : la feuille garde sa mise en page et défile dans son cadre. */
+@media screen and (max-width: 700px) {
+  .fiche-copies .sheet, .print-page .sheet.fiche { overflow-x: auto; }
+}

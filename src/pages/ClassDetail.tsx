@@ -6,6 +6,7 @@ import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../component
 import { ClassFormModal } from '../components/ClassForm';
 import { NewCycleModal } from '../components/CycleModals';
 import { ClassYear } from '../components/ClassYear';
+import { StudentsSection } from '../components/StudentsSection';
 import { useData } from '../store/data';
 import { classCycles, cycleLessons } from '../store/selectors';
 import { clearLessons, saveLessonAsTemplate } from '../store/actions';
@@ -163,6 +164,8 @@ export function ClassDetailPage() {
       )}
 
       <ClassYear data={data} klass={klass} cycles={cycles} />
+
+      <StudentsSection klass={klass} />
 
       <Section
         title="Programmation de l'année"

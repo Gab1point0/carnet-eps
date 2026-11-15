@@ -15,6 +15,7 @@ import { confirmDialog, toast, toastUndo, useUi, type Theme } from '../store/ui'
 import { COURTS } from '../lib/defaults';
 import { searchPlaces, type Place } from '../lib/weather';
 import { AiSection } from '../components/AiSection';
+import { VaultSettings } from '../components/StudentsSection';
 import { uid } from '../lib/util';
 import { plural } from '../lib/util';
 
@@ -88,6 +89,7 @@ export function SettingsPage() {
       {tab === 'sauvegarde' && (
         <>
           <SyncSection />
+          <VaultSettings />
           <DataSection />
           <AboutSection />
         </>

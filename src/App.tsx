@@ -18,6 +18,7 @@ import { PreparationPage } from './pages/Preparation';
 import { FichesPage } from './pages/Fiches';
 import { FichePage, FichesHubPage } from './pages/Fiche';
 import { TodayPage } from './pages/Today';
+import { EvalFillPage } from './pages/EvalFill';
 
 export function App() {
   const loaded = useData((s) => s.loaded);
@@ -29,6 +30,7 @@ export function App() {
         {/* Écrans plein écran, sans barre de navigation */}
         <Route path="/lessons/:id/run" element={<LessonRunPage />} />
         <Route path="/lessons/:id/print" element={<LessonPrintPage />} />
+        <Route path="/lessons/:id/evaluation" element={<EvalFillPage />} />
         <Route path="/cycles/:id/fiches" element={<FichesPage />} />
         <Route path="/fiches/:id" element={<FichePage />} />
 

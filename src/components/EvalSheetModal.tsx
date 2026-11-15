@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Copy, Download, Loader, RefreshCw, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ClipboardCheck, Copy, Download, Eye, Loader, Pencil, RefreshCw, Sparkles } from 'lucide-react';
+import { EvalSheetEditor, cleanEvalSheet } from './EvalSheetEditor';
 import type { Lesson } from '../types';
 import { useData } from '../store/data';
 import { toast } from '../store/ui';
@@ -24,6 +26,8 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
   const lycee = isLyceeLevel(level);
 
   const [spec, setSpec] = useState<EvalSheetSpec | null>(lesson.evalSheet);
+  const [byHand, setByHand] = useState(false);
+  const navigate = useNavigate();
   const [referential, setReferential] = useState('');
   const [instruction, setInstruction] = useState('');
   const [step, setStep] = useState('');
@@ -64,9 +68,18 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
     }
   };
 
+  const ready = () => {
+    if (!spec) return null;
+    const clean = cleanEvalSheet(spec);
+    save(clean);
+    setByHand(false);
+    return clean;
+  };
+
   const download = async () => {
-    if (!spec) return;
-    const { workbook } = await buildEvalWorkbook(spec, {
+    const clean = ready();
+    if (!clean) return;
+    const { workbook } = await buildEvalWorkbook(clean, {
       students: klass?.students ?? 30,
       className: klass?.name ?? 'Classe',
       activity,
@@ -76,7 +89,7 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `Évaluation - ${klass?.name ?? 'classe'} - ${activity || spec.title}.xlsx`.replace(/[\\/:*?"<>|]/g, '-');
+    a.download = `Évaluation - ${klass?.name ?? 'classe'} - ${activity || clean.title}.xlsx`.replace(/[\\/:*?"<>|]/g, '-');
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -84,8 +97,9 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
   };
 
   const copyScript = async () => {
-    if (!spec) return;
-    const { layout } = await buildEvalWorkbook(spec, { students: klass?.students ?? 30, className: '', activity });
+    const clean = ready();
+    if (!clean) return;
+    const { layout } = await buildEvalWorkbook(clean, { students: klass?.students ?? 30, className: '', activity });
     await navigator.clipboard.writeText(cumulativeScript(layout));
     toast('Script copié : Extensions > Apps Script dans Google Sheets, collez, enregistrez.', { tone: 'success', ms: 8000 });
   };
@@ -99,11 +113,18 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
       onClose={onClose}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>
-            Fermer
+          <Button icon={<Download size={16} />} onClick={download} disabled={!spec || !!step}>
+            Excel
           </Button>
-          <Button variant="primary" icon={<Download size={16} />} onClick={download} disabled={!spec || !!step}>
-            Télécharger (Excel)
+          <Button
+            variant="primary"
+            icon={<ClipboardCheck size={16} />}
+            disabled={!spec || !!step}
+            onClick={() => {
+              if (ready()) navigate(`/lessons/${lesson.id}/evaluation`);
+            }}
+          >
+            Remplir dans l'application
           </Button>
         </>
       }
@@ -121,6 +142,14 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
       )}
 
       {spec && (
+        <div>
+          <Button size="sm" icon={byHand ? <Eye size={15} /> : <Pencil size={15} />} onClick={() => (byHand ? ready() : setByHand(true))}>
+            {byHand ? 'Voir la fiche' : 'Modifier à la main'}
+          </Button>
+        </div>
+      )}
+      {spec && byHand && <EvalSheetEditor spec={spec} onChange={save} />}
+      {spec && !byHand && (
         <div className="stack eval-preview">
           <strong>{spec.title}</strong>
           {spec.blocks.map((b, i) => (
@@ -168,7 +197,24 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
       )}
       {error && <p className="error-text">{error}</p>}
 
+      {!spec && (
+        <div>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Pencil size={15} />}
+            onClick={() => {
+              save({ title: lesson.title || 'Évaluation', expectations: [], blocks: [{ name: 'Bloc 1', points: 20, criteria: [{ label: '', kind: 'levels', observe: [] }] }], bonus: [], sources: [], notes: '' });
+              setByHand(true);
+            }}
+          >
+            Créer la fiche à la main
+          </Button>
+        </div>
+      )}
+
       <div className="voice-type">
+        {spec && <span className="field-label">Demander une modification à Claude</span>}
         <TextArea
           value={instruction}
           onChange={setInstruction}

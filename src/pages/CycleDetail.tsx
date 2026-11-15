@@ -5,7 +5,7 @@ import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section,
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
 import { EvalPath } from '../components/EvalPath';
-import { CycleReview, CycleTimeline, TitlesButton } from '../components/CycleExtras';
+import { CycleAiFill, CycleReview, CycleTimeline, TitlesButton } from '../components/CycleExtras';
 import { LevelsField } from '../components/LevelsField';
 import { CopyCycleModal, RedateModal } from '../components/CycleModals';
 import { useData } from '../store/data';
@@ -162,6 +162,7 @@ export function CycleDetailPage() {
       <details className="cycle-settings" open={isTemplate || !cycle.objectives.trim()}>
         <summary>Objectifs, évaluation et réglages du cycle</summary>
         <div className="stack">
+          <CycleAiFill cycle={cycle} lessons={lessons} />
         <Card>
           <div className="grid grid-2">
             <Field label="Activité">

@@ -634,3 +634,43 @@ Donne : le champ d'apprentissage, les AFL visés (AFL1, AFL2, AFL3) avec leur fo
   });
   return tidyEvalSheet(raw);
 }
+
+// ── Cycle complété par Claude ───────────────────────────────────────────────
+
+export interface CycleFields {
+  objectives: string;
+  competences: string;
+  evaluation: string;
+  notes: string;
+}
+
+const CYCLE_FIELDS_SYSTEM = `${STYLE}
+
+Tu complètes la fiche d'un cycle (séquence) d'EPS : objectifs, attendus visés, évaluation, notes. L'enseignant a pu dicter ce qu'il veut, avec des hésitations et des erreurs de reconnaissance vocale : suis son intention.
+
+- objectives : ce que les élèves vont apprendre, 2 à 4 lignes concrètes, au niveau de la classe et pour le nombre de séances donné.
+- competences : les attendus visés, formulés comme dans les programmes. Collège : champ d'apprentissage et attendus de fin de cycle (AFC), cycle 3 pour la 6e, cycle 4 de la 5e à la 3e. Lycée : champ d'apprentissage et AFL1, AFL2, AFL3. Pas d'« épreuve officielle » au collège.
+- evaluation : situation d'évaluation, moments (diagnostique, formative, sommative), critères (une ligne « Critères : a · b · c »), barème indicatif /20. Baccalauréat : AFL1 sur 12 points, AFL2 et AFL3 sur 8 points ensemble.
+- notes : organisation utile (installations, matériel à réserver, groupes) ; vide si rien d'utile.
+Règles : garde tel quel un champ déjà rempli, sauf si l'enseignant demande de le changer ou de le compléter. Mini-Markdown accepté (**gras**, listes « - »). Renvoie les 4 champs en entier.`;
+
+export async function aiCycleFields(input: {
+  className: string;
+  level: string;
+  students: number | null;
+  activity: string;
+  title: string;
+  dates: string;
+  lessons: string[];
+  current: CycleFields;
+  spoken: string;
+}): Promise<CycleFields> {
+  const r = await callClaude<CycleFields>({
+    task: 'lesson',
+    system: CYCLE_FIELDS_SYSTEM,
+    user: `Cycle :\n${JSON.stringify({ classe: input.className, niveau: input.level, effectif: input.students, activite: input.activity, titre: input.title, dates: input.dates, seances: input.lessons, champs_actuels: input.current })}${input.spoken.trim() ? `\n\nDemande de l'enseignant :\n<demande>${input.spoken.trim()}</demande>` : ''}`,
+    schema: obj({ objectives: { type: 'string' }, competences: { type: 'string' }, evaluation: { type: 'string' }, notes: { type: 'string' } }),
+  });
+  const keep = (k: keyof CycleFields) => (typeof r[k] === 'string' ? r[k].trim() : input.current[k]);
+  return { objectives: keep('objectives'), competences: keep('competences'), evaluation: keep('evaluation'), notes: keep('notes') };
+}

@@ -326,7 +326,7 @@ input[type='checkbox'] { accent-color: var(--primary); width: 18px; height: 18px
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(8, 13, 24, 0.55); display: flex; align-items: flex-end; justify-content: center; }
 .modal { background: var(--surface); width: 100%; max-height: 92dvh; border-radius: 18px 18px 0 0; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 6px 20px; }
-.modal-body { padding: 8px 20px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.modal-body { padding: 8px 20px 16px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 14px; }
 /* Le contenu défile : il ne doit jamais être écrasé pour tenir dans la fenêtre. */
 .modal-body > * { flex-shrink: 0; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); flex-wrap: wrap; }
@@ -435,3 +435,18 @@ textarea.title-input { resize: none; overflow: hidden; line-height: 1.25; displa
 }
 :root[data-theme='sun'] body { font-size: 1.06rem; font-weight: 500; }
 :root[data-theme='sun'] .card, :root[data-theme='sun'] .block { border-width: 2px; }
+
+/* ── Jamais de défilement de côté de la page ──────────────────────────────
+   La page ne déborde jamais en largeur : ce qui est plus large que l'écran (onglets, tableaux,
+   aperçus de fiches) défile dans son propre cadre. Sur téléphone, un champ en dessous de 16 px
+   fait zoomer le navigateur à la saisie, ce qui décale toute la page : on l'interdit. */
+html, body { overflow-x: hidden; }
+@supports (overflow-x: clip) { html, body { overflow-x: clip; } }
+.app, .main, .page, .modal, .modal-body, .card, .section, section, form { min-width: 0; max-width: 100%; }
+img, svg, video, canvas, iframe { max-width: 100%; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.page :where(p, li, h1, h2, h3, span, a, strong, label) { overflow-wrap: anywhere; }
+.page table { max-width: 100%; }
+@media (pointer: coarse) {
+  input, select, textarea { font-size: max(16px, 1em) !important; }
+}

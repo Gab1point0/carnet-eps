@@ -4,6 +4,7 @@ import { GithubError, getFile, putFile, type GithubConfig } from '../lib/github'
 import { mergeData, sameData } from '../lib/merge';
 import { normalizeData, serialize } from './model';
 import { useData } from './data';
+import { syncVault, useVault } from './vault';
 
 const CONFIG_KEY = 'carnet-eps:github';
 
@@ -64,6 +65,8 @@ export const useSync = create<SyncState>((set, get) => ({
     running = (async () => {
       try {
         await runSync(cfg);
+        // Coffre des élèves : fichier chiffré à part, après le carnet.
+        await syncVault(cfg);
         set({ status: 'ok', lastSync: Date.now(), error: null });
         return true;
       } catch (err) {
@@ -126,6 +129,13 @@ export function startAutoSync() {
     if (state.revision !== lastRevision) {
       lastRevision = state.revision;
       scheduleAutoSync(6000);
+    }
+  });
+  let lastVault = useVault.getState().revision;
+  useVault.subscribe((state) => {
+    if (state.revision !== lastVault) {
+      lastVault = state.revision;
+      scheduleAutoSync(4000);
     }
   });
   document.addEventListener('visibilitychange', () => {

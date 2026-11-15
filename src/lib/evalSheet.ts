@@ -81,7 +81,18 @@ export interface SheetLayout {
 }
 
 /** Construit le classeur : onglet « Évaluation » (une ligne par élève) et onglet « Barème ». */
-export async function buildEvalWorkbook(spec: EvalSheetSpec, opts: { students: number; className: string; activity: string; date?: string }): Promise<{ workbook: Workbook; layout: SheetLayout }> {
+export async function buildEvalWorkbook(
+  spec: EvalSheetSpec,
+  opts: {
+    students: number;
+    className: string;
+    activity: string;
+    date?: string;
+    /** Fiche remplie dans l'application : noms et résultats (niveau 0 à 4, ou 0/1) par clé de critère. */
+    rows?: Array<{ name: string; marks: Record<string, number> }>;
+    keyOf?: (block: string, label: string) => string;
+  },
+): Promise<{ workbook: Workbook; layout: SheetLayout }> {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Carnet EPS';
@@ -89,7 +100,8 @@ export async function buildEvalWorkbook(spec: EvalSheetSpec, opts: { students: n
   const bareme = wb.addWorksheet('Barème');
 
   const FIRST = 3;
-  const LAST = FIRST + Math.max(1, opts.students) - 1;
+  const LAST = FIRST + Math.max(1, opts.rows?.length ?? opts.students) - 1;
+  const markOf = (row: number, key: string) => opts.rows?.[row - FIRST]?.marks[key] ?? 0;
   const groups: Array<[number, number]> = [];
 
   // ── Barème (écrit d'abord : les notes y renvoient) ──
@@ -170,17 +182,18 @@ export async function buildEvalWorkbook(spec: EvalSheetSpec, opts: { students: n
   ws.getCell('A1').value = opts.className;
   ws.getCell('A2').value = 'Élève (nom à saisir)';
   ws.getCell('A1').font = { bold: true, size: 12 };
+  opts.rows?.forEach((r, i) => (ws.getCell(FIRST + i, 1).value = r.name));
   ws.getCell('A2').font = { bold: true };
   let c = 2;
   const noteCols: string[] = [];
   const style = (cell: ReturnType<Worksheet['getCell']>, left: boolean) => {
     cell.border = { left: left ? thick : thin, right: thin, top: thin, bottom: thin };
   };
-  const checkbox = (colN: number, left: boolean) => {
+  const checkbox = (colN: number, left: boolean, value: (row: number) => boolean = () => false) => {
     ws.getColumn(colN).width = 5.5;
     for (let row = FIRST; row <= LAST; row++) {
       const cell = ws.getCell(row, colN);
-      cell.value = false;
+      cell.value = value(row);
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       cell.font = { color: { argb: 'FF9AA3AE' }, size: 8 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
@@ -200,7 +213,8 @@ export async function buildEvalWorkbook(spec: EvalSheetSpec, opts: { students: n
         ws.mergeCells(2, c, 2, c + 3);
         ws.getCell(2, c).value = crit.label;
         ws.getCell(2, c).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        for (let k = 0; k < 4; k++) checkbox(c + k, first && k === 0);
+        const key = opts.keyOf?.(b.name, crit.label) ?? '';
+        for (let k = 0; k < 4; k++) checkbox(c + k, first && k === 0, (row) => markOf(row, key) > k);
         // Niveau = rang de la case cochée la plus à droite (0 à 4). Forme simple, sans tableau : Excel, Sheets et tablettes la calculent pareil.
         const cols4 = [0, 1, 2, 3].map((k) => col(c + k));
         const level = (row: number, abs = '') => `MAX(${cols4.map((x, k) => `${abs}${x}${row}*${k + 1}`).join(',')})`;
@@ -219,7 +233,8 @@ export async function buildEvalWorkbook(spec: EvalSheetSpec, opts: { students: n
         const a = col(c);
         ws.getCell(2, c).value = crit.label;
         ws.getCell(2, c).alignment = { textRotation: 90, horizontal: 'center', vertical: 'bottom', wrapText: true };
-        checkbox(c, first);
+        const key1 = opts.keyOf?.(b.name, crit.label) ?? '';
+        checkbox(c, first, (row) => markOf(row, key1) > 0);
         parts.push((row) => `(${a}${row}*1)`);
         ws.addConditionalFormatting({
           ref: `${a}${FIRST}:${a}${LAST}`,
@@ -261,7 +276,7 @@ export async function buildEvalWorkbook(spec: EvalSheetSpec, opts: { students: n
     ws.getCell(1, c).value = i === 0 ? 'Bonus' : null;
     ws.getCell(2, c).value = `${b.label} (+${b.points})`;
     ws.getCell(2, c).alignment = { textRotation: 90, horizontal: 'center', vertical: 'bottom', wrapText: true };
-    checkbox(c, i === 0);
+    checkbox(c, i === 0, (row) => markOf(row, bonusKey(b.label)) > 0);
     ws.addConditionalFormatting({
       ref: `${a}${FIRST}:${a}${LAST}`,
       rules: [{ type: 'expression', priority: 1, formulae: [`$${a}${FIRST}=TRUE`], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GREEN } } } }],
@@ -308,4 +323,20 @@ export function cumulativeScript(layout: SheetLayout): string {
     if (v === false && c < g[1]) s.getRange(r, c + 1, 1, g[1] - c).setValue(false);
   });
 }`;
+}
+
+/** Clé d'un bonus dans les résultats d'un élève. */
+export const bonusKey = (label: string) => `bonus::${label}`;
+
+/** Notes d'un élève, comme dans le tableur : moyenne des critères × points du bloc, plus les bonus. */
+export function scoreOf(spec: EvalSheetSpec, marks: Record<string, number>, keyOf: (block: string, label: string) => string) {
+  const blocks = spec.blocks.map((b) => {
+    const parts = b.criteria.map((c) => {
+      const v = marks[keyOf(b.name, c.label)] ?? 0;
+      return c.kind === 'levels' ? Math.min(4, v) / 4 : v ? 1 : 0;
+    });
+    return Math.round((parts.reduce((a, x) => a + x, 0) / Math.max(1, parts.length)) * b.points * 10) / 10;
+  });
+  const bonus = spec.bonus.reduce((s, b) => s + (marks[bonusKey(b.label)] ? b.points : 0), 0);
+  return { blocks, total: Math.round((blocks.reduce((a, x) => a + x, 0) + bonus) * 10) / 10 };
 }
