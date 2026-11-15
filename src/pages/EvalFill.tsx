@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Download } from 'lucide-react';
+import { ChevronLeft, Download, Info } from 'lucide-react';
 import type { ID } from '../types';
 import { useData } from '../store/data';
 import { useStudents, useVault } from '../store/vault';
 import { activityOf } from '../store/selectors';
-import { Button, Card } from '../components/ui';
+import { Button, Card, Modal } from '../components/ui';
 import { VaultGate } from '../components/VaultGate';
-import { buildEvalWorkbook, bonusKey, LEVEL_NAMES, scoreOf, type EvalSheetSpec } from '../lib/evalSheet';
+import { buildEvalWorkbook, bonusKey, LEVEL_NAMES, scoreOf, type EvalCriterion, type EvalSheetSpec } from '../lib/evalSheet';
 import { criterionKey, type StudentMarks } from '../lib/privateData';
 import { formatLong } from '../lib/dates';
 import { cls } from '../lib/util';
@@ -65,6 +65,8 @@ export function EvalFillPage() {
   const students = useStudents(lesson?.classId);
   const rows = useVault((s) => s.doc.sheets[id]) ?? EMPTY_ROWS;
   const narrow = useNarrow();
+  // Critère touché : ce qu'on observe à chaque niveau (repris du référentiel), lisible sur téléphone et tablette.
+  const [info, setInfo] = useState<{ block: string; criterion: EvalCriterion } | null>(null);
   if (!lesson) return <Navigate to="/classes" replace />;
   const spec: EvalSheetSpec | null = lesson.evalSheet;
   const klass = lesson.classId ? data.classes[lesson.classId] : undefined;
@@ -156,7 +158,9 @@ export function EvalFillPage() {
                             const key = criterionKey(b.name, c.label);
                             return (
                               <div key={key} className="fill-crit">
-                                <span className="small">{c.label}</span>
+                                <button type="button" className="crit-info-btn small" onClick={() => setInfo({ block: b.name, criterion: c })}>
+                                  {c.label} <Info size={13} aria-hidden />
+                                </button>
                                 {c.kind === 'levels' ? (
                                   <LevelPicker value={m[key] ?? 0} onChange={(v) => setMark(s.id, key, v)} label={`${s.name} : ${c.label}`} />
                                 ) : (
@@ -199,8 +203,10 @@ export function EvalFillPage() {
                   <tr>
                     {spec.blocks.map((b) => [
                       ...b.criteria.map((c) => (
-                        <th key={`${b.name}${c.label}`} className="fill-crit-head" title={c.observe.join(' / ')}>
-                          {c.label}
+                        <th key={`${b.name}${c.label}`} className="fill-crit-head">
+                          <button type="button" className="crit-info-btn" onClick={() => setInfo({ block: b.name, criterion: c })} title={c.observe.join(' / ')}>
+                            {c.label} <Info size={13} aria-hidden />
+                          </button>
                         </th>
                       )),
                       <th key={`${b.name}-note`} className="fill-note-head">
@@ -257,6 +263,28 @@ export function EvalFillPage() {
           )}
         </VaultGate>
       </div>
+
+      {info && (
+        <Modal title={info.criterion.label} onClose={() => setInfo(null)}>
+          <p className="muted small">{info.block}</p>
+          {info.criterion.kind === 'levels' ? (
+            <ol className="crit-levels">
+              {LEVEL_NAMES.map((n, i) => (
+                <li key={n} style={{ ['--lvl' as string]: LEVEL_COLORS[i] }}>
+                  <span className="crit-level-name">{n}</span>
+                  <span>{info.criterion.observe[i] || <span className="muted">Non précisé dans la fiche.</span>}</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>
+              <strong>Réussi si : </strong>
+              {info.criterion.observe[0] || <span className="muted">Non précisé dans la fiche.</span>}
+            </p>
+          )}
+          {spec && spec.sources.length > 0 && <p className="muted small">Source : {spec.sources.join(' · ')}</p>}
+        </Modal>
+      )}
     </div>
   );
 }
