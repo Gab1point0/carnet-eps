@@ -467,3 +467,49 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 
 .today-live { box-shadow: 0 0 0 2px var(--primary), var(--shadow); }
 .today-past { opacity: 0.55; }
+
+/* Bloc replié : une ligne cliquable ; on le déplace en le glissant (ordinateur). */
+.block-summary { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 12px 12px 6px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.block-summary:hover { background: var(--surface-2); border-radius: var(--radius); }
+.block-summary-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.block-summary-min { font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+.block-grip { color: var(--muted); cursor: grab; display: grid; place-items: center; }
+.block-dragover { box-shadow: 0 -3px 0 var(--primary), var(--shadow); }
+.block[draggable='true'] { cursor: default; }
+@media (pointer: coarse) { .block-grip { display: none; } }
+
+.lesson-meta-summary { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; flex-wrap: wrap; padding: 12px 16px; }
+.lesson-meta-summary:hover { border-color: var(--border-strong); }
+.lesson-meta-edit { margin-left: auto; font-weight: 600; }
+
+/* Résultats par critère (bilan d'une évaluation). */
+.grading-wrap { overflow-x: auto; }
+.grading { border-collapse: collapse; width: 100%; }
+.grading th { font-size: 0.78rem; text-align: center; padding: 4px; }
+.grading th:first-child { text-align: left; }
+.grading td { padding: 3px; }
+.grading td:first-child .input { min-width: 150px; }
+.grading td .input[type='number'] { width: 64px; text-align: center; padding: 6px; }
+
+/* Frise du cycle */
+.cycle-timeline { display: flex; flex-direction: column; gap: 6px; }
+.cycle-dots { display: flex; flex-wrap: wrap; gap: 6px; }
+.cycle-dot { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 0.8rem; font-weight: 800; border: 2px solid var(--border-strong); color: var(--muted); background: var(--surface); }
+.cycle-dot:hover { text-decoration: none; border-color: var(--primary); }
+.cycle-dot-done { background: #30a46c; border-color: #30a46c; color: #fff; }
+.cycle-dot-review { border-color: #f5a524; color: #f5a524; }
+.cycle-dot-ready { border-color: var(--primary); color: var(--primary); }
+.cycle-dot-empty { border-style: dashed; }
+.cycle-dot-cancelled { opacity: 0.4; text-decoration: line-through; }
+.cycle-dot-next { box-shadow: 0 0 0 3px var(--primary-soft); transform: scale(1.12); }
+.cycle-settings { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 0 16px; }
+.cycle-settings > summary { cursor: pointer; padding: 14px 0; font-weight: 700; }
+.cycle-settings[open] { padding-bottom: 16px; }
+
+/* Année d'une classe : champs d'apprentissage et suivi */
+.class-year { display: flex; flex-direction: column; gap: 12px; }
+.class-year-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.class-year-field { border-left: 4px solid var(--field); background: color-mix(in srgb, var(--field) 10%, var(--surface)); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.class-year-missing { opacity: 0.55; border-left-style: dashed; }
+.class-year-stats { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--muted); }
+.class-year-stats strong { color: var(--text); }

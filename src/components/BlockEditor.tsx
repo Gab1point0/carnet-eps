@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, BookmarkPlus, ChevronDown, ChevronRight, Copy, Film, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookmarkPlus, ChevronDown, ChevronRight, Copy, Film, GripVertical, Trash2 } from 'lucide-react';
 import type { Block, BlockKind, CourtId, ID, Lesson } from '../types';
 import { AiBlockTools } from './AiBlockTools';
 import { IconButton, Menu, NumberInput, Select, TextArea, TextInput } from './ui';
@@ -11,6 +11,12 @@ import { FICHES, fichesOfActivity } from '../lib/fiches';
 import { useData } from '../store/data';
 import { BLOCK_KINDS, BLOCK_KIND_ORDER } from '../lib/defaults';
 import { cls, uid } from '../lib/util';
+
+/** Première ligne utile d'un texte, sans la mise en forme : résumé d'un bloc replié. */
+function firstLine(text: string): string {
+  const line = text.split('\n').map((l) => l.replace(/[*#_>]|^\s*(\d+\.|-)\s*/g, '').trim()).find(Boolean) ?? '';
+  return line.length > 90 ? `${line.slice(0, 88)}…` : line;
+}
 
 export const DEFAULT_MINUTES: Record<BlockKind, number> = {
   warmup: 15,
@@ -36,6 +42,8 @@ export function BlockEditor({
   onSaveToLibrary,
   cycleId,
   lesson,
+  dragProps,
+  dragOver,
 }: {
   block: Block;
   index: number;
@@ -50,8 +58,12 @@ export function BlockEditor({
   cycleId?: ID | null;
   /** Séance du bloc : donne à Claude le contexte de la classe. */
   lesson?: Lesson;
+  /** Glisser-déposer (ordinateur) : attributs posés sur le bloc par la liste. */
+  dragProps?: React.HTMLAttributes<HTMLDivElement> & { draggable?: boolean };
+  dragOver?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  // Replié par défaut : une ligne par bloc. Un bloc encore vide (tout juste ajouté) s'ouvre pour être rempli.
+  const [open, setOpen] = useState(() => !block.text.trim());
   const kind = BLOCK_KINDS[block.kind];
   const activityName = useData((s) => s.data.settings.activities.find((a) => a.id === activityId)?.name ?? '');
   const sheetGroups = useMemo(() => {
@@ -64,7 +76,25 @@ export function BlockEditor({
   }, [activityName]);
 
   return (
-    <div className={cls('block', !open && 'block-closed')} style={{ ['--kind' as string]: kind.color }}>
+    <div className={cls('block', !open && 'block-closed', dragOver && 'block-dragover')} style={{ ['--kind' as string]: kind.color }} {...dragProps}>
+      {!open && (
+        <button type="button" className="block-summary" onClick={() => setOpen(true)} aria-expanded={false}>
+          <span className="block-grip" aria-hidden title="Glisser pour déplacer">
+            <GripVertical size={16} />
+          </span>
+          <span className="block-index">{index + 1}</span>
+          <span className="block-summary-text">
+            <strong>
+              {kind.icon} {block.title || kind.label}
+            </strong>
+            {firstLine(block.text) && <span className="muted small"> · {firstLine(block.text)}</span>}
+          </span>
+          {block.animation && <Film size={15} className="muted" aria-label="Contient une animation" />}
+          <span className="block-summary-min">{block.minutes} min</span>
+          <ChevronRight size={18} className="muted" />
+        </button>
+      )}
+      {open && (
       <div className="block-head">
         <button type="button" className="icon-btn block-toggle" onClick={() => setOpen(!open)} aria-label={open ? 'Replier' : 'Déplier'} aria-expanded={open}>
           {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
@@ -99,6 +129,8 @@ export function BlockEditor({
           />
         </div>
       </div>
+
+      )}
 
       {open && (
         <div className="block-body">

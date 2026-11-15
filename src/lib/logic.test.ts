@@ -94,3 +94,13 @@ describe('normalisation', () => {
     expect(d.lessons.l1.id).toBe('l1');
   });
 });
+
+describe('note de la classe', () => {
+  it('fait la moyenne des critères, pondérée par le nombre d\'élèves à chaque degré', async () => {
+    const { classAverage } = await import('./grading');
+    expect(classAverage(null)).toBeNull();
+    expect(classAverage({ criteria: [{ label: 'A', counts: [0, 0, 0, 0] }], scale: [5, 10, 15, 20] })).toBeNull();
+    // A : (2×5 + 2×15) / 4 = 10 ; B : 20 → moyenne 15
+    expect(classAverage({ criteria: [{ label: 'A', counts: [2, 0, 2, 0] }, { label: 'B', counts: [0, 0, 0, 3] }], scale: [5, 10, 15, 20] })).toBe(15);
+  });
+});

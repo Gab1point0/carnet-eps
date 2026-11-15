@@ -21,7 +21,9 @@ import { blockFromExercise, cancelAndShift, duplicateLesson, postponeLesson, sav
 import { newBlock } from '../store/model';
 import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { BLOCK_KINDS, BLOCK_KIND_ORDER } from '../lib/defaults';
-import { durationOf, formatLong, formatDuration, weekdayOf } from '../lib/dates';
+import { durationOf, formatLong, formatDuration, formatShort, weekdayOf } from '../lib/dates';
+
+const STATUS_LABEL = { planned: 'Prévue', done: 'Faite', cancelled: 'Annulée' } as const;
 import { materialsFromBlocks } from '../lib/materials';
 import { cls, plural } from '../lib/util';
 
@@ -34,6 +36,10 @@ export function LessonPage() {
   const [duplicating, setDuplicating] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [dictating, setDictating] = useState(false);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  // Réglages de la séance (état, date, heures, lieu, évaluation) : une ligne de résumé, dépliée au toucher.
+  const [metaOpen, setMetaOpen] = useState(() => !lesson || lesson.classId === null || !lesson.date);
 
   if (!lesson) return <Navigate to="/classes" replace />;
 
@@ -203,6 +209,13 @@ export function LessonPage() {
         }
       />
 
+      {!metaOpen ? (
+        <button type="button" className="card lesson-meta-summary" onClick={() => setMetaOpen(true)}>
+          <span className={cls('chip', lesson.status === 'done' && 'chip-ok', lesson.status === 'cancelled' && 'chip-todo')}>{STATUS_LABEL[lesson.status]}</span>
+          <span>{[lesson.date ? formatShort(lesson.date) : null, lesson.start && lesson.end ? `${lesson.start}–${lesson.end}` : null, venue ? `📍 ${venue.name}` : null, lesson.evalKind ? `${EVAL_KINDS[lesson.evalKind].emoji} ${EVAL_KINDS[lesson.evalKind].label}` : null].filter(Boolean).join(' · ')}</span>
+          <span className="muted small lesson-meta-edit">Modifier</span>
+        </button>
+      ) : (
       <Card>
         <div className="lesson-meta">
           {!isTemplate && (
@@ -266,6 +279,7 @@ export function LessonPage() {
           )}
         </div>
       </Card>
+      )}
 
       <div className="grid grid-2">
         <Field label="🎯 Objectif de la séance">
@@ -316,6 +330,36 @@ export function LessonPage() {
               activityId={activityId}
               onChange={(p) => patchBlock(b.id, p)}
               onMove={(d) => moveBlock(i, d)}
+              dragOver={dragOver === i && dragFrom !== null && dragFrom !== i}
+              dragProps={{
+                draggable: true,
+                onDragStart: (e) => {
+                  // On ne déplace un bloc qu'en le saisissant par sa ligne de résumé ou son en-tête, pas depuis un champ.
+                  if ((e.target as HTMLElement).closest('input, textarea, select')) return e.preventDefault();
+                  setDragFrom(i);
+                  e.dataTransfer.effectAllowed = 'move';
+                },
+                onDragOver: (e) => {
+                  if (dragFrom === null) return;
+                  e.preventDefault();
+                  setDragOver(i);
+                },
+                onDrop: (e) => {
+                  e.preventDefault();
+                  if (dragFrom !== null && dragFrom !== i) {
+                    const next = [...lesson.blocks];
+                    const [moved] = next.splice(dragFrom, 1);
+                    next.splice(i, 0, moved);
+                    setBlocks(next);
+                  }
+                  setDragFrom(null);
+                  setDragOver(null);
+                },
+                onDragEnd: () => {
+                  setDragFrom(null);
+                  setDragOver(null);
+                },
+              }}
               onDelete={() => {
                 const before = lesson.blocks;
                 setBlocks(lesson.blocks.filter((x) => x.id !== b.id));

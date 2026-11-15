@@ -147,3 +147,11 @@ describe('animation', () => {
     expect(a.tokens[1].color).toBe('#2563eb');
   });
 });
+
+describe('titres de séances', () => {
+  it('repère les titres qui ne disent rien du contenu', async () => {
+    const { isGenericTitle } = await import('./aiTasks');
+    for (const t of ['Séance 3', 'Nouvelle séance', 'Séance 2 :', 'seance 12', 'Séance n°4']) expect(isGenericTitle(t)).toBe(true);
+    for (const t of ['Séance 3 — Revers et court/long', 'Séance 2 : Attaquer le terrain adverse', 'Évaluation']) expect(isGenericTitle(t)).toBe(false);
+  });
+});

@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react';
-import { BookmarkPlus, Mic, MicOff } from 'lucide-react';
+import { BookmarkPlus, Calculator, Mic, MicOff } from 'lucide-react';
 import { extractSituations } from '../store/actions';
-import type { Lesson } from '../types';
+import type { Grading, Lesson } from '../types';
+import { GradingField } from './GradingField';
+import { gradingFrom } from '../lib/grading';
+import { criteriaOf } from '../lib/materials';
 import { useDictation } from '../lib/dictation';
 import { sentimentOf, themesOf } from '../lib/suggestions';
 import { EVAL_KINDS, LEVELS, parseLevels, total, type Levels } from '../lib/levels';
@@ -25,6 +28,8 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
 
   const [evalKind, setEvalKind] = useState<Lesson['evalKind']>(lesson.evalKind);
   const [levels, setLevels] = useState<Levels>(lesson.levels ?? [0, 0, 0, 0]);
+  const [grading, setGrading] = useState<Grading | null>(lesson.grading);
+  const cycleEval = useData((s) => (lesson.cycleId ? s.data.cycles[lesson.cycleId]?.evaluation ?? '' : ''));
   const evalRef = useRef(evalKind);
   evalRef.current = evalKind;
   const bilanRef = useRef(bilan);
@@ -64,6 +69,7 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
       bilan: bilanRef.current,
       evalKind,
       levels: evalKind && total(levels) > 0 ? levels : null,
+      grading: evalKind && evalKind !== 'diagnostic' ? grading : lesson.grading,
     });
     toast('Bilan enregistré', { tone: 'success' });
     onClose();
@@ -149,6 +155,20 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
           <p className="muted small">
             Vous pouvez le dicter : « six débutants, dix en cours, huit acquis, deux avancés. » Les séances suivantes seront adaptées à ce niveau (propositions à accepter ou refuser).
           </p>
+        </div>
+      )}
+      {evalKind && evalKind !== 'diagnostic' && (
+        <div className="field">
+          <span className="field-label">Résultats par critère et note de la classe (facultatif)</span>
+          {grading ? (
+            <GradingField value={grading} onChange={setGrading} />
+          ) : (
+            <div>
+              <Button size="sm" icon={<Calculator size={15} />} onClick={() => setGrading(gradingFrom(criteriaOf(cycleEval)))}>
+                Saisir les résultats par critère
+              </Button>
+            </div>
+          )}
         </div>
       )}
       <label className="check">

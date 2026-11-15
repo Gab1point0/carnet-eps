@@ -5,6 +5,7 @@ import { toastUndo } from '../store/ui';
 import { evaluationsToGrade, GRADED } from '../lib/evaluations';
 import { EVAL_KINDS } from '../lib/levels';
 import { formatShort } from '../lib/dates';
+import { classAverage } from '../lib/grading';
 import { Card, Section } from './ui';
 import { ClassDot } from './cards';
 
@@ -42,6 +43,7 @@ export function EvaluationsToGrade({ lessons, classById, today, nowHM }: { lesso
                   <div className="lesson-row-meta muted small">
                     {kind ? `${kind.emoji} ${kind.label}` : '📝 Évaluation'}
                     {l.date && ` · ${formatShort(l.date)}`}
+                    {classAverage(l.grading) !== null && ` · moyenne ${String(classAverage(l.grading)).replace('.', ',')}/20`}
                   </div>
                 </div>
               </Link>

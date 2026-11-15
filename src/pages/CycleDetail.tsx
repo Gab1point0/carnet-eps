@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, BookmarkPlus, CalendarClock, ChevronLeft, Copy, Plus, Printer, Trash2, X } from 'lucide-react';
-import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea , TitleInput } from '../components/ui';
+import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea, TitleInput } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
 import { EvalPath } from '../components/EvalPath';
+import { CycleReview, CycleTimeline, TitlesButton } from '../components/CycleExtras';
 import { LevelsField } from '../components/LevelsField';
 import { CopyCycleModal, RedateModal } from '../components/CycleModals';
 import { useData } from '../store/data';
@@ -89,50 +90,7 @@ export function CycleDetailPage() {
         }
       />
 
-      <Card>
-        <div className="grid grid-2">
-          <Field label="Activité">
-            <ActivitySelect value={cycle.activityId} onChange={(a) => patch({ activityId: a })} />
-          </Field>
-          {isTemplate && (
-            <Field label="Niveaux de classe">
-              <LevelsField value={cycle.classLevels ?? []} onChange={(classLevels) => patch({ classLevels })} />
-            </Field>
-          )}
-          {!isTemplate && (
-            <>
-              <Field label="Début du cycle">
-                <DateField value={cycle.startDate} onChange={(v) => patch({ startDate: v })} />
-              </Field>
-              <Field label="Fin du cycle">
-                <DateField value={cycle.endDate} min={cycle.startDate ?? undefined} onChange={(v) => patch({ endDate: v })} />
-              </Field>
-            </>
-          )}
-        </div>
-        {!isTemplate && klass && klass.slots.length > 1 && (
-          <div className="field" style={{ marginTop: 14 }}>
-            <span className="field-label">Créneaux utilisés par ce cycle</span>
-            <SlotPicker slots={klass.slots} value={cycle.slotIds ?? []} onChange={(slotIds) => patch({ slotIds })} />
-            <span className="field-hint">Après un changement, utilisez « Recalculer les dates » pour replacer les séances sur les bons créneaux.</span>
-          </div>
-        )}
-      </Card>
-
-      <div className="grid grid-2">
-        <Field label="Objectifs du cycle">
-          <TextArea value={cycle.objectives} onChange={(v) => patch({ objectives: v })} minRows={4} placeholder="Ce que les élèves vont apprendre, en une ou deux phrases." />
-        </Field>
-        <Field label="Attendus de fin de cycle / compétences visées">
-          <TextArea value={cycle.competences} onChange={(v) => patch({ competences: v })} minRows={4} placeholder="Niveau attendu, AFLP, compétences travaillées…" />
-        </Field>
-        <Field label="Évaluation">
-          <TextArea value={cycle.evaluation} onChange={(v) => patch({ evaluation: v })} minRows={4} placeholder="Modalités, critères, barème, date de l'évaluation…" />
-        </Field>
-        <Field label="Notes">
-          <TextArea value={cycle.notes} onChange={(v) => patch({ notes: v })} minRows={4} placeholder="Matériel à réserver, installations, rappels…" />
-        </Field>
-      </div>
+      <CycleTimeline lessons={lessons} />
 
       <EvalPath lessons={lessons} />
 
@@ -140,6 +98,7 @@ export function CycleDetailPage() {
         title={`Séances (${lessons.length})`}
         actions={
           <>
+            <TitlesButton cycle={cycle} lessons={lessons} />
             <Button size="sm" icon={<Printer size={16} />} onClick={() => navigate(`/cycles/${cycle.id}/fiches`)}>
               Fiches élèves
             </Button>
@@ -197,6 +156,58 @@ export function CycleDetailPage() {
           </Card>
         )}
       </Section>
+
+      {!isTemplate && <CycleReview cycle={cycle} lessons={lessons} />}
+
+      <details className="cycle-settings" open={isTemplate || !cycle.objectives.trim()}>
+        <summary>Objectifs, évaluation et réglages du cycle</summary>
+        <div className="stack">
+        <Card>
+          <div className="grid grid-2">
+            <Field label="Activité">
+              <ActivitySelect value={cycle.activityId} onChange={(a) => patch({ activityId: a })} />
+            </Field>
+            {isTemplate && (
+              <Field label="Niveaux de classe">
+                <LevelsField value={cycle.classLevels ?? []} onChange={(classLevels) => patch({ classLevels })} />
+              </Field>
+            )}
+            {!isTemplate && (
+              <>
+                <Field label="Début du cycle">
+                  <DateField value={cycle.startDate} onChange={(v) => patch({ startDate: v })} />
+                </Field>
+                <Field label="Fin du cycle">
+                  <DateField value={cycle.endDate} min={cycle.startDate ?? undefined} onChange={(v) => patch({ endDate: v })} />
+                </Field>
+              </>
+            )}
+          </div>
+          {!isTemplate && klass && klass.slots.length > 1 && (
+            <div className="field" style={{ marginTop: 14 }}>
+              <span className="field-label">Créneaux utilisés par ce cycle</span>
+              <SlotPicker slots={klass.slots} value={cycle.slotIds ?? []} onChange={(slotIds) => patch({ slotIds })} />
+              <span className="field-hint">Après un changement, utilisez « Recalculer les dates » pour replacer les séances sur les bons créneaux.</span>
+            </div>
+          )}
+        </Card>
+  
+        <div className="grid grid-2">
+          <Field label="Objectifs du cycle">
+            <TextArea value={cycle.objectives} onChange={(v) => patch({ objectives: v })} minRows={4} placeholder="Ce que les élèves vont apprendre, en une ou deux phrases." />
+          </Field>
+          <Field label="Attendus de fin de cycle / compétences visées">
+            <TextArea value={cycle.competences} onChange={(v) => patch({ competences: v })} minRows={4} placeholder="Niveau attendu, AFLP, compétences travaillées…" />
+          </Field>
+          <Field label="Évaluation">
+            <TextArea value={cycle.evaluation} onChange={(v) => patch({ evaluation: v })} minRows={4} placeholder="Modalités, critères, barème, date de l'évaluation…" />
+          </Field>
+          <Field label="Notes">
+            <TextArea value={cycle.notes} onChange={(v) => patch({ notes: v })} minRows={4} placeholder="Matériel à réserver, installations, rappels…" />
+          </Field>
+        </div>
+        </div>
+      </details>
 
       {copying && (
         <CopyCycleModal

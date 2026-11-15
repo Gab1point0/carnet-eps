@@ -512,3 +512,44 @@ export async function testAi(onStep: (task: 'lesson' | 'fiche' | 'animation', re
     }
   }
 }
+
+// ── Titres de séances ───────────────────────────────────────────────────────
+
+/** Titre qui ne dit rien du contenu : « Séance 3 », « Nouvelle séance », « Séance 2 : ». */
+export const isGenericTitle = (t: string) => /^\s*(nouvelle\s+)?s[ée]ance(\s*n?°?\s*\d+)?\s*[:—-]?\s*$/i.test(t);
+
+const TITLES_SYSTEM = `${STYLE}
+
+Tu proposes un titre court (6 mots au plus) pour chaque séance d'un cycle, d'après son objectif et ses blocs : ce qu'on y apprend, pas sa forme. Commence par « Séance N — » (N = numéro donné). Pas de point final.`;
+
+export async function aiLessonTitles(cycleTitle: string, lessons: Array<{ id: string; number: number; objective: string; blocks: string[] }>) {
+  const r = await callClaude<{ titles: Array<{ id: string; title: string }> }>({
+    task: 'lesson',
+    system: TITLES_SYSTEM,
+    user: `Cycle : ${cycleTitle}\n\nSéances :\n${JSON.stringify(lessons)}`,
+    schema: obj({ titles: { type: 'array', items: obj({ id: { type: 'string' }, title: { type: 'string' } }) } }),
+  });
+  const ids = new Set(lessons.map((l) => l.id));
+  return (r.titles ?? []).filter((t) => ids.has(t.id) && t.title.trim()).map((t) => ({ id: t.id, title: t.title.trim().replace(/\.$/, '') }));
+}
+
+// ── Bilan de fin de cycle ───────────────────────────────────────────────────
+
+const CYCLE_REVIEW_SYSTEM = `${STYLE}
+
+Tu rédiges le bilan de fin de cycle de l'enseignant, pour lui-même, à partir de ses bilans de séance, de ses ressentis et des niveaux relevés. En mini-Markdown, court (15 lignes au plus), avec ces parties :
+**Ce qui a marché :** …
+**Ce qui a coincé :** …
+**Niveau de la classe :** … (progression entre le diagnostic et l'évaluation finale si les chiffres existent)
+**Pour la prochaine fois :** liste de 2 à 4 ajustements concrets.
+N'invente rien : appuie-toi seulement sur ce qui est fourni, et dis-le quand une information manque.`;
+
+export async function aiCycleReview(input: unknown) {
+  const r = await callClaude<{ review: string }>({
+    task: 'lesson',
+    system: CYCLE_REVIEW_SYSTEM,
+    user: `Cycle et séances :\n${JSON.stringify(input)}`,
+    schema: obj({ review: { type: 'string' } }),
+  });
+  return r.review.trim();
+}

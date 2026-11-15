@@ -10,7 +10,9 @@ import type {
   SchoolYear,
   Slot,
   Todo,
+  Grading,
 } from '../types';
+import { DEFAULT_SCALE } from '../lib/grading';
 import { COLLECTIONS } from '../types';
 import { defaultSettings, CLASS_COLORS } from '../lib/defaults';
 import { uid } from '../lib/util';
@@ -72,6 +74,7 @@ export function newCycle(classId: ID | null, order: number, title = ''): Cycle {
     competences: '',
     evaluation: '',
     notes: '',
+    review: '',
     order,
   };
 }
@@ -102,6 +105,7 @@ export function newLesson(classId: ID | null, cycleId: ID | null, order: number,
     adjust: false,
     evalKind: null,
     levels: null,
+    grading: null,
     proposalsDone: [],
     classLevels: [],
     todos: [],
@@ -132,6 +136,18 @@ export function newExercise(title = ''): Exercise {
  * Complète les champs manquants de chaque entité avec des valeurs par défaut.
  * Ainsi un JSON écrit à la main (ou par Claude) peut rester minimal.
  */
+const four = (v: unknown, fallback: number[]): [number, number, number, number] =>
+  (Array.isArray(v) && v.length === 4 ? v.map((n) => Math.max(0, Number(n) || 0)) : fallback) as [number, number, number, number];
+
+export function normalizeGrading(g: unknown): Grading | null {
+  if (!g || typeof g !== 'object') return null;
+  const r = g as Partial<Grading>;
+  return {
+    criteria: (Array.isArray(r.criteria) ? r.criteria : []).map((c) => ({ label: String(c?.label ?? ''), counts: four(c?.counts, [0, 0, 0, 0]) })),
+    scale: four(r.scale, [...DEFAULT_SCALE]),
+  };
+}
+
 export function normalizeData(raw: unknown): AppData {
   const base = emptyData();
   if (!raw || typeof raw !== 'object') return base;
@@ -196,6 +212,7 @@ export function normalizeData(raw: unknown): AppData {
     l.todos = withIds<Partial<Todo>>(l.todos).map((t) => ({ id: t.id as ID, text: t.text ?? '', done: !!t.done }));
     l.evalKind = l.evalKind === 'diagnostic' || l.evalKind === 'formative' || l.evalKind === 'summative' ? l.evalKind : null;
     l.levels = Array.isArray(l.levels) && l.levels.length === 4 ? (l.levels.map((n) => Math.max(0, Number(n) || 0)) as [number, number, number, number]) : null;
+    l.grading = normalizeGrading(l.grading);
   });
   out.exercises = fill<Exercise>(r.exercises, () => newExercise(), (e) => {
     e.tags = Array.isArray(e.tags) ? e.tags : [];

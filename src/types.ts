@@ -89,7 +89,16 @@ export interface Cycle extends Meta {
   competences: string;
   evaluation: string;
   notes: string;
+  /** Bilan de fin de cycle (rédigé à la main ou par Claude). */
+  review: string;
   order: number;
+}
+
+/** Résultats d'une évaluation, sans nom d'élève : combien d'élèves à chaque degré, critère par critère. */
+export interface Grading {
+  criteria: Array<{ label: string; counts: [number, number, number, number] }>;
+  /** Note sur 20 de chaque degré (Débutant → Avancé). */
+  scale: [number, number, number, number];
 }
 
 // ── Séances ─────────────────────────────────────────────────────────────────
@@ -169,6 +178,8 @@ export interface Lesson extends Meta {
   evalKind: EvalKind | null;
   /** Niveau observé de la classe lors d'une évaluation : nombre d'élèves par degré (débutant, en cours, acquis, avancé). Aucun nom d'élève. */
   levels: [number, number, number, number] | null;
+  /** Résultats par critère d'une évaluation (barème et moyenne de la classe). */
+  grading: Grading | null;
   /** Propositions d'ajustement (issues du bilan précédent) déjà acceptées ou refusées. */
   proposalsDone: string[];
   /** Tâches à faire avant cette séance, ajoutées à la main. */

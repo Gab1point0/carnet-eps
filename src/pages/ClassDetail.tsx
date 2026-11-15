@@ -5,6 +5,7 @@ import { Button, Card, Chip, EmptyState, Menu, PageHeader, Section, TextArea, Ti
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ClassFormModal } from '../components/ClassForm';
 import { NewCycleModal } from '../components/CycleModals';
+import { ClassYear } from '../components/ClassYear';
 import { useData } from '../store/data';
 import { classCycles, cycleLessons } from '../store/selectors';
 import { clearLessons, saveLessonAsTemplate } from '../store/actions';
@@ -160,6 +161,8 @@ export function ClassDetailPage() {
           </div>
         </Card>
       )}
+
+      <ClassYear data={data} klass={klass} cycles={cycles} />
 
       <Section
         title="Programmation de l'année"
