@@ -11,7 +11,7 @@ export type Expr =
   | { t: 'fn'; name: Fn; args: Expr[] };
 
 type BinOp = '+' | '-' | '*' | '/' | '^' | '<' | '>' | '<=' | '>=' | '=' | '<>';
-type Fn = 'ABS' | 'MIN' | 'MAX' | 'MOY' | 'SOMME' | 'ROUND' | 'PLANCHER' | 'PLAFOND' | 'RACINE' | 'SI' | 'ET' | 'OU' | 'NON' | 'CLASSE_MOY' | 'CLASSE_MIN' | 'CLASSE_MAX' | 'RANG';
+type Fn = 'ABS' | 'MIN' | 'MAX' | 'MOY' | 'SOMME' | 'ROUND' | 'PLANCHER' | 'PLAFOND' | 'RACINE' | 'SI' | 'ET' | 'OU' | 'NON' | 'CLASSE_MOY' | 'CLASSE_MIN' | 'CLASSE_MAX' | 'RANG' | 'BAREME' | 'PALIERS';
 
 /** Noms acceptés (français comme dans Excel ou Sheets en français, et anglais). */
 const FN_ALIASES: Record<string, Fn> = {
@@ -45,6 +45,9 @@ const FN_ALIASES: Record<string, Fn> = {
   CLASSE_MIN: 'CLASSE_MIN',
   CLASSE_MAX: 'CLASSE_MAX',
   RANG: 'RANG',
+  BAREME: 'BAREME',
+  TABLE: 'BAREME',
+  PALIERS: 'PALIERS',
 };
 
 /** Aide affichée dans l'éditeur. */
@@ -59,6 +62,8 @@ export const FUNCTION_HELP: Array<[string, string]> = [
   ['RACINE(x)', 'racine carrée'],
   ['CLASSE_MOY(v) · CLASSE_MIN(v) · CLASSE_MAX(v)', 'moyenne, plus petite, plus grande valeur de la classe'],
   ['RANG(v)', 'rang dans la classe (1 = la plus grande valeur)'],
+  ['BAREME(x; 8; 27; 9; 31; …)', "table de correspondance : x = 8 → 27, x = 9 → 31… (régulièrement entre deux lignes) ; ex. score cible d'après la VMA"],
+  ['PALIERS(x; 8; 27; 9; 31; …)', 'même table, par paliers : on garde la ligne atteinte'],
 ];
 
 /** Fonctions qui ignorent les valeurs vides (comme dans un tableur). */
@@ -189,6 +194,8 @@ export function parseExpr(src: string): Expr {
         eat(')');
         if (!args.length) throw new ExprError(`${tk.v}() sans valeur`);
         if (fn === 'SI' && (args.length < 2 || args.length > 3)) throw new ExprError('SI(condition; si vrai; si faux)');
+        if ((fn === 'BAREME' || fn === 'PALIERS') && (args.length < 3 || args.length % 2 === 0 || args.slice(1).some((a) => a.t !== 'num' && !(a.t === 'neg' && a.a.t === 'num'))))
+          throw new ExprError(`${tk.v}(valeur; x1; y1; x2; y2; …) avec des nombres`);
         if (CLASS_FNS.has(fn) && (args.length !== 1 || args[0].t !== 'ref')) throw new ExprError(`${tk.v}(nom d'une valeur)`);
         return { t: 'fn', name: fn, args };
       }
@@ -296,6 +303,10 @@ export function evalExpr(e: Expr, env: ExprEnv): number | null {
           const v = env.get(name);
           return v === null ? NaN : 1 + all.filter((o) => o > v).length;
         }
+        if (x.name === 'BAREME' || x.name === 'PALIERS') {
+          const v = ev(x.args[0]);
+          return Number.isFinite(v) ? lookup(v, tablePairs(x.args), x.name === 'PALIERS') : NaN;
+        }
         if (x.name === 'SI') {
           const c = ev(x.args[0]);
           return c ? ev(x.args[1]) : x.args[2] ? ev(x.args[2]) : 0;
@@ -378,6 +389,9 @@ export function exprToExcel(e: Expr, cell: (name: string) => string, range: (nam
             const n = (x.args[0] as { name: string }).name;
             return `RANK(${cell(n)},${range(n)},0)`;
           }
+          case 'BAREME':
+          case 'PALIERS':
+            return lookupToExcel(args[0], tablePairs(x.args), x.name === 'PALIERS');
           case 'SI':
             return `IF((${args[0]})<>0,${args[1]},${args[2] ?? '0'})`;
           case 'ET':
@@ -512,4 +526,38 @@ export function slugRef(label: string): string {
     .replace(/^_+|_+$/g, '')
     .slice(0, 24);
   return /^[a-z_]/.test(s) ? s : `v_${s || 'valeur'}`;
+}
+
+// ── Tables de correspondance (BAREME, PALIERS) ──────────────────────────────
+
+const numOf = (e: Expr) => (e.t === 'num' ? e.v : e.t === 'neg' && e.a.t === 'num' ? -e.a.v : NaN);
+function tablePairs(args: Expr[]): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (let i = 1; i + 1 < args.length; i += 2) out.push([numOf(args[i]), numOf(args[i + 1])]);
+  return out.filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b)).sort((p, q) => p[0] - q[0]);
+}
+
+/** Valeur lue dans une table x → y : linéaire entre deux lignes, ou par paliers ; aux bouts, la valeur du bout. */
+export function lookup(v: number, pts: Array<[number, number]>, steps: boolean): number {
+  if (!pts.length) return NaN;
+  if (v <= pts[0][0]) return pts[0][1];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [a, ya] = pts[i];
+    const [b, yb] = pts[i + 1];
+    if (v < b) return steps || b === a ? ya : ya + ((v - a) * (yb - ya)) / (b - a);
+  }
+  return pts[pts.length - 1][1];
+}
+
+function lookupToExcel(v: string, pts: Array<[number, number]>, steps: boolean): string {
+  if (!pts.length) return '""';
+  const n = (x: number) => (x < 0 ? `(${x})` : String(x));
+  let out = n(pts[pts.length - 1][1]);
+  for (let i = pts.length - 2; i >= 0; i--) {
+    const [a, ya] = pts[i];
+    const [b, yb] = pts[i + 1];
+    const between = steps || b === a ? n(ya) : `(${n(ya)}+((${v})-${n(a)})*${n(yb - ya)}/${n(b - a)})`;
+    out = `IF((${v})<${n(b)},${between},${out})`;
+  }
+  return `IF((${v})<=${n(pts[0][0])},${n(pts[0][1])},${out})`;
 }

@@ -101,6 +101,69 @@ export function ComputedCell({ c, value, frac }: { c: EvalCriterion; value: numb
   );
 }
 
+/**
+ * Valeur calculée mais modifiable (projet d'après la VMA…) : affiche le calcul en italique ; taper une valeur la remplace
+ * pour cet élève ; ↺ revient au calcul.
+ */
+export function EditableComputedCell({
+  c,
+  value,
+  forced,
+  frac,
+  onChange,
+  label,
+}: {
+  c: EvalCriterion;
+  value: number | null;
+  forced: boolean;
+  frac?: number;
+  onChange: (v: number | null) => void;
+  label: string;
+}) {
+  const format = c.format === 'time' ? 'time' : 'decimal';
+  const shown = formatValue(value, format, c.decimals ?? 2);
+  const [text, setText] = useState(shown);
+  const [focus, setFocus] = useState(false);
+  useEffect(() => {
+    if (!focus) setText(shown);
+  }, [shown, focus]);
+  const bad = text.trim() !== '' && parseValue(text, format) === null;
+  return (
+    <span className="num-count">
+      <input
+        className={cls('input', 'num-cell', !forced && 'num-calc', bad && 'num-bad')}
+        style={frac !== undefined && value !== null ? { ['--frac' as string]: fracColor(frac) } : undefined}
+        data-scored={frac !== undefined && value !== null ? '' : undefined}
+        inputMode={format === 'time' ? 'text' : 'decimal'}
+        placeholder="—"
+        value={text}
+        title={forced ? 'Valeur modifiée à la main' : `Calcul : ${c.expr ?? ''}`}
+        aria-label={label}
+        aria-invalid={bad || undefined}
+        onFocus={() => setFocus(true)}
+        onBlur={() => {
+          setFocus(false);
+          setText(shown);
+        }}
+        onChange={(e) => {
+          setText(e.target.value);
+          const v = parseValue(e.target.value, format);
+          if (e.target.value.trim() === '') onChange(null);
+          else if (v !== null) onChange(v);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+      />
+      {forced && (
+        <button type="button" className="lvl-btn" title="Revenir au calcul" aria-label={`${label} : revenir au calcul`} onClick={() => onChange(null)}>
+          ↺
+        </button>
+      )}
+    </span>
+  );
+}
+
 export function ChoiceCell({ c, value, onChange, label }: { c: EvalCriterion; value: number | undefined; onChange: (v: number) => void; label: string }) {
   const o = value ? c.options?.[value - 1] : undefined;
   return (

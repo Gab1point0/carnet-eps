@@ -634,3 +634,4 @@ label.btn { cursor: pointer; }
 code.formula { font-family: ui-monospace, Consolas, monospace; background: var(--surface-2); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
 .formula-input { font-family: ui-monospace, Consolas, monospace; }
 .formula-help { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.num-calc { font-style: italic; background: var(--surface-2); }

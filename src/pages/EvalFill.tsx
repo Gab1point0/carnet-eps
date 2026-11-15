@@ -9,7 +9,7 @@ import { toast } from '../store/ui';
 import { Button, Card, Modal } from '../components/ui';
 import { VaultGate } from '../components/VaultGate';
 import { GroupSelect, GroupsBar, groupColor } from '../components/GroupsTools';
-import { Check, ChoiceCell, ComputedCell, LEVEL_COLORS, LevelPicker, NumberCell, TextCell } from '../components/EvalCells';
+import { Check, ChoiceCell, ComputedCell, EditableComputedCell, LEVEL_COLORS, LevelPicker, NumberCell, TextCell } from '../components/EvalCells';
 import { byGroup } from '../lib/grouping';
 import { formatValue } from '../lib/evalCalc';
 import { buildEvalWorkbook, bonusKey, critPoints, evaluateSheet, isScored, KIND_NAMES, LEVEL_NAMES, scoringText, withRefs, type EvalBlock, type EvalCriterion, type EvalSheetSpec, type RowResult } from '../lib/evalSheet';
@@ -142,7 +142,11 @@ export function EvalFillPage() {
       case 'number':
         return <NumberCell c={c} value={m[key]} frac={frac} onChange={(v) => setMark(s.id, key, v)} label={label} />;
       case 'computed':
-        return <ComputedCell c={c} value={res?.values[key] ?? null} frac={frac} />;
+        return c.editable ? (
+          <EditableComputedCell c={c} value={res?.values[key] ?? null} forced={typeof m[key] === 'number'} frac={frac} onChange={(v) => setMark(s.id, key, v)} label={label} />
+        ) : (
+          <ComputedCell c={c} value={res?.values[key] ?? null} frac={frac} />
+        );
       case 'choice':
         return <ChoiceCell c={c} value={m[key]} onChange={(v) => setMark(s.id, key, v || null)} label={label} />;
       case 'text':

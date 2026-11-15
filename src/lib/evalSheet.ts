@@ -57,6 +57,8 @@ export interface EvalCriterion {
   scoring?: EvalScoring;
   /** `choice` : choix proposés et part des points de chacun (0 à 100). */
   options?: Array<{ label: string; pct: number }>;
+  /** `computed` : l'enseignant peut remplacer le calcul pour un élève (projet ajusté à la main…). */
+  editable?: boolean;
   /** Poids dans le bloc (1 par défaut ; 0 = observé sans compter). */
   weight?: number;
 }
@@ -127,7 +129,10 @@ function tidyCriterion(c: EvalCriterion, used: Set<string>): EvalCriterion {
     if (c.unit?.trim()) out.unit = c.unit.trim();
     out.format = c.format === 'time' || c.format === 'count' ? c.format : 'decimal';
     if (c.decimals !== undefined && c.decimals !== null) out.decimals = Math.max(0, Math.min(4, Math.round(num(c.decimals, 2))));
-    if (kind === 'computed') out.expr = (c.expr ?? '').trim();
+    if (kind === 'computed') {
+      out.expr = (c.expr ?? '').trim();
+      if (c.editable) out.editable = true;
+    }
     const t = c.scoring?.type;
     if (t === 'table') {
       const points = (c.scoring?.points ?? []).map((p) => ({ at: num(p.at, NaN), pct: Math.max(0, Math.min(100, num(p.pct, NaN))) })).filter((p) => Number.isFinite(p.at) && Number.isFinite(p.pct));
@@ -301,7 +306,9 @@ export function evaluateSheet(spec0: EvalSheetSpec, rows: SheetRow[], keyOf: (bl
           break;
         case 'computed': {
           const e = parsed(x.c.expr);
-          if (e) {
+          // Valeur imposée à la main pour cet élève : elle remplace le calcul.
+          if (x.c.editable && typeof raw === 'number' && Number.isFinite(raw)) v = raw;
+          else if (e) {
             const inner = new Set(stack).add(ref);
             v = evalExpr(e, { get: (n) => valueOf(ri, n, inner), classValues: (n) => classOf(n, inner) });
           }
@@ -521,7 +528,12 @@ export async function buildEvalWorkbook(
   if (kinds.has('levels')) line("Critère à 4 cases : cochez la case du niveau atteint (Débutant → Avancé). La couleur suit le niveau : rouge, orange, jaune, vert. Seule la case la plus à droite compte.");
   if (kinds.has('single')) line('Critère à 1 case : cochée = réussi (vert), vide = pas encore.');
   if (kinds.has('number')) line('Valeur à saisir (cases blanches) : tapez le nombre (chrono en secondes). Les calculs et les points suivent aussitôt.');
-  if (kinds.has('computed')) line('Colonnes en italique : calculées, ne pas les remplir.');
+  if (kinds.has('computed'))
+    line(
+      spec.blocks.some((b) => b.criteria.some((c) => c.kind === 'computed' && c.editable))
+        ? "Colonnes en italique : calculées. Celles marquées « modifiable » peuvent être remplacées à la main pour un élève (tapez la valeur par-dessus la formule)."
+        : 'Colonnes en italique : calculées, ne pas les remplir.',
+    );
   if (kinds.has('choice')) line('Liste de choix : touchez la case puis choisissez dans la liste.');
   line(
     `Les points d'un bloc = moyenne de ses critères notés × points du bloc. Les bonus s'ajoutent au total.${spec.rounding && spec.rounding !== 0.1 ? ` Note finale arrondie au ${String(spec.rounding).replace('.', ',')} point.` : ''}${spec.cap ? ' Note finale plafonnée à 20.' : ''}`,
@@ -675,7 +687,8 @@ export async function buildEvalWorkbook(
             cell.numFmt = numFmt(crit);
           } else if (crit.kind === 'computed') {
             const e = parsed(crit.expr);
-            cell.value = e ? { formula: exprToExcel(e, (n) => cellOf(n, row), rangeOf) } : '';
+            const forced = crit.editable ? src?.marks[key] : undefined;
+            cell.value = typeof forced === 'number' && Number.isFinite(forced) ? forced : e ? { formula: exprToExcel(e, (n) => cellOf(n, row), rangeOf) } : '';
             cell.numFmt = numFmt(crit);
             cell.font = { italic: true, color: { argb: 'FF475467' } };
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } };

@@ -18,6 +18,11 @@ describe('formules', () => {
     expect(evalExpr(parseExpr('a / b'), env({ a: 1, b: 0 }))).toBeNull();
     expect(evalExpr(parseExpr('vma / CLASSE_MAX(vma) * 20'), env({ vma: 10 }, { vma: [10, 20] }))).toBe(10);
     expect(evalExpr(parseExpr('RANG(vma)'), env({ vma: 10 }, { vma: [10, 20, 15] }))).toBe(3);
+    expect(evalExpr(parseExpr('BAREME(vma; 8; 27; 10; 34; 12; 41)'), env({ vma: 9 }))).toBe(30.5);
+    expect(evalExpr(parseExpr('PALIERS(vma; 8; 27; 10; 34; 12; 41)'), env({ vma: 11.5 }))).toBe(34);
+    expect(evalExpr(parseExpr('BAREME(vma; 8; 27; 10; 34)'), env({ vma: 25 }))).toBe(34);
+    expect(exprToExcel(parseExpr('PALIERS(v; 8; 27; 10; 34)'), () => 'B3', () => '')).toBe('IF(OR(B3=""),"",IFERROR(IF((B3)<=8,27,IF((B3)<10,27,34)),""))');
+    expect(() => parseExpr('BAREME(v; 8; 27; 10)')).toThrow();
     expect(() => parseExpr('ABS(')).toThrow();
     expect(() => parseExpr('FOO(1)')).toThrow();
   });

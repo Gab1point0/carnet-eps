@@ -204,6 +204,9 @@ export function EvalSheetEditor({ spec, onChange }: { spec: EvalSheetSpec; onCha
                         );
                       })}
                     </div>
+                    <label className="check small">
+                      <input type="checkbox" checked={!!c.editable} onChange={(e) => setCrit(bi, ci, { editable: e.target.checked })} /> Modifiable à la main élève par élève (la valeur tapée remplace le calcul)
+                    </label>
                     <details className="small">
                       <summary>Fonctions disponibles</summary>
                       <ul className="formula-help">
