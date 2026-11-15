@@ -1,15 +1,64 @@
 import type { Workbook, Worksheet } from 'exceljs';
+import {
+  evalExpr,
+  exprRefs,
+  exprToExcel,
+  ExprError,
+  FUNCTION_NAMES,
+  parseExpr,
+  rankFraction,
+  rankToExcel,
+  scaleFraction,
+  scaleToExcel,
+  slugRef,
+  type Expr,
+  type ScalePoint,
+  type ValueFormat,
+} from './evalCalc';
 
-// Fiche d'évaluation à remplir sur tablette (Excel ou Google Sheets), d'après les règles validées par l'enseignant :
-// une ligne par élève, des cases à cocher uniquement ; un critère à niveaux = 4 cases (Débutant → Avancé),
-// coloriées selon la case la plus à droite cochée ; notes calculées depuis l'onglet « Barème ».
+// Fiche d'évaluation à remplir sur tablette (dans l'application, ou dans Excel / Google Sheets).
+// Une ligne par élève. Chaque critère est :
+// - `levels` : 4 cases (Débutant → Avancé), coloriées selon la case la plus à droite cochée ;
+// - `single` : une case (réussi / non) ;
+// - `number` : une valeur à saisir (VMA, chrono, score, nombre de réussites…) ;
+// - `computed` : une valeur calculée par une formule, comme dans un tableur (écart en %, meilleur essai, SI…) ;
+// - `choice` : une liste déroulante (chaque choix rapporte une part des points) ;
+// - `text` : une observation libre (pas de points).
+// Une valeur saisie ou calculée rapporte des points par un barème (tableau de valeurs, linéaire ou par paliers) ou
+// selon le rang dans la classe. Points d'un bloc = moyenne pondérée de ses critères notés × points du bloc.
+
+export type CriterionKind = 'levels' | 'single' | 'number' | 'computed' | 'choice' | 'text';
+
+export interface EvalScoring {
+  /** `none` : pas de points (valeur d'appui pour un calcul) ; `table` : barème ; `rank` : rang dans la classe. */
+  type: 'none' | 'table' | 'rank';
+  points?: ScalePoint[];
+  /** Barème par paliers plutôt que linéaire. */
+  steps?: boolean;
+  /** Rang : la meilleure valeur est la plus grande (`high`, ex. VMA) ou la plus petite (`low`, ex. chrono). */
+  best?: 'high' | 'low';
+}
 
 export interface EvalCriterion {
   label: string;
-  /** `levels` : 4 cases (Débutant, En cours, Acquis, Avancé) ; `single` : une case (réussi / non). */
-  kind: 'levels' | 'single';
-  /** Ce que l'on observe pour chaque degré (4 phrases) ou pour valider la case unique (1 phrase). */
+  kind: CriterionKind;
+  /** Ce que l'on observe : 4 phrases (levels), 1 phrase (single), ou ce que la valeur mesure (autres). */
   observe: string[];
+  /** Nom court utilisé dans les formules (« vma », « score1 »). */
+  ref?: string;
+  /** Unité affichée (« km/h », « pts », « % »). */
+  unit?: string;
+  /** Saisie : nombre décimal, chrono (min:s, gardé en secondes) ou compteur (boutons − et +). */
+  format?: ValueFormat;
+  /** Chiffres après la virgule à l'affichage. */
+  decimals?: number;
+  /** `computed` : formule (« ABS(score1 - projet1) / projet1 * 100 »). */
+  expr?: string;
+  scoring?: EvalScoring;
+  /** `choice` : choix proposés et part des points de chacun (0 à 100). */
+  options?: Array<{ label: string; pct: number }>;
+  /** Poids dans le bloc (1 par défaut ; 0 = observé sans compter). */
+  weight?: number;
 }
 
 export interface EvalBlock {
@@ -27,34 +76,87 @@ export interface EvalSheetSpec {
   sources: string[];
   /** Choix faits (répartition des points, adaptations au niveau), en une ou deux phrases. */
   notes: string;
+  /** Arrondi de la note finale : 0,1 (par défaut), 0,25, 0,5 ou 1 point. */
+  rounding?: number;
+  /** Note finale plafonnée à 20 (bonus compris). */
+  cap?: boolean;
 }
 
 export const LEVEL_NAMES = ['Débutant', 'En cours', 'Acquis', 'Avancé'];
 const LEVEL_FILL = ['FFF4B6B6', 'FFFBD38D', 'FFFDF29B', 'FFB6E3B6'];
 const GREEN = 'FFB6E3B6';
+export const KIND_NAMES: Record<CriterionKind, string> = {
+  levels: '4 cases',
+  single: '1 case',
+  number: 'Valeur à saisir',
+  computed: 'Calcul',
+  choice: 'Liste de choix',
+  text: 'Observation (texte)',
+};
 
-/** Vérifie et complète une fiche venue de Claude : barème sur 20, au moins un critère par bloc, textes nettoyés. */
+const RESERVED = new Set(FUNCTION_NAMES);
+
+/** Le critère rapporte-t-il des points ? */
+export function isScored(c: EvalCriterion): boolean {
+  if ((c.weight ?? 1) <= 0) return false;
+  if (c.kind === 'levels' || c.kind === 'single') return true;
+  if (c.kind === 'choice') return !!c.options?.length;
+  if (c.kind === 'number' || c.kind === 'computed') return c.scoring?.type === 'rank' || (c.scoring?.type === 'table' && !!c.scoring.points?.length);
+  return false;
+}
+export const weightOf = (c: EvalCriterion) => (isScored(c) ? (c.weight ?? 1) : 0);
+/** Critères qui ont une valeur utilisable dans une formule. */
+export const hasValue = (c: EvalCriterion) => c.kind !== 'text';
+
+const num = (v: unknown, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && Number.isFinite(Number(v.replace(',', '.'))) && v.trim() ? Number(v.replace(',', '.')) : d);
+
+/** Complète un critère : type connu, nom court unique, barème propre. */
+function tidyCriterion(c: EvalCriterion, used: Set<string>): EvalCriterion {
+  const kind: CriterionKind = (['levels', 'single', 'number', 'computed', 'choice', 'text'] as const).includes(c.kind) ? c.kind : 'levels';
+  const out: EvalCriterion = { label: c.label.trim(), kind, observe: (c.observe ?? []).map((o) => o.trim()).filter(Boolean) };
+  if (c.weight !== undefined && c.weight !== null && num(c.weight, 1) !== 1) out.weight = Math.max(0, num(c.weight, 1));
+  if (kind !== 'text') {
+    let ref = slugRef((c.ref ?? '').trim() || c.label);
+    if (RESERVED.has(ref)) ref = `v_${ref}`;
+    const base = ref;
+    for (let i = 2; used.has(ref); i++) ref = `${base}_${i}`;
+    used.add(ref);
+    out.ref = ref;
+  }
+  if (kind === 'number' || kind === 'computed') {
+    if (c.unit?.trim()) out.unit = c.unit.trim();
+    out.format = c.format === 'time' || c.format === 'count' ? c.format : 'decimal';
+    if (c.decimals !== undefined && c.decimals !== null) out.decimals = Math.max(0, Math.min(4, Math.round(num(c.decimals, 2))));
+    if (kind === 'computed') out.expr = (c.expr ?? '').trim();
+    const t = c.scoring?.type;
+    if (t === 'table') {
+      const points = (c.scoring?.points ?? []).map((p) => ({ at: num(p.at, NaN), pct: Math.max(0, Math.min(100, num(p.pct, NaN))) })).filter((p) => Number.isFinite(p.at) && Number.isFinite(p.pct));
+      out.scoring = points.length ? { type: 'table', points: points.sort((a, b) => a.at - b.at), ...(c.scoring?.steps ? { steps: true } : {}) } : { type: 'none' };
+    } else if (t === 'rank') out.scoring = { type: 'rank', best: c.scoring?.best === 'low' ? 'low' : 'high' };
+    else out.scoring = { type: 'none' };
+  }
+  if (kind === 'choice') out.options = (c.options ?? []).filter((o) => o.label?.trim()).map((o) => ({ label: o.label.trim().replace(/,/g, ' '), pct: Math.max(0, Math.min(100, num(o.pct, 0))) }));
+  return out;
+}
+
+/** Vérifie et complète une fiche venue de Claude ou de l'éditeur : barème sur 20, au moins un critère par bloc, textes nettoyés. */
 export function tidyEvalSheet(raw: EvalSheetSpec): EvalSheetSpec {
+  const used = new Set<string>();
   const blocks = (raw.blocks ?? [])
     .map((b) => ({
       name: (b.name ?? '').trim() || 'Bloc',
       points: Math.max(0, Number(b.points) || 0),
-      criteria: (b.criteria ?? [])
-        .filter((c) => c.label?.trim())
-        .map((c) => ({
-          label: c.label.trim(),
-          kind: c.kind === 'single' ? ('single' as const) : ('levels' as const),
-          observe: (c.observe ?? []).map((o) => o.trim()).filter(Boolean),
-        })),
+      criteria: (b.criteria ?? []).filter((c) => c.label?.trim()).map((c) => tidyCriterion(c, used)),
     }))
     .filter((b) => b.criteria.length);
-  // Barème ramené à 20 si Claude s'est trompé dans l'addition.
+  // Barème ramené à 20 si Claude s'est trompé dans l'addition (les blocs sans critère noté peuvent valoir 0).
   const total = blocks.reduce((s, b) => s + b.points, 0);
   if (blocks.length && Math.abs(total - 20) > 0.01) {
     const scaled = blocks.map((b) => Math.round(((total ? b.points / total : 1 / blocks.length) * 20) * 2) / 2);
     scaled[scaled.length - 1] += 20 - scaled.reduce((a, b) => a + b, 0);
     blocks.forEach((b, i) => (b.points = scaled[i]));
   }
+  const rounding = [0.1, 0.25, 0.5, 1].includes(Number(raw.rounding)) ? Number(raw.rounding) : undefined;
   return {
     title: raw.title?.trim() || 'Évaluation',
     expectations: (raw.expectations ?? []).map((e) => e.trim()).filter(Boolean),
@@ -62,8 +164,203 @@ export function tidyEvalSheet(raw: EvalSheetSpec): EvalSheetSpec {
     bonus: (raw.bonus ?? []).filter((b) => b.label?.trim()).map((b) => ({ label: b.label.trim(), points: Math.max(0, Number(b.points) || 0) })),
     sources: (raw.sources ?? []).map((s) => s.trim()).filter(Boolean),
     notes: raw.notes?.trim() ?? '',
+    ...(rounding && rounding !== 0.1 ? { rounding } : {}),
+    ...(raw.cap ? { cap: true } : {}),
   };
 }
+
+/** Problèmes d'une fiche (formules illisibles, noms inconnus, calcul qui tourne en rond) : affichés dans l'éditeur. */
+export function sheetProblems(spec: EvalSheetSpec): string[] {
+  const refs = new Map<string, EvalCriterion>();
+  for (const b of spec.blocks) for (const c of b.criteria) if (c.ref) refs.set(c.ref, c);
+  const out: string[] = [];
+  const deps = new Map<string, Set<string>>();
+  for (const b of spec.blocks)
+    for (const c of b.criteria) {
+      if (c.kind !== 'computed') continue;
+      if (!c.expr) {
+        out.push(`« ${c.label} » : formule vide.`);
+        continue;
+      }
+      try {
+        const e = parseExpr(c.expr);
+        const all = refsOf(e);
+        const unknown = [...all].filter((r) => !refs.has(r));
+        if (unknown.length) out.push(`« ${c.label} » : ${unknown.map((u) => `« ${u} »`).join(', ')} n'existe pas (noms disponibles : ${[...refs.keys()].join(', ')}).`);
+        if (c.ref) deps.set(c.ref, all);
+      } catch (err) {
+        out.push(`« ${c.label} » : ${err instanceof ExprError ? err.message : 'formule illisible'}.`);
+      }
+    }
+  // Boucle : a dépend de b qui dépend de a.
+  const visiting = new Set<string>();
+  const loops = new Set<string>();
+  const visit = (r: string, path: string[]) => {
+    if (visiting.has(r)) {
+      loops.add(path.slice(path.indexOf(r)).join(' → '));
+      return;
+    }
+    visiting.add(r);
+    for (const d of deps.get(r) ?? []) visit(d, [...path, d]);
+    visiting.delete(r);
+  };
+  for (const r of deps.keys()) visit(r, [r]);
+  for (const l of loops) out.push(`Calcul en boucle : ${l}.`);
+  return out;
+}
+
+const refsOf = (e: Expr) => exprRefs(e).all;
+
+const withRefsCache = new WeakMap<EvalSheetSpec, EvalSheetSpec>();
+/** Fiches anciennes (sans noms courts) : on les complète, sans rien changer d'autre. */
+export function withRefs(spec: EvalSheetSpec): EvalSheetSpec {
+  if (spec.blocks.every((b) => b.criteria.every((c) => c.ref || c.kind === 'text'))) return spec;
+  const hit = withRefsCache.get(spec);
+  if (hit) return hit;
+  const used = new Set(spec.blocks.flatMap((b) => b.criteria.map((c) => c.ref).filter((r): r is string => !!r)));
+  const out = {
+    ...spec,
+    blocks: spec.blocks.map((b) => ({
+      ...b,
+      criteria: b.criteria.map((c) => {
+        if (c.ref || c.kind === 'text') return c;
+        let ref = slugRef(c.label);
+        if (RESERVED.has(ref)) ref = `v_${ref}`;
+        const base = ref;
+        for (let i = 2; used.has(ref); i++) ref = `${base}_${i}`;
+        used.add(ref);
+        return { ...c, ref };
+      }),
+    })),
+  };
+  withRefsCache.set(spec, out);
+  return out;
+}
+
+const parsedCache = new Map<string, Expr | null>();
+function parsed(src: string | undefined): Expr | null {
+  if (!src) return null;
+  if (!parsedCache.has(src)) {
+    try {
+      parsedCache.set(src, parseExpr(src));
+    } catch {
+      parsedCache.set(src, null);
+    }
+  }
+  return parsedCache.get(src)!;
+}
+
+// ── Calcul des notes (application) ─────────────────────────────────────────
+
+export interface SheetRow {
+  marks: Record<string, number>;
+  absent?: boolean;
+}
+
+export interface RowResult {
+  /** Valeur de chaque critère (clé de critère) : niveau 0-4, 0/1, valeur saisie ou calculée ; null = vide. */
+  values: Record<string, number | null>;
+  /** Part des points obtenue par critère noté (0 à 1). */
+  fracs: Record<string, number>;
+  blocks: number[];
+  total: number;
+}
+
+const roundTo = (x: number, step: number) => Math.round(Math.round(x / step) * step * 1000) / 1000;
+
+/** Notes de toute la classe : les rangs et les statistiques de classe dépendent des autres élèves (les absents ne comptent pas). */
+export function evaluateSheet(spec0: EvalSheetSpec, rows: SheetRow[], keyOf: (block: string, label: string) => string): RowResult[] {
+  const spec = withRefs(spec0);
+  const crits = spec.blocks.flatMap((b) => b.criteria.map((c) => ({ c, key: keyOf(b.name, c.label) })));
+  const byRef = new Map(crits.filter((x) => x.c.ref).map((x) => [x.c.ref!, x]));
+  const memo = rows.map(() => new Map<string, number | null>());
+  const classMemo = new Map<string, number[]>();
+
+  const valueOf = (ri: number, ref: string, stack: Set<string>): number | null => {
+    const m = memo[ri];
+    if (m.has(ref)) return m.get(ref)!;
+    const x = byRef.get(ref);
+    let v: number | null = null;
+    if (x && !stack.has(ref)) {
+      const marks = rows[ri].marks;
+      const raw = marks[x.key];
+      switch (x.c.kind) {
+        case 'levels':
+          v = Math.max(0, Math.min(4, raw ?? 0));
+          break;
+        case 'single':
+          v = raw ? 1 : 0;
+          break;
+        case 'choice': {
+          const o = raw ? x.c.options?.[raw - 1] : undefined;
+          v = o ? o.pct : null;
+          break;
+        }
+        case 'number':
+          v = typeof raw === 'number' && Number.isFinite(raw) ? raw : null;
+          break;
+        case 'computed': {
+          const e = parsed(x.c.expr);
+          if (e) {
+            const inner = new Set(stack).add(ref);
+            v = evalExpr(e, { get: (n) => valueOf(ri, n, inner), classValues: (n) => classOf(n, inner) });
+          }
+          break;
+        }
+      }
+    }
+    m.set(ref, v);
+    return v;
+  };
+  const classOf = (ref: string, stack: Set<string>): number[] => {
+    if (classMemo.has(ref)) return classMemo.get(ref)!;
+    if (stack.has(`classe:${ref}`)) return [];
+    const inner = new Set(stack).add(`classe:${ref}`);
+    const out = rows.flatMap((r, i) => (r.absent ? [] : [valueOf(i, ref, inner)])).filter((v): v is number => v !== null);
+    classMemo.set(ref, out);
+    return out;
+  };
+
+  const rounding = spec.rounding ?? 0.1;
+  return rows.map((row, ri) => {
+    const values: Record<string, number | null> = {};
+    const fracs: Record<string, number> = {};
+    for (const { c, key } of crits) {
+      const v = c.ref ? valueOf(ri, c.ref, new Set()) : null;
+      values[key] = v;
+      if (!isScored(c)) continue;
+      let f = 0;
+      if (c.kind === 'levels') f = (v ?? 0) / 4;
+      else if (c.kind === 'single') f = v ?? 0;
+      else if (c.kind === 'choice') f = (v ?? 0) / 100;
+      else if (v !== null && c.scoring?.type === 'table') f = scaleFraction(v, c.scoring.points ?? [], c.scoring.steps);
+      else if (v !== null && c.scoring?.type === 'rank') f = rankFraction(v, classOf(c.ref!, new Set()), c.scoring.best ?? 'high');
+      fracs[key] = f;
+    }
+    const blocks = spec.blocks.map((b) => {
+      let w = 0;
+      let s = 0;
+      for (const c of b.criteria) {
+        const wc = weightOf(c);
+        w += wc;
+        s += wc * (fracs[keyOf(b.name, c.label)] ?? 0);
+      }
+      return w ? Math.round((s / w) * b.points * 10) / 10 : 0;
+    });
+    const bonus = spec.bonus.reduce((acc, b) => acc + (row.marks[bonusKey(b.label)] ? b.points : 0), 0);
+    let total = roundTo(blocks.reduce((a, x) => a + x, 0) + bonus, rounding);
+    if (spec.cap) total = Math.min(20, total);
+    return { values, fracs, blocks, total };
+  });
+}
+
+/** Notes d'un élève seul (sans classement : pour les critères au rang, compter les autres élèves avec `evaluateSheet`). */
+export function scoreOf(spec: EvalSheetSpec, marks: Record<string, number>, keyOf: (block: string, label: string) => string) {
+  const r = evaluateSheet(spec, [{ marks }], keyOf)[0];
+  return { blocks: r.blocks, total: r.total };
+}
+
+// ── Classeur Excel / Google Sheets ─────────────────────────────────────────
 
 const col = (n: number) => {
   let s = '';
@@ -80,19 +377,45 @@ export interface SheetLayout {
   rows: { first: number; last: number };
 }
 
+const widthOf = (c: EvalCriterion) => (c.kind === 'levels' ? 4 : 1);
+
+/** Barème lisible : « 5 → 100 % ; 20 → 0 % (linéaire) ». */
+export function scoringText(c: EvalCriterion, pointsOfCrit?: number): string {
+  const pts = (pct: number) => {
+    if (pointsOfCrit === undefined) return `${pct} %`;
+    const v = Math.round((pct / 100) * pointsOfCrit * 100) / 100;
+    return `${String(v).replace('.', ',')} pt${v > 1 ? 's' : ''}`;
+  };
+  const unit = c.unit ? ` ${c.unit}` : '';
+  if (c.kind === 'choice') return (c.options ?? []).map((o) => `${o.label} → ${pts(o.pct)}`).join(' ; ');
+  if (c.scoring?.type === 'rank') return `Rang dans la classe : ${c.scoring.best === 'low' ? 'la plus petite valeur' : 'la plus grande valeur'} a tous les points, la dernière aucun, régulièrement entre les deux.`;
+  if (c.scoring?.type === 'table') {
+    const fmt = (v: number) => (c.format === 'time' ? `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}` : String(v).replace('.', ','));
+    return `${(c.scoring.points ?? []).map((p) => `${fmt(p.at)}${unit} → ${pts(p.pct)}`).join(' ; ')} (${c.scoring.steps ? 'par paliers' : 'régulièrement entre deux lignes'})`;
+  }
+  return '';
+}
+
+/** Points maximum de chaque critère noté dans son bloc. */
+export const critPoints = (b: EvalBlock, c: EvalCriterion) => {
+  const w = b.criteria.reduce((s, x) => s + weightOf(x), 0);
+  return w ? (weightOf(c) / w) * b.points : 0;
+};
+
 /** Construit le classeur : onglet « Évaluation » (une ligne par élève) et onglet « Barème ». */
 export async function buildEvalWorkbook(
-  spec: EvalSheetSpec,
+  spec0: EvalSheetSpec,
   opts: {
     students: number;
     className: string;
     activity: string;
     date?: string;
-    /** Fiche remplie dans l'application : noms et résultats (niveau 0 à 4, ou 0/1) par clé de critère. */
-    rows?: Array<{ name: string; marks: Record<string, number>; group?: string }>;
+    /** Fiche remplie dans l'application : noms et résultats par clé de critère. */
+    rows?: Array<{ name: string; marks: Record<string, number>; texts?: Record<string, string>; group?: string; absent?: boolean }>;
     keyOf?: (block: string, label: string) => string;
   },
 ): Promise<{ workbook: Workbook; layout: SheetLayout }> {
+  const spec = withRefs(spec0);
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Carnet EPS';
@@ -100,11 +423,64 @@ export async function buildEvalWorkbook(
   const withGroups = !!opts.rows?.some((r) => r.group);
   const ws = wb.addWorksheet('Évaluation', { views: [{ state: 'frozen', xSplit: withGroups ? 2 : 1, ySplit: 2 }] });
   const bareme = wb.addWorksheet('Barème');
+  const keyOf = opts.keyOf ?? ((b: string, l: string) => `${b}::${l}`);
 
   const FIRST = 3;
   const LAST = FIRST + Math.max(1, opts.rows?.length ?? opts.students) - 1;
-  const markOf = (row: number, key: string) => opts.rows?.[row - FIRST]?.marks[key] ?? 0;
+  const STATS = LAST + 2;
+  const markOf = (row: number, key: string) => opts.rows?.[row - FIRST]?.marks[key];
   const groups: Array<[number, number]> = [];
+
+  // ── Colonnes : placées d'abord, car une formule peut citer une valeur d'un bloc suivant ──
+  const startCol = withGroups ? 3 : 2;
+  const place = new Map<string, number>();
+  {
+    let c = startCol;
+    for (const b of spec.blocks) {
+      for (const crit of b.criteria) {
+        place.set(keyOf(b.name, crit.label), c);
+        c += widthOf(crit);
+      }
+      c += 1; // note du bloc
+    }
+  }
+  const byRef = new Map<string, { c: EvalCriterion; key: string }>();
+  spec.blocks.forEach((b) => b.criteria.forEach((c) => c.ref && byRef.set(c.ref, { c, key: keyOf(b.name, c.label) })));
+  /** Expression Excel de la valeur d'un critère sur une ligne (`abs` : colonne figée, pour la mise en forme conditionnelle). */
+  const cellOf = (ref: string, row: number | string, abs = ''): string => {
+    const x = byRef.get(ref);
+    if (!x) return '""';
+    const c0 = place.get(x.key)!;
+    const a = `${abs}${col(c0)}${row}`;
+    switch (x.c.kind) {
+      case 'levels':
+        return `MAX(${[0, 1, 2, 3].map((k) => `${abs}${col(c0 + k)}${row}*${k + 1}`).join(',')})`;
+      case 'single':
+        return `(${a}*1)`;
+      case 'choice': {
+        const opts2 = x.c.options ?? [];
+        return opts2.reduceRight((acc, o) => `IF(${a}="${o.label.replace(/"/g, "'")}",${o.pct},${acc})`, `""`);
+      }
+      default:
+        return a;
+    }
+  };
+  const rangeOf = (ref: string) => {
+    const x = byRef.get(ref);
+    if (!x) return '""';
+    const a = col(place.get(x.key)!);
+    return `$${a}$${FIRST}:$${a}$${LAST}`;
+  };
+  /** Part des points (0 à 1) d'un critère noté, sur une ligne. */
+  const fracOf = (c: EvalCriterion, key: string, row: number | string, abs = ''): string => {
+    const v = cellOf(c.ref!, row, abs);
+    if (c.kind === 'levels') return `${v}/4`;
+    if (c.kind === 'single') return v;
+    if (c.kind === 'choice') return `IFERROR(${v}/100,0)`;
+    const cell = `${abs}${col(place.get(key)!)}${row}`;
+    if (c.scoring?.type === 'rank') return `IF(${cell}="",0,${rankToExcel(cell, rangeOf(c.ref!), c.scoring.best ?? 'high')})`;
+    return `IF(${cell}="",0,${scaleToExcel(cell, c.scoring?.points ?? [], c.scoring?.steps)})`;
+  };
 
   // ── Barème (écrit d'abord : les notes y renvoient) ──
   bareme.columns = [{ width: 46 }, { width: 14 }, { width: 30 }, { width: 30 }, { width: 30 }, { width: 30 }];
@@ -140,15 +516,23 @@ export async function buildEvalWorkbook(
     bareme.getCell(`A${r}`).alignment = { wrapText: true, vertical: 'top' };
     r++;
   };
-  line('Comment cocher', true);
-  line("Critère à 4 cases : cochez la case du niveau atteint (Débutant → Avancé). La couleur suit le niveau : rouge, orange, jaune, vert. Seule la case la plus à droite compte.");
-  line('Critère à 1 case : cochée = réussi (vert), vide = pas encore.');
-  line("Les points d'un bloc = moyenne de ses critères × points du bloc (4 cases cochées = tous les points). Les bonus s'ajoutent au total.");
+  const kinds = new Set(spec.blocks.flatMap((b) => b.criteria.map((c) => c.kind)));
+  line('Comment remplir', true);
+  if (kinds.has('levels')) line("Critère à 4 cases : cochez la case du niveau atteint (Débutant → Avancé). La couleur suit le niveau : rouge, orange, jaune, vert. Seule la case la plus à droite compte.");
+  if (kinds.has('single')) line('Critère à 1 case : cochée = réussi (vert), vide = pas encore.');
+  if (kinds.has('number')) line('Valeur à saisir (cases blanches) : tapez le nombre (chrono en secondes). Les calculs et les points suivent aussitôt.');
+  if (kinds.has('computed')) line('Colonnes en italique : calculées, ne pas les remplir.');
+  if (kinds.has('choice')) line('Liste de choix : touchez la case puis choisissez dans la liste.');
+  line(
+    `Les points d'un bloc = moyenne de ses critères notés × points du bloc. Les bonus s'ajoutent au total.${spec.rounding && spec.rounding !== 0.1 ? ` Note finale arrondie au ${String(spec.rounding).replace('.', ',')} point.` : ''}${spec.cap ? ' Note finale plafonnée à 20.' : ''}`,
+  );
   r++;
-  line('Avant la première utilisation', true);
-  line('Excel 365 ou Google Sheets : sélectionnez les cases grises (FAUX / FALSE) de l\'onglet « Évaluation », puis Insertion > Case à cocher. Elles deviennent des cases à cocher, les notes et les couleurs fonctionnent aussitôt.');
-  line('Google Sheets : ouvrez drive.google.com > Nouveau > Importer un fichier, puis Ouvrir avec Google Sheets.');
-  r++;
+  if (kinds.has('levels') || kinds.has('single') || spec.bonus.length) {
+    line('Avant la première utilisation', true);
+    line("Excel 365 ou Google Sheets : sélectionnez les cases grises (FAUX / FALSE) de l'onglet « Évaluation », puis Insertion > Case à cocher. Elles deviennent des cases à cocher, les notes et les couleurs fonctionnent aussitôt.");
+    line('Google Sheets : ouvrez drive.google.com > Nouveau > Importer un fichier, puis Ouvrir avec Google Sheets.');
+    r++;
+  }
   line("Ce qu'on observe", true);
   bareme.getCell(`A${r}`).value = 'Critère';
   LEVEL_NAMES.forEach((n, i) => (bareme.getCell(r, 3 + i).value = n));
@@ -158,10 +542,24 @@ export async function buildEvalWorkbook(
     for (const c of b.criteria) {
       bareme.getCell(`A${r}`).value = `${b.name} — ${c.label}`;
       if (c.kind === 'levels') c.observe.slice(0, 4).forEach((o, i) => (bareme.getCell(r, 3 + i).value = o));
-      else bareme.getCell(r, 3).value = `Réussi si : ${c.observe[0] ?? ''}`;
+      else if (c.kind === 'single') bareme.getCell(r, 3).value = `Réussi si : ${c.observe[0] ?? ''}`;
+      else {
+        const parts = [
+          c.observe.join(' '),
+          c.kind === 'computed' && c.expr ? `Calcul : ${c.expr}` : '',
+          isScored(c) ? `Points : ${scoringText(c, critPoints(b, c))}` : c.kind !== 'text' ? 'Sans points (sert aux calculs ou à titre indicatif).' : '',
+        ].filter(Boolean);
+        bareme.getCell(r, 3).value = parts.join('\n');
+        bareme.mergeCells(r, 3, r, 6);
+      }
       bareme.getRow(r).alignment = { wrapText: true, vertical: 'top' };
       r++;
     }
+  }
+  if (byRef.size && kinds.has('computed')) {
+    r++;
+    line('Noms utilisés dans les calculs', true);
+    for (const [ref, x] of byRef) line(`${ref} = ${x.c.label}${x.c.unit ? ` (${x.c.unit})` : ''}`);
   }
   if (spec.expectations.length) {
     r++;
@@ -184,21 +582,21 @@ export async function buildEvalWorkbook(
   ws.getCell('A1').value = opts.className;
   ws.getCell('A2').value = 'Élève (nom à saisir)';
   ws.getCell('A1').font = { bold: true, size: 12 };
-  opts.rows?.forEach((r, i) => (ws.getCell(FIRST + i, 1).value = r.name));
+  opts.rows?.forEach((row, i) => (ws.getCell(FIRST + i, 1).value = row.name));
   if (withGroups) {
     ws.getColumn(2).width = 11;
     ws.getCell('B2').value = 'Groupe';
     ws.getCell('B2').font = { bold: true };
-    opts.rows?.forEach((r, i) => {
+    opts.rows?.forEach((row, i) => {
       const cell = ws.getCell(FIRST + i, 2);
-      cell.value = r.group ?? '';
+      cell.value = row.group ?? '';
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       cell.border = { top: thin, bottom: thin, right: thin };
     });
   }
   ws.getCell('A2').font = { bold: true };
-  let c = withGroups ? 3 : 2;
   const noteCols: string[] = [];
+  const statCols: string[] = [];
   const style = (cell: ReturnType<Worksheet['getCell']>, left: boolean) => {
     cell.border = { left: left ? thick : thin, right: thin, top: thin, bottom: thin };
   };
@@ -213,25 +611,40 @@ export async function buildEvalWorkbook(
       style(cell, left);
     }
   };
+  const header = (c: number, text: string, rotate: boolean) => {
+    ws.getCell(2, c).value = text;
+    ws.getCell(2, c).alignment = rotate ? { textRotation: 90, horizontal: 'center', vertical: 'bottom', wrapText: true } : { horizontal: 'center', vertical: 'middle', wrapText: true };
+  };
+  const numFmt = (crit: EvalCriterion) => (crit.decimals === 0 || crit.format === 'count' ? '0' : `0.${'#'.repeat(crit.decimals ?? 2)}`);
+  /** Couleur selon la part des points (rouge → vert), comme les critères à 4 cases. */
+  const colorByFrac = (ref: string, frac: string, valueCell: string) =>
+    ws.addConditionalFormatting({
+      ref,
+      rules: [0.25, 0.5, 0.75, 1.01].map((lim, i) => ({
+        type: 'expression' as const,
+        priority: i + 1,
+        formulae: [`AND(${valueCell}<>"",${frac}<${lim})`],
+        style: { fill: { type: 'pattern' as const, pattern: 'solid' as const, bgColor: { argb: LEVEL_FILL[i] } } },
+      })),
+    });
 
+  let c = startCol;
   spec.blocks.forEach((b, bi) => {
     const start = c;
-    const parts: Array<(row: number) => string> = [];
+    const parts: string[] = []; // formules de part des points, avec {row}
+    const weights: number[] = [];
     b.criteria.forEach((crit, ci) => {
       const first = ci === 0;
+      const key = keyOf(b.name, crit.label);
+      const a = col(c);
       if (crit.kind === 'levels') {
-        const a = col(c);
         const z = col(c + 3);
         groups.push([c, c + 3]);
         ws.mergeCells(2, c, 2, c + 3);
-        ws.getCell(2, c).value = crit.label;
-        ws.getCell(2, c).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        const key = opts.keyOf?.(b.name, crit.label) ?? '';
-        for (let k = 0; k < 4; k++) checkbox(c + k, first && k === 0, (row) => markOf(row, key) > k);
-        // Niveau = rang de la case cochée la plus à droite (0 à 4). Forme simple, sans tableau : Excel, Sheets et tablettes la calculent pareil.
+        header(c, crit.label, false);
+        for (let k = 0; k < 4; k++) checkbox(c + k, first && k === 0, (row) => (markOf(row, key) ?? 0) > k);
         const cols4 = [0, 1, 2, 3].map((k) => col(c + k));
         const level = (row: number, abs = '') => `MAX(${cols4.map((x, k) => `${abs}${x}${row}*${k + 1}`).join(',')})`;
-        parts.push((row) => `${level(row)}/4`);
         ws.addConditionalFormatting({
           ref: `${a}${FIRST}:${z}${LAST}`,
           rules: [1, 2, 3, 4].map((lv, i) => ({
@@ -241,31 +654,63 @@ export async function buildEvalWorkbook(
             style: { fill: { type: 'pattern' as const, pattern: 'solid' as const, bgColor: { argb: LEVEL_FILL[i] } } },
           })),
         });
-        c += 4;
-      } else {
-        const a = col(c);
-        ws.getCell(2, c).value = crit.label;
-        ws.getCell(2, c).alignment = { textRotation: 90, horizontal: 'center', vertical: 'bottom', wrapText: true };
-        const key1 = opts.keyOf?.(b.name, crit.label) ?? '';
-        checkbox(c, first, (row) => markOf(row, key1) > 0);
-        parts.push((row) => `(${a}${row}*1)`);
+      } else if (crit.kind === 'single') {
+        header(c, crit.label, true);
+        checkbox(c, first, (row) => (markOf(row, key) ?? 0) > 0);
         ws.addConditionalFormatting({
           ref: `${a}${FIRST}:${a}${LAST}`,
           rules: [{ type: 'expression', priority: 1, formulae: [`$${a}${FIRST}=TRUE`], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GREEN } } } }],
         });
-        c += 1;
+      } else {
+        // Valeur saisie, calculée, liste de choix ou texte : une colonne.
+        const unit = crit.format === 'time' ? 's' : crit.unit;
+        header(c, `${crit.label}${unit ? ` (${unit})` : ''}`, false);
+        ws.getColumn(c).width = crit.kind === 'text' ? 28 : crit.kind === 'choice' ? 14 : 10;
+        for (let row = FIRST; row <= LAST; row++) {
+          const cell = ws.getCell(row, c);
+          const src = opts.rows?.[row - FIRST];
+          if (crit.kind === 'number') {
+            const v = src?.marks[key];
+            cell.value = typeof v === 'number' && Number.isFinite(v) ? v : null;
+            cell.numFmt = numFmt(crit);
+          } else if (crit.kind === 'computed') {
+            const e = parsed(crit.expr);
+            cell.value = e ? { formula: exprToExcel(e, (n) => cellOf(n, row), rangeOf) } : '';
+            cell.numFmt = numFmt(crit);
+            cell.font = { italic: true, color: { argb: 'FF475467' } };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } };
+          } else if (crit.kind === 'choice') {
+            const idx = src?.marks[key];
+            cell.value = idx ? (crit.options?.[idx - 1]?.label ?? null) : null;
+            if (crit.options?.length) cell.dataValidation = { type: 'list', allowBlank: true, formulae: [`"${crit.options.map((o) => o.label.replace(/"/g, "'")).join(',')}"`] };
+          } else cell.value = src?.texts?.[key] ?? null;
+          cell.alignment = { horizontal: crit.kind === 'text' ? 'left' : 'center', vertical: 'middle', wrapText: crit.kind === 'text' };
+          style(cell, first);
+        }
+        if (crit.kind === 'number' || crit.kind === 'computed') {
+          statCols.push(a);
+          if (isScored(crit)) colorByFrac(`${a}${FIRST}:${a}${LAST}`, fracOf(crit, key, FIRST, '$'), `$${a}${FIRST}`);
+        }
+        if (crit.kind === 'choice' && isScored(crit)) colorByFrac(`${a}${FIRST}:${a}${LAST}`, fracOf(crit, key, FIRST, '$'), `$${a}${FIRST}`);
       }
+      if (isScored(crit)) {
+        parts.push(fracOf(crit, key, '{row}'));
+        weights.push(weightOf(crit));
+      }
+      c += widthOf(crit);
     });
     // Colonne de note du bloc
     const nc = c;
     noteCols.push(col(nc));
+    statCols.push(col(nc));
     ws.getColumn(nc).width = 8;
     ws.getCell(2, nc).value = `/${b.points}`;
     ws.getCell(2, nc).alignment = { horizontal: 'center', vertical: 'middle' };
+    const W = weights.reduce((s, w) => s + w, 0);
     for (let row = FIRST; row <= LAST; row++) {
-      const sum = parts.map((p) => p(row)).join('+');
+      const sum = parts.map((p, i) => `${weights[i] === 1 ? '' : `${weights[i]}*`}(${p.split('{row}').join(String(row))})`).join('+');
       const cell = ws.getCell(row, nc);
-      cell.value = { formula: `ROUND((${sum})/${b.criteria.length}*'Barème'!$B$${pointRow[bi]},1)` };
+      cell.value = W ? { formula: `ROUND((${sum})/${W}*'Barème'!$B$${pointRow[bi]},1)` } : 0;
       cell.font = { bold: true };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       style(cell, false);
@@ -287,9 +732,8 @@ export async function buildEvalWorkbook(
     const a = col(c);
     bonusCols.push(a);
     ws.getCell(1, c).value = i === 0 ? 'Bonus' : null;
-    ws.getCell(2, c).value = `${b.label} (+${b.points})`;
-    ws.getCell(2, c).alignment = { textRotation: 90, horizontal: 'center', vertical: 'bottom', wrapText: true };
-    checkbox(c, i === 0, (row) => markOf(row, bonusKey(b.label)) > 0);
+    header(c, `${b.label} (+${b.points})`, true);
+    checkbox(c, i === 0, (row) => (markOf(row, bonusKey(b.label)) ?? 0) > 0);
     ws.addConditionalFormatting({
       ref: `${a}${FIRST}:${a}${LAST}`,
       rules: [{ type: 'expression', priority: 1, formulae: [`$${a}${FIRST}=TRUE`], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: GREEN } } } }],
@@ -299,19 +743,34 @@ export async function buildEvalWorkbook(
   ws.getColumn(c).width = 9;
   ws.getCell(1, c).value = 'TOTAL';
   ws.getCell(2, c).value = '/20';
+  statCols.push(col(c));
   [1, 2].forEach((row) => {
     ws.getCell(row, c).font = { bold: true };
     ws.getCell(row, c).alignment = { horizontal: 'center', vertical: 'middle' };
     ws.getCell(row, c).border = { left: thick, top: row === 1 ? thick : undefined, bottom: row === 2 ? thick : undefined, right: thick };
   });
+  const step = spec.rounding ?? 0.1;
   for (let row = FIRST; row <= LAST; row++) {
     const bonus = bonusCols.map((a, i) => `+(${a}${row}*1)*'Barème'!$B$${bonusRow[i]}`).join('');
+    const raw = `${noteCols.map((a) => `${a}${row}`).join('+') || '0'}${bonus}`;
+    let f = step === 0.1 ? `ROUND(${raw},1)` : `ROUND((${raw})/${step},0)*${step}`;
+    if (spec.cap) f = `MIN(20,${f})`;
     const cell = ws.getCell(row, c);
-    cell.value = { formula: `ROUND(${noteCols.map((a) => `${a}${row}`).join('+')}${bonus},1)` };
+    cell.value = { formula: f };
     cell.font = { bold: true, size: 12 };
     cell.alignment = { horizontal: 'center', vertical: 'middle' };
     cell.border = { left: thick, right: thick, top: thin, bottom: thin };
     ws.getCell(row, 1).border = { right: thick, top: thin, bottom: thin };
+  }
+  // Moyenne de la classe (valeurs, notes des blocs, total)
+  ws.getCell(STATS, 1).value = 'Moyenne de la classe';
+  ws.getCell(STATS, 1).font = { bold: true, italic: true };
+  for (const a of statCols) {
+    const cell = ws.getCell(`${a}${STATS}`);
+    cell.value = { formula: `IFERROR(ROUND(AVERAGE(${a}${FIRST}:${a}${LAST}),1),"")` };
+    cell.font = { bold: true, italic: true };
+    cell.alignment = { horizontal: 'center' };
+    cell.border = { top: thick };
   }
   ws.getRow(1).height = 22;
   ws.getRow(2).height = 70;
@@ -340,16 +799,3 @@ export function cumulativeScript(layout: SheetLayout): string {
 
 /** Clé d'un bonus dans les résultats d'un élève. */
 export const bonusKey = (label: string) => `bonus::${label}`;
-
-/** Notes d'un élève, comme dans le tableur : moyenne des critères × points du bloc, plus les bonus. */
-export function scoreOf(spec: EvalSheetSpec, marks: Record<string, number>, keyOf: (block: string, label: string) => string) {
-  const blocks = spec.blocks.map((b) => {
-    const parts = b.criteria.map((c) => {
-      const v = marks[keyOf(b.name, c.label)] ?? 0;
-      return c.kind === 'levels' ? Math.min(4, v) / 4 : v ? 1 : 0;
-    });
-    return Math.round((parts.reduce((a, x) => a + x, 0) / Math.max(1, parts.length)) * b.points * 10) / 10;
-  });
-  const bonus = spec.bonus.reduce((s, b) => s + (marks[bonusKey(b.label)] ? b.points : 0), 0);
-  return { blocks, total: Math.round((blocks.reduce((a, x) => a + x, 0) + bonus) * 10) / 10 };
-}

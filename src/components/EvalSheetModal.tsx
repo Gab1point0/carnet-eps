@@ -8,7 +8,7 @@ import { toast } from '../store/ui';
 import { aiReady, type Attachment } from '../lib/ai';
 import { MAX_TOTAL_BYTES, attachmentBytes, fileToAttachment } from '../lib/attachments';
 import { aiEvalSheet, isLyceeLevel } from '../lib/aiTasks';
-import { buildEvalWorkbook, cumulativeScript, LEVEL_NAMES, type EvalSheetSpec } from '../lib/evalSheet';
+import { buildEvalWorkbook, critPoints, cumulativeScript, isScored, KIND_NAMES, LEVEL_NAMES, scoringText, sheetProblems, type EvalSheetSpec } from '../lib/evalSheet';
 import { activityOf } from '../store/selectors';
 import { formatLong } from '../lib/dates';
 import { Button, IconButton, Modal, NumberInput, TextArea } from './ui';
@@ -154,7 +154,7 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
       }
     >
       <p className="muted small">
-        {klass?.name} · {activity || 'activité ?'} · {lycee ? 'attendus de fin de lycée (AFL)' : `attendus de fin de cycle ${level === '6e' ? '3' : '4'} (AFC)`}. Une ligne par élève, des cases à cocher, la note sur 20 se calcule seule.
+        {klass?.name} · {activity || 'activité ?'} · {lycee ? 'attendus de fin de lycée (AFL)' : `attendus de fin de cycle ${level === '6e' ? '3' : '4'} (AFC)`}. Une ligne par élève : cases à cocher, valeurs à saisir (VMA, chrono…), calculs et barèmes ; la note sur 20 se calcule seule.
       </p>
 
       {!aiReady() && <p className="error-text small">Il faut une clé d'API Claude : Réglages, onglet « Assistant IA ».</p>}
@@ -230,14 +230,33 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
               <ul className="eval-criteria">
                 {b.criteria.map((c, j) => (
                   <li key={j}>
-                    <span>{c.label}</span> <span className="muted small">{c.kind === 'levels' ? `4 cases (${LEVEL_NAMES.join(' → ')})` : '1 case'}</span>
-                    {c.observe.length > 0 && <div className="muted small">{c.kind === 'levels' ? `Acquis : ${c.observe[2] ?? ''}` : c.observe[0]}</div>}
+                    <span>{c.label}</span>{' '}
+                    <span className="muted small">
+                      {c.kind === 'levels' ? `4 cases (${LEVEL_NAMES.join(' → ')})` : KIND_NAMES[c.kind]}
+                      {c.unit ? ` (${c.unit})` : ''}
+                      {(c.weight ?? 1) !== 1 ? ` · poids ${c.weight}` : ''}
+                    </span>
+                    {c.observe.length > 0 && <div className="muted small">{c.kind === 'levels' ? `Acquis : ${c.observe[2] ?? ''}` : c.observe.join(' ')}</div>}
+                    {c.kind === 'computed' && c.expr && (
+                      <div className="small">
+                        Calcul : <code className="formula">{c.expr}</code>
+                      </div>
+                    )}
+                    {isScored(c) && c.kind !== 'levels' && c.kind !== 'single' && <div className="muted small">Points : {scoringText(c, critPoints(b, c))}</div>}
                   </li>
                 ))}
               </ul>
             </div>
           ))}
-          <p className={total === 20 ? 'muted small' : 'error-text small'}>Total : {total}/20</p>
+          <p className={total === 20 ? 'muted small' : 'error-text small'}>
+            Total : {total}/20{spec.rounding && spec.rounding !== 0.1 ? ` · arrondi au ${String(spec.rounding).replace('.', ',')} point` : ''}
+            {spec.cap ? ' · plafonné à 20' : ''}
+          </p>
+          {sheetProblems(spec).map((p) => (
+            <p key={p} className="error-text small">
+              {p}
+            </p>
+          ))}
           {spec.expectations.length > 0 && (
             <details>
               <summary className="small">Attendus visés ({spec.expectations.length})</summary>
@@ -285,7 +304,7 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
           value={instruction}
           onChange={setInstruction}
           minRows={2}
-          placeholder={spec ? 'Ce qu\'il faut changer : « retire l\'arbitrage », « 3 blocs seulement », « ajoute un bonus progrès »…' : 'Précisions (facultatif) : barème voulu, critères à garder, ce que vous ne voulez pas évaluer…'}
+          placeholder={spec ? 'Ce qu\'il faut changer : « retire l\'arbitrage », « saisir la VMA, notée au rang dans la classe », « perdre des points par % d\'écart au-delà de 5 % »…' : 'Précisions (facultatif) : barème voulu, critères à garder, ce que vous ne voulez pas évaluer…'}
         />
         <Button size="sm" variant={spec ? 'secondary' : 'primary'} icon={spec ? <RefreshCw size={15} /> : <Sparkles size={15} />} onClick={generate} disabled={!!step || !aiReady()}>
           {spec ? 'Refaire avec ces changements' : 'Préparer la fiche avec Claude'}

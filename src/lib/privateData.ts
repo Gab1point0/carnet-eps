@@ -12,6 +12,8 @@ export interface Student {
 /** Résultats d'un élève sur une fiche : niveau 0 à 4 par critère (0/1 pour une case unique), date de modification. */
 export interface StudentMarks {
   v: Record<string, number>;
+  /** Observations écrites (critères « texte »). */
+  txt?: Record<string, string>;
   absent?: boolean;
   t: number;
 }

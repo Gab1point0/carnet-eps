@@ -567,17 +567,44 @@ export const EVAL_SHEET_SCHEMA = obj({
     items: obj({
       name: { type: 'string' },
       points: { type: 'number' },
-      criteria: { type: 'array', items: obj({ label: { type: 'string' }, kind: { type: 'string', enum: ['levels', 'single'] }, observe: strings }) },
+      criteria: {
+        type: 'array',
+        items: obj({
+          label: { type: 'string' },
+          kind: { type: 'string', enum: ['levels', 'single', 'number', 'computed', 'choice', 'text'] },
+          observe: strings,
+          ref: nullable('string'),
+          unit: nullable('string'),
+          format: nullableEnum(['decimal', 'time', 'count']),
+          decimals: nullable('integer'),
+          expr: nullable('string'),
+          scoring: {
+            anyOf: [
+              obj({
+                type: { type: 'string', enum: ['none', 'table', 'rank'] },
+                points: { type: ['array', 'null'], items: obj({ at: { type: 'number' }, pct: { type: 'number' } }) },
+                steps: nullable('boolean'),
+                best: nullableEnum(['high', 'low']),
+              }),
+              { type: 'null' },
+            ],
+          },
+          options: { type: ['array', 'null'], items: obj({ label: { type: 'string' }, pct: { type: 'number' } }) },
+          weight: nullable('number'),
+        }),
+      },
     }),
   },
   bonus: { type: 'array', items: obj({ label: { type: 'string' }, points: { type: 'number' } }) },
   sources: strings,
   notes: { type: 'string' },
+  rounding: { type: 'number' },
+  cap: { type: 'boolean' },
 });
 
 const EVAL_SHEET_SYSTEM = `${STYLE}
 
-Tu prépares la fiche d'évaluation que l'enseignant remplira sur tablette pendant la séance d'évaluation décrite : une ligne par élève, uniquement des cases à cocher.
+Tu prépares la fiche d'évaluation que l'enseignant remplira sur tablette pendant la séance d'évaluation décrite : une ligne par élève. La fiche fonctionne comme un tableur : cases à cocher, valeurs saisies, formules, barèmes, rangs.
 
 Contenu :
 - Appuie-toi d'abord sur la séance d'évaluation et sur le cycle (objectifs, critères d'évaluation) : la fiche évalue ce que la séance fait faire.
@@ -587,8 +614,23 @@ Contenu :
 
 Forme (règles de l'enseignant) :
 - blocks : 2 à 4 blocs (ex. « Jouer pour gagner », « Arbitrer », « Attitude »), points entiers ou demi-points, total 20.
-- criteria : kind = levels pour un critère à 4 degrés (observe = 4 phrases courtes et observables : Débutant, En cours, Acquis, Avancé) ; kind = single pour un critère réussi ou non (observe = 1 phrase).
-- Pas de surcharge : 2 à 4 critères par bloc, 10 au plus en tout ; regroupe les critères secondaires (attitude et règles = une seule case).
+- criteria, selon ce qui s'évalue le mieux :
+  - levels : critère à 4 degrés (observe = 4 phrases courtes et observables : Débutant, En cours, Acquis, Avancé) ;
+  - single : réussi ou non (observe = 1 phrase) ;
+  - number : valeur mesurée à saisir (VMA, chrono, score, distance, nombre de réussites…). unit (« km/h », « pts », « m »), format = decimal, time (chrono : l'enseignant tape 3:25, la valeur est en secondes) ou count (compteur avec boutons − et +) ;
+  - computed : valeur calculée par expr à partir des autres valeurs (par leur ref) : opérations + - * / ^ et parenthèses ; comparaisons < > <= >= = <> (1 ou 0) ; SI(condition; si vrai; si faux), ET(…), OU(…), NON(…) ; ABS, MIN, MAX, MOYENNE, SOMME (ces quatre ignorent les cases vides : MAX(essai1; essai2; essai3) = meilleur essai), ARRONDI(x; n), ARRONDI_INF, ARRONDI_SUP, RACINE ; statistiques de la classe : CLASSE_MOY(ref), CLASSE_MIN(ref), CLASSE_MAX(ref), RANG(ref). Les niveaux à 4 cases valent 0 à 4, une case 0 ou 1. Exemple d'écart au projet en % : ABS(score1 - projet1) / projet1 * 100 ;
+  - choice : liste déroulante, options = [{label, pct}] (part des points de chaque choix, 0 à 100) : pour un rôle, une tenue, un choix d'élève… ;
+  - text : observation écrite libre, sans points (seulement si l'enseignant la demande).
+- ref (number et computed) : nom court en minuscules sans accent ni espace (« vma », « projet1 », « score1 »), unique ; null pour les autres types.
+- scoring (number et computed) : comment la valeur rapporte des points.
+  - none : aucun point (valeur d'appui pour un calcul, ex. le projet annoncé) ;
+  - table : barème, points = [{at: valeur, pct: part des points du critère de 0 à 100}], linéaire entre deux lignes (steps = false), ou par paliers (steps = true) ; avant la première et après la dernière ligne, la valeur du bout. Ex. « tous les points jusqu'à 5 % d'écart, puis on perd des points pour chaque % jusqu'à 0 à 20 % » = [{at:5,pct:100},{at:20,pct:0}] ; une table de performances = une ligne par palier ;
+  - rank : selon le rang dans la classe, la meilleure valeur a tous les points, la moins bonne aucun ; best = high (plus grande valeur = meilleure, ex. VMA) ou low (chrono).
+  scoring = null pour levels, single, choice, text.
+- Quand le barème de l'enseignant se calcule (pourcentages, écarts, performances, classement), utilise number, computed et scoring : ne le remplace jamais par 4 cases à cocher qui demanderaient à l'enseignant de faire le calcul.
+- weight : poids du critère dans son bloc (null = 1). Points d'un bloc = moyenne pondérée de ses critères notés × points du bloc. Pour qu'un critère vaille un nombre de points précis, joue sur les blocs et les poids.
+- rounding : arrondi de la note finale (0.1 par défaut, ou 0.25, 0.5, 1 si l'enseignant le demande) ; cap : true pour plafonner à 20 avec les bonus, false sinon.
+- Pas de surcharge : 2 à 6 colonnes par bloc, 12 au plus en tout ; regroupe les critères secondaires (attitude et règles = une seule case). Les valeurs d'appui (projet, essais) comptent comme des colonnes utiles.
 - label : 6 mots au plus (en-tête de colonne).
 - bonus : seulement si l'enseignant le demande (sinon liste vide).
 - sources : textes officiels utilisés (titre et année, ou adresse web du référentiel), puis « Cycle … du Carnet EPS ».

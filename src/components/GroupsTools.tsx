@@ -6,7 +6,7 @@ import { useVault } from '../store/vault';
 import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { autoGroups, type GroupMode } from '../lib/grouping';
 import { criterionKey, type Grouping, type Student } from '../lib/privateData';
-import { scoreOf } from '../lib/evalSheet';
+import { evaluateSheet } from '../lib/evalSheet';
 import { formatShort } from '../lib/dates';
 import { cls, plural, uid } from '../lib/util';
 import { Button, Field, IconButton, Modal, NumberInput, Tabs, TextInput } from './ui';
@@ -204,7 +204,12 @@ function AutoGroupsModal({ lesson, students, hasGroups, onClose, onDone }: { les
     if (mode !== 'random') {
       const src = withMarks.find((l) => l.id === source);
       const rows = doc.sheets[source] ?? {};
-      if (src?.evalSheet) for (const s of students) if (rows[s.id] && !rows[s.id].absent) scores[s.id] = scoreOf(src.evalSheet, rows[s.id].v, criterionKey).total;
+      if (src?.evalSheet) {
+        // Toute la classe d'un coup : les points au rang dépendent des autres élèves.
+        const present = students.filter((s) => rows[s.id] && !rows[s.id].absent);
+        const res = evaluateSheet(src.evalSheet, present.map((s) => ({ marks: rows[s.id].v })), criterionKey);
+        present.forEach((s, i) => (scores[s.id] = res[i].total));
+      }
     }
     onDone({ assign: autoGroups(students, count, mode, scores), count });
     onClose();
