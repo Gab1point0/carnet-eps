@@ -89,14 +89,16 @@ export async function buildEvalWorkbook(
     activity: string;
     date?: string;
     /** Fiche remplie dans l'application : noms et résultats (niveau 0 à 4, ou 0/1) par clé de critère. */
-    rows?: Array<{ name: string; marks: Record<string, number> }>;
+    rows?: Array<{ name: string; marks: Record<string, number>; group?: string }>;
     keyOf?: (block: string, label: string) => string;
   },
 ): Promise<{ workbook: Workbook; layout: SheetLayout }> {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Carnet EPS';
-  const ws = wb.addWorksheet('Évaluation', { views: [{ state: 'frozen', xSplit: 1, ySplit: 2 }] });
+  // Fiche rangée par groupes : une colonne « Groupe » après le nom.
+  const withGroups = !!opts.rows?.some((r) => r.group);
+  const ws = wb.addWorksheet('Évaluation', { views: [{ state: 'frozen', xSplit: withGroups ? 2 : 1, ySplit: 2 }] });
   const bareme = wb.addWorksheet('Barème');
 
   const FIRST = 3;
@@ -183,8 +185,19 @@ export async function buildEvalWorkbook(
   ws.getCell('A2').value = 'Élève (nom à saisir)';
   ws.getCell('A1').font = { bold: true, size: 12 };
   opts.rows?.forEach((r, i) => (ws.getCell(FIRST + i, 1).value = r.name));
+  if (withGroups) {
+    ws.getColumn(2).width = 11;
+    ws.getCell('B2').value = 'Groupe';
+    ws.getCell('B2').font = { bold: true };
+    opts.rows?.forEach((r, i) => {
+      const cell = ws.getCell(FIRST + i, 2);
+      cell.value = r.group ?? '';
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = { top: thin, bottom: thin, right: thin };
+    });
+  }
   ws.getCell('A2').font = { bold: true };
-  let c = 2;
+  let c = withGroups ? 3 : 2;
   const noteCols: string[] = [];
   const style = (cell: ReturnType<Worksheet['getCell']>, left: boolean) => {
     cell.border = { left: left ? thick : thin, right: thin, top: thin, bottom: thin };

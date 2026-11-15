@@ -7,6 +7,8 @@ import { useStudents, useVault } from '../store/vault';
 import { activityOf } from '../store/selectors';
 import { Button, Card, Modal } from '../components/ui';
 import { VaultGate } from '../components/VaultGate';
+import { GroupSelect, GroupsBar, groupColor } from '../components/GroupsTools';
+import { byGroup } from '../lib/grouping';
 import { buildEvalWorkbook, bonusKey, LEVEL_NAMES, scoreOf, type EvalCriterion, type EvalSheetSpec } from '../lib/evalSheet';
 import { criterionKey, type StudentMarks } from '../lib/privateData';
 import { formatLong } from '../lib/dates';
@@ -67,6 +69,9 @@ export function EvalFillPage() {
   const narrow = useNarrow();
   // Critère touché : ce qu'on observe à chaque niveau (repris du référentiel), lisible sur téléphone et tablette.
   const [info, setInfo] = useState<{ block: string; criterion: EvalCriterion } | null>(null);
+  const grouping = useVault((s) => s.doc.groups[id]);
+  // « Un groupe à la fois » : numéro du groupe affiché, ou null pour tous.
+  const [one, setOne] = useState<number | null>(null);
   if (!lesson) return <Navigate to="/classes" replace />;
   const spec: EvalSheetSpec | null = lesson.evalSheet;
   const klass = lesson.classId ? data.classes[lesson.classId] : undefined;
@@ -84,7 +89,9 @@ export function EvalFillPage() {
       className: klass?.name ?? '',
       activity,
       date: lesson.date ? formatLong(lesson.date) : undefined,
-      rows: students.map((s) => ({ name: rows[s.id]?.absent ? `${s.name} (absent)` : s.name, marks: marksOf(s.id) })),
+      rows: sections.flatMap((sec) =>
+        sec.students.map((s) => ({ name: rows[s.id]?.absent ? `${s.name} (absent)` : s.name, marks: marksOf(s.id), group: count ? (sec.group ? `Groupe ${sec.group}` : 'À placer') : undefined })),
+      ),
       keyOf: criterionKey,
     });
     const blob = new Blob([await workbook.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -96,6 +103,22 @@ export function EvalFillPage() {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   };
+
+  // Élèves rangés par groupe (s'il y en a), avec un en-tête par groupe ; « un groupe à la fois » n'en garde qu'un.
+  const count = grouping?.count ?? 0;
+  const assign = grouping?.assign ?? {};
+  const setGroup = (sid: ID, g: number | null) => useVault.getState().setGroups(lesson.id, { count, assign: { ...assign, [sid]: g ?? 0 } });
+  const sections = count ? byGroup(students, assign, count) : [{ group: null, students }];
+  // Un groupe retiré pendant l'affichage « un groupe à la fois » : on revient à tous.
+  const oneShown = one && one <= count ? one : null;
+  const shown = oneShown ? sections.filter((x) => x.group === oneShown) : sections;
+  const items: Array<{ head: (typeof sections)[number] } | { student: (typeof students)[number] }> = shown.flatMap((sec) => [
+    ...(count ? [{ head: sec }] : []),
+    ...sec.students.map((student) => ({ student })),
+  ]);
+  const doneIn = (list: typeof students) => list.filter((x) => Object.values(marksOf(x.id)).some(Boolean) || rows[x.id]?.absent).length;
+  const headText = (sec: (typeof sections)[number]) =>
+    `${sec.group ? `Groupe ${sec.group}` : 'À placer'} · ${sec.students.length} élève${sec.students.length > 1 ? 's' : ''} · ${doneIn(sec.students)} noté${doneIn(sec.students) > 1 ? 's' : ''}`;
 
   const filled = students.filter((s) => Object.values(marksOf(s.id)).some(Boolean) || rows[s.id]?.absent).length;
 
@@ -128,16 +151,29 @@ export function EvalFillPage() {
               <p>Aucun élève dans cette classe pour l'instant.</p>
               {klass && <Link to={`/classes/${klass.id}`}>Ajouter les élèves de {klass.name} →</Link>}
             </Card>
-          ) : narrow ? (
+          ) : (
+            <>
+            <GroupsBar lesson={lesson} students={students} grouping={grouping} one={oneShown} setOne={setOne} />
+            {narrow ? (
             <div className="stack">
-              {students.map((s) => {
+              {items.map((it) => {
+                if ('head' in it)
+                  return (
+                    <h3 key={`g${it.head.group}`} className="fill-group-head" style={{ ['--grp' as string]: it.head.group ? groupColor(it.head.group) : 'var(--muted)' }}>
+                      {headText(it.head)}
+                    </h3>
+                  );
+                const s = it.student;
                 const m = marksOf(s.id);
                 const absent = !!rows[s.id]?.absent;
                 const score = scoreOf(spec, m, criterionKey);
                 return (
                   <Card key={s.id} className={cls('fill-card', absent && 'fill-absent')}>
                     <div className="row-between">
-                      <strong>{s.name || 'Élève sans nom'}</strong>
+                      <span className="row" style={{ gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
+                        {count > 0 && <GroupSelect value={assign[s.id]} count={count} onChange={(g) => setGroup(s.id, g)} label={`Groupe de ${s.name}`} />}
+                        <strong>{s.name || 'Élève sans nom'}</strong>
+                      </span>
                       <span className="row" style={{ gap: 10 }}>
                         <label className="check small">
                           <input type="checkbox" checked={absent} onChange={(e) => setAbsent(s.id, e.target.checked)} /> Absent
@@ -221,14 +257,26 @@ export function EvalFillPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((s) => {
+                  {items.map((it) => {
+                    if ('head' in it)
+                      return (
+                        <tr key={`g${it.head.group}`} className="fill-group-row" style={{ ['--grp' as string]: it.head.group ? groupColor(it.head.group) : 'var(--muted)' }}>
+                          <th colSpan={99} className="fill-group-cell">
+                            <span>{headText(it.head)}</span>
+                          </th>
+                        </tr>
+                      );
+                    const s = it.student;
                     const m = marksOf(s.id);
                     const absent = !!rows[s.id]?.absent;
                     const score = scoreOf(spec, m, criterionKey);
                     return (
                       <tr key={s.id} className={cls(absent && 'fill-absent')}>
                         <th className="fill-name">
-                          <span>{s.name || 'Élève sans nom'}</span>
+                          <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                            {count > 0 && <GroupSelect value={assign[s.id]} count={count} onChange={(g) => setGroup(s.id, g)} label={`Groupe de ${s.name}`} />}
+                            <span className="fill-name-text">{s.name || 'Élève sans nom'}</span>
+                          </span>
                           <label className="check small" title="Absent">
                             <input type="checkbox" checked={absent} onChange={(e) => setAbsent(s.id, e.target.checked)} /> abs.
                           </label>
@@ -260,6 +308,8 @@ export function EvalFillPage() {
                 </tbody>
               </table>
             </div>
+          )}
+            </>
           )}
         </VaultGate>
       </div>

@@ -34,3 +34,22 @@ describe("fiche d'évaluation (tableur)", () => {
     expect(String((ws.getCell('J3').value as { formula: string }).formula)).toContain('MAX(B3*1,C3*2,D3*3,E3*4)');
   });
 });
+
+describe('export rangé par groupes', () => {
+  it('ajoute une colonne Groupe et décale les cases', async () => {
+    const { workbook, layout } = await buildEvalWorkbook(tidyEvalSheet(spec), {
+      students: 2,
+      className: '5e A',
+      activity: 'Badminton',
+      rows: [
+        { name: 'Léa', marks: {}, group: 'Groupe 1' },
+        { name: 'Tom', marks: {}, group: 'Groupe 2' },
+      ],
+      keyOf: (b, l) => `${b}::${l}`,
+    });
+    const ws = workbook.getWorksheet('Évaluation')!;
+    expect(ws.getCell('B2').value).toBe('Groupe');
+    expect(ws.getCell('B4').value).toBe('Groupe 2');
+    expect(layout.groups[0]).toEqual([3, 6]);
+  });
+});

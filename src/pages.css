@@ -592,3 +592,23 @@ label.btn { cursor: pointer; }
 .crit-levels { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .crit-levels li { display: grid; gap: 4px; border-left: 4px solid var(--lvl); padding: 4px 0 4px 10px; }
 .crit-level-name { font-weight: 800; color: var(--lvl); }
+
+/* Groupes sur la fiche d'évaluation */
+.groups-bar { padding: 10px 12px; margin-bottom: 10px; }
+.group-chip { border: 2px solid var(--grp); color: var(--grp); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-weight: 700; cursor: pointer; }
+.group-chip-on { background: var(--grp); color: #fff; }
+.group-names { display: flex; flex-wrap: wrap; gap: 6px; }
+.group-name { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text); border-radius: 10px; padding: 8px 10px; font: inherit; cursor: pointer; max-width: 100%; }
+.group-name-in { border-color: var(--grp); background: color-mix(in srgb, var(--grp) 14%, var(--surface)); }
+.group-tag { background: var(--grp); color: #fff; border-radius: 6px; padding: 0 5px; font-size: 0.75rem; font-weight: 800; }
+.group-pill { border: 2px solid var(--grp); color: var(--grp); border-radius: 999px; padding: 4px 12px; }
+.group-select { border: 2px solid var(--grp); color: var(--grp); background: var(--surface); border-radius: 8px; font-weight: 800; font-size: 0.8rem; padding: 2px 4px; min-height: 30px; }
+.fill-group-head { font-size: 0.95rem; color: var(--grp); border-bottom: 2px solid var(--grp); padding: 8px 2px 4px; margin: 6px 0 0; }
+.fill-group-row th, .fill-group-row td { background: color-mix(in srgb, var(--grp) 12%, var(--surface)); color: var(--grp); font-weight: 800; text-align: left; }
+.fill-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.reuse-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.reuse-list li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 10px; }
+.reuse-list li > button { background: none; border: 0; text-align: left; padding: 10px 12px; font: inherit; color: inherit; cursor: pointer; }
+.fill-group-cell span { position: sticky; left: 8px; white-space: nowrap; }
+.fill-name > .row { display: flex; }
+.fill-name .group-select { flex: 0 0 auto; }

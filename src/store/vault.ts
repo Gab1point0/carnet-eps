@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import type { ID } from '../types';
 import { deriveKey, isEnvelope, newSalt, open, seal, type Envelope } from '../lib/crypto';
-import { emptyPrivate, mergePrivate, samePrivate, type PrivateDoc, type Student, type StudentMarks } from '../lib/privateData';
+import { emptyPrivate, mergePrivate, normalizePrivate, samePrivate, type Grouping, type PrivateDoc, type SavedGrouping, type Student, type StudentMarks } from '../lib/privateData';
 import { GithubError, getFile, putFile, type GithubConfig } from '../lib/github';
 
 // Coffre des données des élèves : chiffré sur l'appareil (IndexedDB) et, si la synchronisation est réglée,
@@ -27,6 +27,9 @@ interface VaultState {
   lock: () => Promise<void>;
   setStudents: (classId: ID, students: Student[]) => void;
   setMarks: (lessonId: ID, studentId: ID, marks: Omit<StudentMarks, 't'>) => void;
+  /** Groupes d'une fiche (séance). `null` = plus de groupes. */
+  setGroups: (lessonId: ID, groups: Omit<Grouping, 't'> | null) => void;
+  saveGroups: (id: ID, g: Omit<SavedGrouping, 't'>) => void;
   /** Efface tous les élèves et résultats (fin d'année), sur tous les appareils synchronisés. */
   wipe: () => void;
 }
@@ -48,7 +51,7 @@ export const useVault = create<VaultState>((set, get) => ({
       if (!stored) return set({ status: 'locked' });
       key = stored.key;
       salt = stored.salt;
-      set({ status: 'open', doc: await open<PrivateDoc>(key, env) });
+      set({ status: 'open', doc: normalizePrivate(await open<PrivateDoc>(key, env)) });
     } catch {
       set({ status: 'locked' });
     }
@@ -68,10 +71,10 @@ export const useVault = create<VaultState>((set, get) => ({
     if (!env) return false;
     try {
       const k = await deriveKey(password, env.salt);
-      let doc = await open<PrivateDoc>(k, env);
+      let doc = normalizePrivate(await open<PrivateDoc>(k, env));
       // Coffre local ET coffre distant : on fusionne les deux (même mot de passe, donc même sel).
       const remote = get().remote;
-      if (remote && remote !== env && remote.salt === env.salt) doc = mergePrivate(doc, await open<PrivateDoc>(k, remote));
+      if (remote && remote !== env && remote.salt === env.salt) doc = mergePrivate(doc, normalizePrivate(await open<PrivateDoc>(k, remote)));
       key = k;
       salt = env.salt;
       await idbSet(KEY_KEY, { key, salt });
@@ -102,13 +105,27 @@ export const useVault = create<VaultState>((set, get) => ({
     void persist();
   },
 
+  setGroups(lessonId, groups) {
+    const doc = get().doc;
+    set({ doc: { ...doc, groups: { ...doc.groups, [lessonId]: { ...(groups ?? { assign: {}, count: 0 }), t: Date.now() } } }, revision: get().revision + 1 });
+    void persist();
+  },
+
+  saveGroups(id, g) {
+    const doc = get().doc;
+    set({ doc: { ...doc, savedGroups: { ...doc.savedGroups, [id]: { ...g, t: Date.now() } } }, revision: get().revision + 1 });
+    void persist();
+  },
+
   wipe() {
     const doc = get().doc;
     const t = Date.now();
     // Listes vides et lignes vides datées de maintenant : la fusion les propage aux autres appareils.
     const rosters = Object.fromEntries(Object.keys(doc.rosters).map((id) => [id, { students: [], updatedAt: t }]));
     const sheets = Object.fromEntries(Object.entries(doc.sheets).map(([id, rows]) => [id, Object.fromEntries(Object.keys(rows).map((s) => [s, { v: {}, t }]))]));
-    set({ doc: { version: 1, rosters, sheets }, revision: get().revision + 1 });
+    const groups = Object.fromEntries(Object.keys(doc.groups).map((id) => [id, { assign: {}, count: 0, t }]));
+    const savedGroups = Object.fromEntries(Object.entries(doc.savedGroups).map(([id, g]) => [id, { ...g, assign: {}, count: 0, deleted: true, t }]));
+    set({ doc: { version: 1, rosters, sheets, groups, savedGroups }, revision: get().revision + 1 });
     void persist();
   },
 }));
@@ -151,12 +168,12 @@ export async function syncVault(cfg: GithubConfig): Promise<void> {
     let merged = st.doc;
     if (remote) {
       if (remote.salt !== salt) throw new Error('Le coffre des élèves en ligne a un autre mot de passe que cet appareil.');
-      merged = mergePrivate(st.doc, await open<PrivateDoc>(key, remote));
+      merged = mergePrivate(st.doc, normalizePrivate(await open<PrivateDoc>(key, remote)));
       if (!samePrivate(merged, st.doc)) {
         useVault.setState({ doc: merged, revision: st.revision });
         await persist();
       }
-      if (samePrivate(merged, await open<PrivateDoc>(key, remote))) return;
+      if (samePrivate(merged, normalizePrivate(await open<PrivateDoc>(key, remote)))) return;
     }
     try {
       await putFile(fileCfg, JSON.stringify(await seal(key, salt, merged)), remoteFile.sha, 'Coffre des élèves (chiffré)');

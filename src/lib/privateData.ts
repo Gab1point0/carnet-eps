@@ -16,19 +16,47 @@ export interface StudentMarks {
   t: number;
 }
 
+/** Répartition en groupes : élève → numéro de groupe (1, 2…). `count` = nombre de groupes affichés. */
+export interface Grouping {
+  assign: Record<ID, number>;
+  count: number;
+  t: number;
+}
+
+/** Groupes enregistrés d'une classe (« Équipes du tournoi »…), réutilisables dans toutes ses fiches. */
+export interface SavedGrouping extends Grouping {
+  classId: ID;
+  name: string;
+  /** Supprimé : gardé vide pour que la suppression passe aux autres appareils. */
+  deleted?: boolean;
+}
+
 export interface PrivateDoc {
   version: 1;
   /** Élèves de chaque classe. */
   rosters: Record<ID, { students: Student[]; updatedAt: number }>;
   /** Fiches remplies : séance → élève → résultats. */
   sheets: Record<ID, Record<ID, StudentMarks>>;
+  /** Groupes de chaque fiche (séance → groupes). */
+  groups: Record<ID, Grouping>;
+  /** Groupes enregistrés, par identifiant. */
+  savedGroups: Record<ID, SavedGrouping>;
 }
 
-export const emptyPrivate = (): PrivateDoc => ({ version: 1, rosters: {}, sheets: {} });
+export const emptyPrivate = (): PrivateDoc => ({ version: 1, rosters: {}, sheets: {}, groups: {}, savedGroups: {} });
+
+/** Coffre d'une version précédente (sans groupes) : on complète. */
+export const normalizePrivate = (d: Partial<PrivateDoc>): PrivateDoc => ({ ...emptyPrivate(), ...d, groups: d.groups ?? {}, savedGroups: d.savedGroups ?? {} });
+
+const newest = <T extends { t: number }>(x: T | undefined, y: T | undefined) => (!x ? y! : !y ? x : y.t > x.t ? y : x);
 
 /** Fusion de deux appareils : la liste d'élèves la plus récente l'emporte ; pour les fiches, élève par élève. */
-export function mergePrivate(a: PrivateDoc, b: PrivateDoc): PrivateDoc {
+export function mergePrivate(a0: PrivateDoc, b0: PrivateDoc): PrivateDoc {
+  const a = normalizePrivate(a0);
+  const b = normalizePrivate(b0);
   const out = emptyPrivate();
+  for (const id of new Set([...Object.keys(a.groups), ...Object.keys(b.groups)])) out.groups[id] = newest(a.groups[id], b.groups[id]);
+  for (const id of new Set([...Object.keys(a.savedGroups), ...Object.keys(b.savedGroups)])) out.savedGroups[id] = newest(a.savedGroups[id], b.savedGroups[id]);
   for (const id of new Set([...Object.keys(a.rosters), ...Object.keys(b.rosters)])) {
     const x = a.rosters[id];
     const y = b.rosters[id];
