@@ -285,7 +285,7 @@ export function LessonPage() {
         <Field label="🎯 Objectif de la séance">
           <TextArea value={lesson.objective} onChange={(v) => patch({ objective: v })} minRows={3} placeholder="Ce que les élèves doivent savoir faire à la fin de la séance." />
         </Field>
-        <Field label="🧰 Matériel de la séance (objet — bloc où il sert)">
+        <Field label="🧰 Matériel de la séance">
           <MarkdownField value={lesson.materials} onChange={(v) => patch({ materials: v })} minRows={6} placeholder={'Une ligne par objet, avec le bloc où il sert :\n- 15 ballons — bloc 2 (passes) ; bloc 3 (match)'} />
           <Button size="sm" icon={<RefreshCw size={15} />} style={{ marginTop: 8 }} onClick={refreshMaterials}>
             Mettre à jour depuis les situations

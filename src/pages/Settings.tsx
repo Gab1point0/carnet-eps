@@ -18,25 +18,80 @@ import { AiSection } from '../components/AiSection';
 import { uid } from '../lib/util';
 import { plural } from '../lib/util';
 
+type SettingsTab = 'profil' | 'annee' | 'lieux' | 'activites' | 'ia' | 'sauvegarde';
+const TAB_KEY = 'carnet-eps:settings-tab';
+
 export function SettingsPage() {
   const location = useLocation();
+  // Un lien vers « #sync » ouvre directement l'onglet Sauvegarde ; sinon on revient au dernier onglet ouvert.
+  const [tab, setTabState] = useState<SettingsTab>(() => {
+    if (location.hash === '#sync') return 'sauvegarde';
+    try {
+      return (localStorage.getItem(TAB_KEY) as SettingsTab) || 'profil';
+    } catch {
+      return 'profil';
+    }
+  });
+  const setTab = (t: SettingsTab) => {
+    setTabState(t);
+    try {
+      localStorage.setItem(TAB_KEY, t);
+    } catch {
+      /* stockage indisponible */
+    }
+  };
   useEffect(() => {
-    if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (location.hash === '#sync') setTabState('sauvegarde');
   }, [location.hash]);
 
   return (
     <>
       <PageHeader title="Réglages" />
-      <ProfileSection />
-      <AiSection />
-      <YearsSection />
-      <ListsSection />
-      <VenuesSection />
-      <ActivitiesSection />
-      <AppearanceSection />
-      <DataSection />
-      <SyncSection />
-      <AboutSection />
+      <div className="settings-tabs">
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { id: 'profil', label: 'Profil' },
+            { id: 'annee', label: 'Année' },
+            { id: 'lieux', label: 'Lieux' },
+            { id: 'activites', label: 'Activités' },
+            { id: 'ia', label: 'Assistant IA' },
+            { id: 'sauvegarde', label: 'Sauvegarde' },
+          ]}
+        />
+      </div>
+      {tab === 'profil' && (
+        <>
+          <ProfileSection />
+          <AppearanceSection />
+        </>
+      )}
+      {tab === 'annee' && <YearsSection />}
+      {tab === 'lieux' && (
+        <>
+          <VenuesSection />
+          <Section title="Météo des cours en plein air">
+            <Card>
+              <WeatherField />
+            </Card>
+          </Section>
+        </>
+      )}
+      {tab === 'activites' && (
+        <>
+          <ActivitiesSection />
+          <ListsSection />
+        </>
+      )}
+      {tab === 'ia' && <AiSection />}
+      {tab === 'sauvegarde' && (
+        <>
+          <SyncSection />
+          <DataSection />
+          <AboutSection />
+        </>
+      )}
     </>
   );
 }
@@ -57,7 +112,6 @@ function ProfileSection() {
             <NumberInput value={settings.defaultLessonMinutes} min={20} max={240} onChange={(v) => patch({ defaultLessonMinutes: v ?? 110 })} />
           </Field>
         </div>
-        <WeatherField />
       </Card>
     </Section>
   );
@@ -218,16 +272,9 @@ function ListsSection() {
   const settings = useSettings();
   const patch = useData.getState().patchSettings;
   return (
-    <Section title="Niveaux et lieux">
+    <Section title="Niveaux de classe proposés">
       <Card>
-        <div className="grid grid-2">
-          <Field label="Niveaux proposés">
-            <TagInput value={settings.levels} onChange={(levels) => patch({ levels })} />
-          </Field>
-          <Field label="Lieux proposés dans l'emploi du temps">
-            <TagInput value={settings.places} onChange={(places) => patch({ places })} />
-          </Field>
-        </div>
+        <TagInput value={settings.levels} onChange={(levels) => patch({ levels })} />
       </Card>
     </Section>
   );
@@ -246,9 +293,9 @@ function VenuesSection() {
   };
 
   return (
-    <Section title="Lieux des séances">
+    <Section title="Lieux">
       <Card className="stack">
-        <p className="muted small">Chaque séance peut indiquer son lieu : le trajet (aller et retour) et le vestiaire (avant et après) s'affichent dans le déroulé et sont retirés du temps disponible. Laissez une case vide si vous ne connaissez pas encore la durée.</p>
+        <p className="muted small">Le trajet (aller et retour) et le vestiaire (avant et après) sont retirés du temps de la séance. Choisissez le lieu de chaque créneau dans la fiche de la classe (« Modifier / emploi du temps ») : ses séances le prennent d'elles-mêmes.</p>
         {settings.venues.map((v) => (
           <div key={v.id} className="venue-row">
             <Field label="Nom">
@@ -349,7 +396,7 @@ function AppearanceSection() {
   return (
     <Section title="Apparence">
       <Card>
-        <Field label="Thème (propre à cet appareil)">
+        <Field label="Thème (propre à cet appareil)" hint="« Plein soleil » : très contrasté, pour lire le téléphone dehors.">
           <Tabs<Theme>
             value={theme}
             onChange={setTheme}
@@ -357,6 +404,7 @@ function AppearanceSection() {
               { id: 'auto', label: 'Automatique' },
               { id: 'light', label: 'Clair' },
               { id: 'dark', label: 'Sombre' },
+              { id: 'sun', label: 'Plein soleil' },
             ]}
           />
         </Field>
@@ -644,8 +692,7 @@ function AboutSection() {
         <p>
           <strong>Sur ordinateur :</strong> dans Chrome ou Edge, cliquez sur l'icône « Installer » de la barre d'adresse.
         </p>
-        <p className="muted small">Carnet EPS · données stockées localement dans votre navigateur · synchronisation facultative via votre propre dépôt GitHub.</p>
-      </Card>
+        </Card>
     </Section>
   );
 }

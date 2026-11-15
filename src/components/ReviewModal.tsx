@@ -153,7 +153,7 @@ export function ReviewModal({ lesson, onClose }: { lesson: Lesson; onClose: () =
             ))}
           </div>
           <p className="muted small">
-            Vous pouvez le dicter : « six débutants, dix en cours, huit acquis, deux avancés. » Les séances suivantes seront adaptées à ce niveau (propositions à accepter ou refuser).
+            Vous pouvez le dicter : « six débutants, dix en cours, huit acquis, deux avancés. »
           </p>
         </div>
       )}

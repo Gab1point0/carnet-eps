@@ -5,7 +5,7 @@ import type { ID } from '../types';
 
 const PREFS_KEY = 'carnet-eps:prefs';
 
-export type Theme = 'auto' | 'light' | 'dark';
+export type Theme = 'auto' | 'light' | 'dark' | 'sun';
 
 interface Prefs {
   yearId: ID | null;

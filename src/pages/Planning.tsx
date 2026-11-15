@@ -87,6 +87,18 @@ function layout(items: Item[]): Array<Item & { lane: number; lanes: number }> {
   return res;
 }
 
+/** Titre court pour une case du planning : « Séance 3 : Revers » → « Revers ». */
+export function shortTitle(title: string): string {
+  const t = title.replace(/^\s*s[ée]ance\s*\d+\s*[:—–-]\s*/i, '').trim();
+  return t || title.trim() || 'Séance sans titre';
+}
+
+/** Emoji de l'activité d'une séance (la sienne ou celle de son cycle). */
+function useEmojiOf() {
+  const data = useData((st) => st.data);
+  return (l: Lesson) => activityOf(data, l.activityId ?? (l.cycleId ? data.cycles[l.cycleId]?.activityId : null) ?? null)?.emoji ?? '';
+}
+
 export function PlanningPage() {
   const [params, setParams] = useSearchParams();
   const view = (params.get('view') as View) || 'week';
@@ -180,6 +192,7 @@ export function PlanningPage() {
 
 function WeekView({ weekStart, classes, lessons, year }: { weekStart: string; classes: Klass[]; lessons: Lesson[]; year: SchoolYear }) {
   const navigate = useNavigate();
+  const emojiOf = useEmojiOf();
   const today = todayISO();
   const days = useMemo(() => {
     const base = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -244,8 +257,10 @@ function WeekView({ weekStart, classes, lessons, year }: { weekStart: string; cl
                     onClick={() => open(it)}
                     title={it.lesson ? it.lesson.title : `Créer une séance pour ${it.klass.name}`}
                   >
-                    <strong>{it.klass.name}</strong>
-                    <span>{it.lesson ? it.lesson.title || 'Séance sans titre' : '+ séance'}</span>
+                    <strong>
+                      {it.lesson && emojiOf(it.lesson)} {it.klass.name}
+                    </strong>
+                    <span>{it.lesson ? shortTitle(it.lesson.title) : '+ séance'}</span>
                     <small>
                       {it.start}–{it.end}
                     </small>
@@ -278,9 +293,11 @@ function WeekView({ weekStart, classes, lessons, year }: { weekStart: string; cl
                     <small>{it.end}</small>
                   </span>
                   <span className="grow" style={{ textAlign: 'left' }}>
-                    <strong>{it.klass.name}</strong>
+                    <strong>
+                      {it.lesson && emojiOf(it.lesson)} {it.klass.name}
+                    </strong>
                     <br />
-                    <span className="muted">{it.lesson ? it.lesson.title || 'Séance sans titre' : 'Créneau libre — créer une séance'}</span>
+                    <span className="muted">{it.lesson ? shortTitle(it.lesson.title) : 'Créneau libre — créer une séance'}</span>
                   </span>
                   {it.lesson ? <StatusIcon status={it.lesson.status} size={18} /> : <Plus size={18} />}
                 </button>

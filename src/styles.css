@@ -10,7 +10,7 @@
   --border: #dfe4ea;
   --border-strong: #c7ced8;
   --text: #0f172a;
-  --muted: #64748b;
+  --muted: #556377;
   --primary: #0f766e;
   --primary-hover: #0b5f58;
   --primary-soft: #d8f0ed;
@@ -48,7 +48,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme='light']):not([data-theme='sun']) {
     --bg: #0b1220;
     --surface: #121a2b;
     --surface-2: #1a2438;
@@ -418,3 +418,20 @@ input[type='checkbox'] { accent-color: var(--primary); width: 18px; height: 18px
   .ae-title { display: none; }
 }
 textarea.title-input { resize: none; overflow: hidden; line-height: 1.25; display: block; }
+
+/* « Plein soleil » : clair et très contrasté, pour lire le téléphone dehors (stade, cour). */
+:root[data-theme='sun'] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --border: #94a3b8;
+  --border-strong: #475569;
+  --text: #000000;
+  --muted: #1e293b;
+  --primary: #0b5f58;
+  --primary-hover: #073f3a;
+  --primary-soft: #c5ebe6;
+  --shadow: none;
+}
+:root[data-theme='sun'] body { font-size: 1.06rem; font-weight: 500; }
+:root[data-theme='sun'] .card, :root[data-theme='sun'] .block { border-width: 2px; }

@@ -27,6 +27,7 @@ export function ClassesPage() {
   const cycles = useYearCycles();
   const lessons = useYearLessons();
   const navigate = useNavigate();
+  const settings = useData((st) => st.data.settings);
   const [creating, setCreating] = useState<Klass | null>(null);
   const [newYear, setNewYear] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
@@ -45,6 +46,23 @@ export function ClassesPage() {
     }
     return map;
   }, [classes, cycles, lessons]);
+
+  // Cycles en cours de chaque classe (souvent deux en parallèle), avec l'avancement en séances passées.
+  const currentCycles = (classId: string) => {
+    const today = todayISO();
+    return cycles
+      .filter((c) => c.classId === classId && c.startDate && c.startDate <= today && (!c.endDate || c.endDate >= today))
+      .map((c) => {
+        const mine = lessons.filter((l) => l.cycleId === c.id && l.status !== 'cancelled');
+        return {
+          id: c.id,
+          title: c.title.replace(/ — .*/, ''),
+          emoji: settings.activities.find((a) => a.id === c.activityId)?.emoji ?? '',
+          done: mine.filter((l) => l.date && l.date < today).length,
+          total: Math.max(1, mine.length),
+        };
+      });
+  };
 
   const previousYear = year ? years.find((y) => y.start < year.start) : undefined;
 
@@ -126,11 +144,16 @@ export function ClassesPage() {
                       </span>
                     )}
                   </div>
-                  {s.lessons > 0 && (
-                    <div className="progress" aria-label={`${s.done} séances faites sur ${s.lessons}`}>
-                      <div style={{ width: `${(s.done / s.lessons) * 100}%` }} />
+                  {currentCycles(k.id).map((c) => (
+                    <div key={c.id} className="class-card-cycle small">
+                      <span>
+                        {c.emoji} {c.title} <span className="muted">· {c.done}/{c.total}</span>
+                      </span>
+                      <div className="progress">
+                        <div style={{ width: `${(c.done / c.total) * 100}%` }} />
+                      </div>
                     </div>
-                  )}
+                  ))}
                   <p className="small muted">{s.next ? `Prochaine séance : ${formatShort(s.next)}` : s.lessons ? 'Aucune séance à venir' : 'Pas encore de séance'}</p>
                 </Card>
               </Link>

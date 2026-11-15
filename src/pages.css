@@ -21,7 +21,7 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .chip-shared { background: var(--primary-soft); color: var(--primary); width: fit-content; }
 .chip-todo { background: #fef3c7; color: #92400e; }
 :root[data-theme='dark'] .chip-todo { background: #4a3410; color: #fcd34d; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .chip-todo { background: #4a3410; color: #fcd34d; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']):not([data-theme='sun']) .chip-todo { background: #4a3410; color: #fcd34d; } }
 
 /* ── Accueil ────────────────────────────────────────────────────────────── */
 
@@ -513,3 +513,8 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .class-year-missing { opacity: 0.55; border-left-style: dashed; }
 .class-year-stats { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--muted); }
 .class-year-stats strong { color: var(--text); }
+
+.class-card-cycle { display: flex; flex-direction: column; gap: 4px; }
+
+.settings-tabs { margin-bottom: 4px; }
+.settings-tabs .tabs { width: 100%; }
