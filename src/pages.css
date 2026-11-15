@@ -635,3 +635,11 @@ code.formula { font-family: ui-monospace, Consolas, monospace; background: var(-
 .formula-input { font-family: ui-monospace, Consolas, monospace; }
 .formula-help { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 .num-calc { font-style: italic; background: var(--surface-2); }
+
+/* Zone où l'on parle à Claude : texte + micro */
+.voice-area { display: flex; flex-direction: column; gap: 4px; min-width: 0; width: 100%; align-self: stretch; }
+.voice-area-row { display: flex; gap: 8px; align-items: stretch; }
+.voice-area-row > .textarea { flex: 1; min-width: 0; }
+.voice-mic { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 64px; border-radius: 12px; border: 2px dashed var(--primary); background: var(--primary-soft); color: var(--text); font-weight: 700; font-size: 0.75rem; cursor: pointer; }
+.voice-mic-on { border-style: solid; background: var(--primary); color: var(--on-primary); animation: voice-pulse 1.2s ease-in-out infinite; }
+@keyframes voice-pulse { 50% { opacity: 0.75; } }

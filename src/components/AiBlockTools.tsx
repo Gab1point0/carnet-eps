@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Eye, Film, Loader, Pencil, RefreshCw, Sparkles, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Animation, AppData, Block, CustomSheet, Lesson } from '../types';
-import { Button, Modal, TextArea } from './ui';
+import { Button, Modal } from './ui';
+import { VoiceTextArea, type VoiceTextAreaHandle } from './VoiceTextArea';
 import { AnimationPlayer } from '../animation/Player';
 import { FicheEditor } from './FicheEditor';
 import { FicheView } from '../pages/Fiche';
@@ -109,25 +110,27 @@ function AiPreviewModal({
   const [sheet, setSheet] = useState<CustomSheet | null>(initial);
   const [anim, setAnim] = useState<Animation | null>(null);
   const [instruction, setInstruction] = useState('');
+  const voice = useRef<VoiceTextAreaHandle>(null);
   const [byHand, setByHand] = useState(false);
   const alive = useRef(true);
   const canAsk = !!lesson && aiReady();
 
   const generate = async (first: boolean) => {
     if (!lesson) return;
+    const said = first ? '' : ((await voice.current?.finish()) ?? instruction);
     setBusy(true);
     setError('');
     const ctx = teachingCtx(data, lesson);
     try {
       if (mode === 'fiche') {
-        const s = await aiFiche(block, ctx, first || !sheet ? null : cleanSheet(sheet), first ? '' : instruction);
+        const s = await aiFiche(block, ctx, first || !sheet ? null : cleanSheet(sheet), said);
         // Une fiche modifiée garde son identifiant : les liens d'impression restent valables.
         if (alive.current) {
           setSheet(initial ? { ...s, id: initial.id } : s);
           setByHand(false);
         }
       } else {
-        const a = await aiAnimation(block, ctx, first ? null : anim, first ? '' : instruction);
+        const a = await aiAnimation(block, ctx, first ? null : anim, said);
         if (alive.current) setAnim(a);
       }
       if (alive.current) setInstruction('');
@@ -209,7 +212,7 @@ function AiPreviewModal({
       )}
       {!busy && canAsk && (
         <div className="voice-type">
-          <TextArea value={instruction} onChange={setInstruction} minRows={2} placeholder={ready ? 'Ce qu\'il faut changer (facultatif) : « ajoute une colonne pour les fautes », « mets 2 défenseurs »…' : 'Précisions pour Claude (facultatif)'} />
+          <VoiceTextArea ref={voice} value={instruction} onChange={setInstruction} minRows={2} placeholder={ready ? 'Ce qu\'il faut changer (facultatif) : « ajoute une colonne pour les fautes », « mets 2 défenseurs »…' : 'Précisions pour Claude (facultatif)'} />
           <Button size="sm" icon={<RefreshCw size={15} />} onClick={() => generate(!ready)}>
             {ready ? 'Refaire avec ces changements' : 'Réessayer'}
           </Button>

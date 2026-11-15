@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardCheck, Copy, Download, Eye, FileText, Image, Loader, Paperclip, Pencil, RefreshCw, Sparkles, X } from 'lucide-react';
 import { EvalSheetEditor, cleanEvalSheet } from './EvalSheetEditor';
@@ -12,6 +12,7 @@ import { buildEvalWorkbook, critPoints, cumulativeScript, isScored, KIND_NAMES, 
 import { activityOf } from '../store/selectors';
 import { formatLong } from '../lib/dates';
 import { Button, IconButton, Modal, NumberInput, TextArea } from './ui';
+import { VoiceTextArea, type VoiceTextAreaHandle } from './VoiceTextArea';
 
 /**
  * « Fiche d'évaluation » d'une séance : Claude prépare les critères (d'après la séance, le cycle, la classe,
@@ -53,6 +54,7 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
     }
   };
   const [instruction, setInstruction] = useState('');
+  const voice = useRef<VoiceTextAreaHandle>(null);
   const [step, setStep] = useState('');
   const [error, setError] = useState('');
   const save = (s: EvalSheetSpec) => {
@@ -62,6 +64,8 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
 
   const generate = async () => {
     setError('');
+    // Derniers mots dictés compris dans la demande.
+    const said = (await voice.current?.finish()) ?? instruction;
     setStep('Préparation…');
     try {
       const s = await aiEvalSheet(
@@ -79,7 +83,7 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
           },
           referential,
           attachments: docs,
-          instruction: spec ? `${instruction}\nVersion précédente : ${JSON.stringify(spec)}` : instruction,
+          instruction: spec ? `${said}\nVersion précédente : ${JSON.stringify(spec)}` : said,
         },
         setStep,
       );
@@ -300,7 +304,7 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
 
       <div className="voice-type">
         {spec && <span className="field-label">Demander une modification à Claude</span>}
-        <TextArea
+        <VoiceTextArea ref={voice}
           value={instruction}
           onChange={setInstruction}
           minRows={2}

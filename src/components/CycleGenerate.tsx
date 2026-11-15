@@ -11,7 +11,8 @@ import { materialsFromBlocks } from '../lib/materials';
 import { durationOf } from '../lib/dates';
 import { cls } from '../lib/util';
 import { teachingCtx } from './AiBlockTools';
-import { Button, Modal, TextArea } from './ui';
+import { Button, Modal } from './ui';
+import { VoiceTextArea, type VoiceTextAreaHandle } from './VoiceTextArea';
 
 type Mode = 'plan' | 'full';
 
@@ -40,6 +41,7 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
   const [mode, setMode] = useState<Mode>('plan');
   const [replace, setReplace] = useState(false);
   const [instruction, setInstruction] = useState('');
+  const voice = useRef<VoiceTextAreaHandle>(null);
   const [progress, setProgress] = useState<string>('');
   const [error, setError] = useState('');
   const cancel = useRef(false);
@@ -52,6 +54,7 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
   const run = async () => {
     setError('');
     cancel.current = false;
+    const said = (await voice.current?.finish()) ?? instruction;
     const snapshot = targets.map((l) => ({ id: l.id, before: { title: l.title, objective: l.objective, evalKind: l.evalKind, blocks: l.blocks, materials: l.materials, safety: l.safety } }));
     const restore = () => useData.getState().transact((tx) => snapshot.forEach((s) => tx.patch('lessons', s.id, s.before)));
     let done = 0;
@@ -71,7 +74,7 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
           objective: l.objective,
           prepared: !isEmptyLesson(l),
         })),
-        instruction,
+        instruction: said,
       });
       const planText = plan.map((p, k) => `${k + 1}. ${p.title} — ${p.objective}`).join('\n');
 
@@ -105,7 +108,7 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
           const r = await aiFromObjective(
             emptyDraft(),
             start,
-            `${p.title} : ${p.objective}\n\nPlan de la séquence (pour situer cette séance dans la progression) :\n${planText}${instruction.trim() ? `\n\nConsignes de l'enseignant pour tout le cycle : ${instruction.trim()}` : ''}`,
+            `${p.title} : ${p.objective}\n\nPlan de la séquence (pour situer cette séance dans la progression) :\n${planText}${said.trim() ? `\n\nConsignes de l'enseignant pour tout le cycle : ${said.trim()}` : ''}`,
             teachingCtx(state, start),
             cycleCtx,
           );
@@ -183,7 +186,7 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
         {targets.length === 0 ? 'Toutes les séances sont déjà préparées : cochez la case ci-dessus pour les refaire.' : `${targets.length} séance${targets.length > 1 ? 's' : ''} sur ${live.length} ser${targets.length > 1 ? 'ont' : 'a'} remplie${targets.length > 1 ? 's' : ''}. Tout s'annule d'un geste à la fin.`}
       </p>
 
-      <TextArea value={instruction} onChange={setInstruction} minRows={2} placeholder="Consignes pour tout le cycle (facultatif) : « le même échauffement à chaque séance », « une seule salle », « travail par ateliers »…" />
+      <VoiceTextArea ref={voice} value={instruction} onChange={setInstruction} minRows={2} placeholder="Consignes pour tout le cycle (facultatif) : « le même échauffement à chaque séance », « une seule salle », « travail par ateliers »…" />
 
       {progress && (
         <p className="muted row" style={{ gap: 8 }}>
