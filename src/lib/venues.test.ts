@@ -48,3 +48,13 @@ describe('lieu du créneau', () => {
     expect(venueOf(settings, { venueId: null, date: '2026-11-17', start: '13:55' }, klass)).toBeUndefined();
   });
 });
+
+describe('lieu du cycle', () => {
+  const klass = { slots: [{ id: 's', weekday: 1, start: '13:55', end: '14:50', place: '', venueId: 'college' }] };
+  it('passe avant le créneau, après le lieu choisi sur la séance', () => {
+    const at = { date: '2026-11-16', start: '13:55' };
+    expect(venueOf(settings, { venueId: null, ...at }, klass, { venueId: 'jardin-ile' })?.id).toBe('jardin-ile');
+    expect(venueOf(settings, { venueId: 'picherettes', ...at }, klass, { venueId: 'jardin-ile' })?.id).toBe('picherettes');
+    expect(venueOf(settings, { venueId: null, ...at }, klass, { venueId: null })?.id).toBe('college');
+  });
+});

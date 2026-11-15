@@ -1,4 +1,4 @@
-import type { Klass, Lesson, Settings, Slot, Venue } from '../types';
+import type { Cycle, Klass, Lesson, Settings, Slot, Venue } from '../types';
 import { durationOf, weekdayOf } from './dates';
 
 /** Créneau de la classe où tombe la séance (même jour ; même heure de début si la classe a deux créneaux ce jour-là). */
@@ -8,11 +8,31 @@ export function slotOf(klass: Pick<Klass, 'slots'> | undefined, lesson: Pick<Les
   return day.find((s) => s.start === lesson.start) ?? (day.length === 1 ? day[0] : undefined);
 }
 
-/** Lieu choisi sur la séance ; sinon celui du créneau de l'emploi du temps. */
-export function venueOf(settings: Pick<Settings, 'venues'>, lesson: Pick<Lesson, 'venueId'> & Partial<Pick<Lesson, 'date' | 'start'>>, klass?: Pick<Klass, 'slots'>): Venue | undefined {
-  const id = lesson.venueId ?? slotOf(klass, { date: lesson.date ?? null, start: lesson.start ?? '' })?.venueId;
-  return id ? settings.venues.find((v) => v.id === id) : undefined;
+/** D'où vient le lieu d'une séance : la séance elle-même, son cycle, ou le créneau de l'emploi du temps. */
+export type VenueSource = 'lesson' | 'cycle' | 'slot';
+
+/** Lieu choisi sur la séance ; sinon celui du cycle ; sinon celui du créneau de l'emploi du temps. */
+export function venueOf(
+  settings: Pick<Settings, 'venues'>,
+  lesson: Pick<Lesson, 'venueId'> & Partial<Pick<Lesson, 'date' | 'start'>>,
+  klass?: Pick<Klass, 'slots'>,
+  cycle?: Pick<Cycle, 'venueId'>,
+): Venue | undefined {
+  return venueWithSource(settings, lesson, klass, cycle)?.venue;
 }
+
+export function venueWithSource(
+  settings: Pick<Settings, 'venues'>,
+  lesson: Pick<Lesson, 'venueId'> & Partial<Pick<Lesson, 'date' | 'start'>>,
+  klass?: Pick<Klass, 'slots'>,
+  cycle?: Pick<Cycle, 'venueId'>,
+): { venue: Venue; source: VenueSource } | undefined {
+  const slot = slotOf(klass, { date: lesson.date ?? null, start: lesson.start ?? '' })?.venueId;
+  const [id, source]: [string | null | undefined, VenueSource] = lesson.venueId ? [lesson.venueId, 'lesson'] : cycle?.venueId ? [cycle.venueId, 'cycle'] : [slot, 'slot'];
+  const venue = id ? settings.venues.find((v) => v.id === id) : undefined;
+  return venue ? { venue, source } : undefined;
+}
+
 
 export interface VenueStep {
   id: string;

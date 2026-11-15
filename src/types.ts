@@ -91,6 +91,8 @@ export interface Cycle extends Meta {
   notes: string;
   /** Bilan de fin de cycle (rédigé à la main ou par Claude). */
   review: string;
+  /** Lieu de pratique du cycle : ses séances le prennent, sauf si elles ont le leur. */
+  venueId: ID | null;
   order: number;
 }
 

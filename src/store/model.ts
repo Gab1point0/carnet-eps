@@ -75,6 +75,7 @@ export function newCycle(classId: ID | null, order: number, title = ''): Cycle {
     evaluation: '',
     notes: '',
     review: '',
+    venueId: null,
     order,
   };
 }

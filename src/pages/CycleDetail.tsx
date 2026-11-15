@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, ArrowUp, BookmarkPlus, CalendarClock, ChevronLeft, Copy, Plus, Printer, Trash2, X } from 'lucide-react';
-import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, TextArea, TitleInput } from '../components/ui';
+import { Button, Card, EmptyState, Field, IconButton, Menu, PageHeader, Section, Select, TextArea, TitleInput } from '../components/ui';
 import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../components/cards';
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
 import { EvalPath } from '../components/EvalPath';
@@ -92,6 +92,19 @@ export function CycleDetailPage() {
       />
 
       <CycleTimeline lessons={lessons} />
+
+      {!isTemplate && (
+        <label className="cycle-venue">
+          <span className="field-label">📍 Lieu de pratique</span>
+          <Select
+            value={cycle.venueId ?? ''}
+            placeholder="Selon l'emploi du temps"
+            onChange={(v) => patch({ venueId: v || null })}
+            options={data.settings.venues.map((v) => ({ value: v.id, label: v.name }))}
+          />
+          <span className="muted small">Toutes les séances du cycle s'y déroulent (trajet et vestiaire comptés), sauf celles qui ont leur propre lieu.</span>
+        </label>
+      )}
 
       <EvalPath lessons={lessons} />
 

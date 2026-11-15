@@ -22,7 +22,7 @@ export function teachingCtx(data: AppData, lesson: Lesson): TeachingCtx {
     level: klass?.level ?? lesson.classLevels?.[0] ?? '',
     cycle: cycle?.title ?? '',
     activity: activityOf(data, lesson.activityId ?? cycle?.activityId ?? null)?.name ?? '',
-    planned: availableMinutes(lesson, venueOf(data.settings, lesson, klass)),
+    planned: availableMinutes(lesson, venueOf(data.settings, lesson, klass, cycle)),
     activities: data.settings.activities.map((a) => a.name),
   };
 }

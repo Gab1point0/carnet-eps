@@ -62,7 +62,7 @@ export function TodayPage() {
           const endsIn = live ? timeToMin(l.end) - minute : null;
           const cycle = l.cycleId ? data.cycles[l.cycleId] : undefined;
           const act = activityOf(data, l.activityId ?? cycle?.activityId ?? null);
-          const venue = venueOf(settings, l, k);
+          const venue = venueOf(settings, l, k, cycle);
           return (
             <Card key={l.id} className={cls('today-card', live && 'today-live', past && 'today-past')} style={{ ['--class' as string]: k?.color }}>
               <Link to={`/lessons/${l.id}`} className="today-main">

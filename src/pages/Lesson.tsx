@@ -11,7 +11,7 @@ import { MarkdownField } from '../components/MarkdownField';
 import { LevelsField } from '../components/LevelsField';
 import { EVAL_KINDS } from '../lib/levels';
 import type { Block, BlockKind, ID, Lesson, Venue } from '../types';
-import { venueOf, venueTime, type VenueStep } from '../lib/venues';
+import { venueOf, venueTime, venueWithSource, type VenueStep } from '../lib/venues';
 import { Button, Card, Chip, Field, Menu, Modal, PageHeader, Section, Select, TagInput, TextArea , TitleInput } from '../components/ui';
 import { ClassDot } from '../components/cards';
 import { ActivitySelect, DateField, TimeField } from '../components/forms';
@@ -83,9 +83,9 @@ export function LessonPage() {
   };
 
   const planned = lesson.start && lesson.end ? durationOf(lesson.start, lesson.end) : 0;
-  const venue = venueOf(data.settings, lesson, klass);
-  // Lieu venu de l'emploi du temps (la séance n'en a pas à elle).
-  const slotVenue = lesson.venueId ? undefined : venue;
+  const venue = venueOf(data.settings, lesson, klass, cycle);
+  // Lieu hérité du cycle ou de l'emploi du temps (la séance n'en a pas à elle).
+  const inherited = lesson.venueId ? undefined : venueWithSource(data.settings, lesson, klass, cycle);
   const venueSteps = venueTime(venue);
   const total = lessonTotalMinutes(lesson);
 
@@ -258,7 +258,7 @@ export function LessonPage() {
           <Field label="Lieu">
             <Select
               value={lesson.venueId ?? ''}
-              placeholder={slotVenue ? `${slotVenue.name} (créneau)` : 'Non précisé'}
+              placeholder={inherited ? `${inherited.venue.name} (${inherited.source === 'cycle' ? 'cycle' : 'créneau'})` : 'Non précisé'}
               onChange={(v) => patch({ venueId: v || null })}
               options={[
                 // Un lieu supprimé des réglages reste choisi : on l'indique plutôt que d'afficher « Non précisé ».

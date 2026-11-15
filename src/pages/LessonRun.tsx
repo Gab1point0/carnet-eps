@@ -121,7 +121,7 @@ export function LessonRunPage() {
   const totalMinutes = blocks.reduce((s, b) => s + b.minutes, 0) || 1;
   const progress = step < 0 ? 0 : step >= blocks.length ? 100 : ((doneMinutes * 60 + Math.min(elapsed, (block?.minutes ?? 0) * 60)) / (totalMinutes * 60)) * 100;
   const kind = block ? BLOCK_KINDS[block.kind] : null;
-  const venueSteps = venueTime(venueOf(data.settings, lesson, klass));
+  const venueSteps = venueTime(venueOf(data.settings, lesson, klass, lesson.cycleId ? data.cycles[lesson.cycleId] : undefined));
 
   return (
     <div className="run" style={{ ['--kind' as string]: kind?.color ?? 'var(--primary)' }}>

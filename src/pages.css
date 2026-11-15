@@ -575,3 +575,6 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .gen-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
 .gen-mode { display: flex; flex-direction: column; gap: 6px; text-align: left; font: inherit; color: inherit; cursor: pointer; border: 2px solid var(--border); }
 .gen-mode-on { border-color: var(--primary); background: var(--primary-soft); }
+.cycle-venue { display: grid; grid-template-columns: auto minmax(0, 260px); align-items: center; gap: 4px 12px; }
+.cycle-venue .muted { grid-column: 1 / -1; }
+@media (max-width: 520px) { .cycle-venue { grid-template-columns: minmax(0, 1fr); } }
