@@ -6,7 +6,8 @@ import { confirmDialog, toastUndo } from '../store/ui';
 import { parseRoster } from '../lib/privateData';
 import { uid } from '../lib/util';
 import { Button, Card, IconButton, Modal, Section, TextArea } from './ui';
-import { VaultGate } from './VaultGate';
+import { VaultConflict, VaultGate } from './VaultGate';
+import { VaultHistoryButton } from './VaultHistory';
 
 /** Élèves de la classe (chiffrés) : pour remplir les fiches d'évaluation dans l'application. */
 export function StudentsSection({ klass }: { klass: Klass }) {
@@ -106,6 +107,7 @@ export function StudentsSection({ klass }: { klass: Klass }) {
 export function VaultSettings() {
   const status = useVault((s) => s.status);
   const doc = useVault((s) => s.doc);
+  const conflict = useVault((s) => s.conflict);
   const count = Object.values(doc.rosters).reduce((n, r) => n + r.students.length, 0);
   const filled = Object.values(doc.sheets).filter((rows) => Object.values(rows).some((r) => Object.keys(r.v).length)).length;
   return (
@@ -116,6 +118,7 @@ export function VaultSettings() {
         </p>
         {status === 'open' ? (
           <>
+            {conflict && <VaultConflict />}
             <p className="small">
               <strong>{count}</strong> élèves · <strong>{filled}</strong> fiches remplies
             </p>
@@ -123,6 +126,7 @@ export function VaultSettings() {
               <Button size="sm" icon={<Lock size={15} />} onClick={() => void useVault.getState().lock()}>
                 Verrouiller cet appareil
               </Button>
+              <VaultHistoryButton />
               <Button
                 size="sm"
                 variant="danger"

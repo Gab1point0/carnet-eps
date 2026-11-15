@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveKey, newSalt, open, seal } from './crypto';
-import { emptyPrivate, mergePrivate, parseRoster } from './privateData';
+import { emptyPrivate, mergePrivate, parseRoster, restorePrivate, stampGrouping, stampMarks } from './privateData';
 
 describe('données des élèves', () => {
   it('chiffre et ne déchiffre qu\'avec le bon mot de passe', async () => {
@@ -33,5 +33,80 @@ describe('données des élèves', () => {
       { id: 'x', name: 'Martin Tom' },
       { id: 'n2', name: 'Zoé B.' },
     ]);
+  });
+
+  it("un appareil en retard ne peut plus effacer les groupes faits ailleurs", () => {
+    // Ordinateur : 3 groupes faits à 10 h.
+    const pc = emptyPrivate();
+    pc.groups.yoga = stampGrouping(undefined, { assign: { a: 1, b: 2, c: 3 }, count: 3 }, 10);
+    // Tablette pas encore synchronisée : « Former des groupes » (2 groupes vides) puis place un élève, à 11 h.
+    const tab = emptyPrivate();
+    let g = stampGrouping(undefined, { assign: {}, count: 2 }, 11);
+    g = stampGrouping(g, { assign: { d: 1 }, count: 2 }, 11);
+    tab.groups.yoga = g;
+    const m = mergePrivate(pc, tab);
+    expect(m.groups.yoga.assign).toMatchObject({ a: 1, b: 2, c: 3, d: 1 });
+    expect(m.groups.yoga.count).toBe(3);
+    // Dans l'autre sens aussi.
+    expect(mergePrivate(tab, pc).groups.yoga.assign).toMatchObject({ a: 1, b: 2, c: 3, d: 1 });
+  });
+
+  it("un vrai changement de groupe l'emporte, et retirer les groupes se propage", () => {
+    const base = stampGrouping(undefined, { assign: { a: 1, b: 2 }, count: 2 }, 10);
+    const pc = { ...emptyPrivate(), groups: { l: base } };
+    const tab = { ...emptyPrivate(), groups: { l: stampGrouping(base, { assign: { a: 2, b: 2 }, count: 2 }, 12) } };
+    expect(mergePrivate(pc, tab).groups.l.assign).toEqual({ a: 2, b: 2 });
+    const cleared = { ...emptyPrivate(), groups: { l: stampGrouping(base, { assign: {}, count: 0 }, 13) } };
+    const m = mergePrivate(pc, cleared).groups.l;
+    expect(Object.values(m.assign).filter((x) => x > 0)).toHaveLength(0);
+    expect(m.count).toBe(0);
+  });
+
+  it("garde la compatibilité avec les groupes d'avant (sans dates par élève)", () => {
+    const a = { ...emptyPrivate(), groups: { l: { assign: { x: 1 }, count: 1, t: 5 } } };
+    const b = { ...emptyPrivate(), groups: { l: { assign: { x: 2 }, count: 2, t: 6 } } };
+    expect(mergePrivate(a, b).groups.l).toMatchObject({ assign: { x: 2 }, count: 2 });
+  });
+
+  it("récupère d'une ancienne version les groupes et résultats disparus, sans toucher au reste", () => {
+    const old = emptyPrivate();
+    old.rosters.k = { students: [{ id: 'o1', name: 'Léa D.' }, { id: 'o2', name: 'Tom M.' }], updatedAt: 1 };
+    old.groups.yoga = { assign: { o1: 1, o2: 2 }, count: 2, t: 1 };
+    old.groups.foot = { assign: { o1: 1 }, count: 1, t: 1 };
+    old.savedGroups.s = { classId: 'k', name: 'Équipes', assign: { o1: 1 }, count: 1, t: 1 };
+    old.sheets.eval = { o1: { v: { x: 3 }, t: 1 }, o2: { v: { x: 1 }, t: 1 } };
+    // Aujourd'hui : la classe a été ressaisie (autres identifiants), les groupes de yoga sont vides.
+    const cur = emptyPrivate();
+    cur.rosters.k = { students: [{ id: 'n1', name: 'léa d.' }, { id: 'n2', name: 'Tom M.' }, { id: 'n3', name: 'Zoé B.' }], updatedAt: 5 };
+    cur.groups.yoga = { assign: {}, count: 2, t: 5 };
+    cur.groups.foot = { assign: { n1: 1 }, count: 1, t: 5 };
+    cur.sheets.eval = { n2: { v: { x: 4 }, t: 5 } };
+    const r = restorePrivate(cur, old, 100);
+    expect(r.doc.groups.yoga.assign).toMatchObject({ n1: 1, n2: 2 });
+    expect(r.doc.groups.foot).toBe(cur.groups.foot); // déjà identique
+    expect(r.doc.savedGroups.s.assign).toEqual({ n1: 1 });
+    expect(r.doc.sheets.eval.n1.v.x).toBe(3);
+    expect(r.doc.sheets.eval.n2.v.x).toBe(4); // le résultat d'aujourd'hui est gardé
+    expect(r.doc.rosters.k.students).toHaveLength(3);
+    expect(r).toMatchObject({ groups: 1, saved: 1, rows: 1, rosters: 0 });
+    // La version récupérée passe aux autres appareils : elle est plus récente que leurs groupes vides.
+    const other = { ...emptyPrivate(), groups: { yoga: { assign: {}, count: 2, t: 50 } } };
+    expect(mergePrivate(other, r.doc).groups.yoga.assign).toMatchObject({ n1: 1, n2: 2 });
+  });
+
+  it('fusionne les résultats case par case', () => {
+    const base = stampMarks(undefined, { v: { vma: 13 } }, 10);
+    // Ordinateur : la course 1. Tablette (en retard) : la course 2.
+    const pc = { ...emptyPrivate(), sheets: { l: { s: stampMarks(base, { v: { vma: 13, c1: 40 } }, 20) } } };
+    const tab = { ...emptyPrivate(), sheets: { l: { s: stampMarks(base, { v: { vma: 13, c2: 60 }, txt: { obs: 'bien' } }, 30) } } };
+    const m = mergePrivate(pc, tab).sheets.l.s;
+    expect(m.v).toEqual({ vma: 13, c1: 40, c2: 60 });
+    expect(m.txt).toEqual({ obs: 'bien' });
+    // Effacer une case se propage.
+    const cleared = { ...emptyPrivate(), sheets: { l: { s: stampMarks(m, { v: { vma: 13, c2: 60 }, txt: { obs: 'bien' } }, 40) } } };
+    expect(mergePrivate(pc, cleared).sheets.l.s.v).toEqual({ vma: 13, c2: 60 });
+    // Absent.
+    const abs = { ...emptyPrivate(), sheets: { l: { s: stampMarks(m, { ...m, absent: true }, 50) } } };
+    expect(mergePrivate(pc, abs).sheets.l.s.absent).toBe(true);
   });
 });

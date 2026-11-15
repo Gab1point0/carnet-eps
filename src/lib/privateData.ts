@@ -16,6 +16,8 @@ export interface StudentMarks {
   txt?: Record<string, string>;
   absent?: boolean;
   t: number;
+  /** Date de chaque case (« v:clé », « txt:clé », « absent ») : deux appareils se fusionnent case par case. */
+  at?: Record<string, number>;
 }
 
 /** Répartition en groupes : élève → numéro de groupe (1, 2…). `count` = nombre de groupes affichés. */
@@ -23,6 +25,10 @@ export interface Grouping {
   assign: Record<ID, number>;
   count: number;
   t: number;
+  /** Date du dernier changement de groupe de chaque élève : deux appareils se fusionnent élève par élève. */
+  at?: Record<ID, number>;
+  /** Date du dernier changement du nombre de groupes. */
+  ct?: number;
 }
 
 /** Groupes enregistrés d'une classe (« Équipes du tournoi »…), réutilisables dans toutes ses fiches. */
@@ -57,7 +63,7 @@ export function mergePrivate(a0: PrivateDoc, b0: PrivateDoc): PrivateDoc {
   const a = normalizePrivate(a0);
   const b = normalizePrivate(b0);
   const out = emptyPrivate();
-  for (const id of new Set([...Object.keys(a.groups), ...Object.keys(b.groups)])) out.groups[id] = newest(a.groups[id], b.groups[id]);
+  for (const id of new Set([...Object.keys(a.groups), ...Object.keys(b.groups)])) out.groups[id] = mergeGrouping(a.groups[id], b.groups[id]);
   for (const id of new Set([...Object.keys(a.savedGroups), ...Object.keys(b.savedGroups)])) out.savedGroups[id] = newest(a.savedGroups[id], b.savedGroups[id]);
   for (const id of new Set([...Object.keys(a.rosters), ...Object.keys(b.rosters)])) {
     const x = a.rosters[id];
@@ -68,13 +74,174 @@ export function mergePrivate(a0: PrivateDoc, b0: PrivateDoc): PrivateDoc {
     const x = a.sheets[lesson] ?? {};
     const y = b.sheets[lesson] ?? {};
     const rows: Record<ID, StudentMarks> = {};
-    for (const s of new Set([...Object.keys(x), ...Object.keys(y)])) rows[s] = !x[s] ? y[s] : !y[s] ? x[s] : y[s].t > x[s].t ? y[s] : x[s];
+    for (const s of new Set([...Object.keys(x), ...Object.keys(y)])) rows[s] = mergeMarks(x[s], y[s]);
     out.sheets[lesson] = rows;
   }
   return out;
 }
 
 export const samePrivate = (a: PrivateDoc, b: PrivateDoc) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Groupes datés élève par élève : un élève jamais touché compte pour 0. Groupes d'avant : la date de la fiche. */
+const cellKeys = (r: StudentMarks) => [...Object.keys(r.v).map((k) => `v:${k}`), ...Object.keys(r.txt ?? {}).map((k) => `txt:${k}`), ...(r.absent ? ['absent'] : [])];
+const cellStamp = (r: StudentMarks, key: string) => (r.at ? (r.at[key] ?? 0) : r.t);
+const cellOf = (r: StudentMarks, key: string): unknown => (key === 'absent' ? !!r.absent : key.startsWith('v:') ? r.v[key.slice(2)] : r.txt?.[key.slice(4)]);
+
+/** Résultats d'un élève venus de deux appareils : case par case, la plus récente l'emporte. */
+export function mergeMarks(a: StudentMarks | undefined, b: StudentMarks | undefined): StudentMarks {
+  if (!a) return b!;
+  if (!b) return a;
+  if (!a.at && !b.at) return b.t > a.t ? b : a;
+  const out: StudentMarks = { v: {}, t: Math.max(a.t, b.t), at: {} };
+  const txt: Record<string, string> = {};
+  for (const key of new Set([...cellKeys(a), ...cellKeys(b), ...Object.keys(a.at ?? {}), ...Object.keys(b.at ?? {})])) {
+    const from = cellStamp(b, key) > cellStamp(a, key) ? b : a;
+    out.at![key] = cellStamp(from, key);
+    const val = cellOf(from, key);
+    if (val === undefined || val === false) continue;
+    if (key === 'absent') out.absent = true;
+    else if (key.startsWith('v:')) out.v[key.slice(2)] = val as number;
+    else txt[key.slice(4)] = val as string;
+  }
+  if (Object.keys(txt).length) out.txt = txt;
+  return out;
+}
+
+/** Nouveaux résultats d'un élève : seules les cases qui changent sont datées de maintenant. */
+export function stampMarks(prev: StudentMarks | undefined, next: Omit<StudentMarks, 't' | 'at'>, now: number): StudentMarks {
+  const at: Record<string, number> = {};
+  if (prev) for (const key of new Set([...cellKeys(prev), ...Object.keys(prev.at ?? {})])) at[key] = cellStamp(prev, key);
+  const n = next as StudentMarks;
+  for (const key of new Set([...(prev ? cellKeys(prev) : []), ...cellKeys(n)])) {
+    if ((prev ? cellOf(prev, key) : undefined) !== cellOf(n, key)) at[key] = now;
+  }
+  if (!!prev?.absent !== !!next.absent) at.absent = now;
+  return { ...next, t: now, at };
+}
+
+const stampOf = (g: Grouping, sid: ID) => (g.at ? (g.at[sid] ?? 0) : g.t);
+
+/**
+ * Fusion des groupes d'une fiche élève par élève : un appareil en retard (qui n'a pas encore reçu les groupes)
+ * ne peut plus effacer ceux faits ailleurs, il ne change que les élèves qu'il a vraiment déplacés.
+ */
+export function mergeGrouping(a: Grouping | undefined, b: Grouping | undefined): Grouping {
+  if (!a) return b!;
+  if (!b) return a;
+  const assign: Record<ID, number> = {};
+  const at: Record<ID, number> = {};
+  for (const sid of new Set([...Object.keys(a.assign), ...Object.keys(b.assign), ...Object.keys(a.at ?? {}), ...Object.keys(b.at ?? {})])) {
+    const from = stampOf(b, sid) > stampOf(a, sid) ? b : a;
+    assign[sid] = from.assign[sid] ?? 0;
+    at[sid] = stampOf(from, sid);
+  }
+  const ca = a.ct ?? a.t;
+  const cb = b.ct ?? b.t;
+  const highest = Math.max(0, ...Object.values(assign));
+  return { assign, at, count: Math.max(cb > ca ? b.count : a.count, highest), t: Math.max(a.t, b.t), ct: Math.max(ca, cb) };
+}
+
+/** Nouveaux groupes d'une fiche : seuls les élèves qui changent de groupe sont datés de maintenant. */
+export function stampGrouping(prev: Grouping | undefined, next: Omit<Grouping, 't'>, now: number): Grouping {
+  const at: Record<ID, number> = {};
+  if (prev) for (const sid of new Set([...Object.keys(prev.assign), ...Object.keys(prev.at ?? {})])) at[sid] = stampOf(prev, sid);
+  for (const sid of new Set([...Object.keys(prev?.assign ?? {}), ...Object.keys(next.assign)])) {
+    if ((prev?.assign[sid] ?? 0) !== (next.assign[sid] ?? 0)) at[sid] = now;
+  }
+  const ct = prev && prev.count === next.count ? (prev.ct ?? prev.t) : now;
+  return { assign: { ...next.assign }, count: next.count, at, ct, t: now };
+}
+
+/** Résumé d'un coffre, pour choisir une ancienne version (sans afficher de nom). */
+export function summarizePrivate(d: PrivateDoc) {
+  return {
+    students: Object.values(d.rosters).reduce((n, r) => n + r.students.length, 0),
+    filled: Object.values(d.sheets).filter((rows) => Object.values(rows).some((r) => Object.keys(r.v).length || Object.keys(r.txt ?? {}).length)).length,
+    grouped: Object.values(d.groups).filter((g) => g.count > 0 && Object.values(g.assign).some((x) => x > 0)).length,
+    saved: Object.values(d.savedGroups).filter((g) => !g.deleted).length,
+  };
+}
+
+const nameKey = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/**
+ * Renomme les identifiants d'élèves de `doc` pour qu'ils correspondent, par le nom, aux listes de `target`
+ * (une même classe saisie deux fois a des identifiants différents).
+ */
+export function remapStudents(doc: PrivateDoc, target: PrivateDoc): PrivateDoc {
+  const map: Record<ID, ID> = {};
+  for (const [classId, roster] of Object.entries(doc.rosters)) {
+    const cur = target.rosters[classId]?.students ?? [];
+    const byName = new Map(cur.map((s) => [nameKey(s.name), s.id]));
+    for (const s of roster.students) {
+      const id = byName.get(nameKey(s.name));
+      if (id && id !== s.id) map[s.id] = id;
+    }
+  }
+  if (!Object.keys(map).length) return doc;
+  const re = <T,>(rec: Record<ID, T>) => Object.fromEntries(Object.entries(rec).map(([k, v]) => [map[k] ?? k, v]));
+  const reG = <G extends Grouping>(g: G): G => ({ ...g, assign: re(g.assign), ...(g.at ? { at: re(g.at) } : {}) });
+  return {
+    ...doc,
+    rosters: Object.fromEntries(Object.entries(doc.rosters).map(([c, r]) => [c, { ...r, students: r.students.map((s) => ({ ...s, id: map[s.id] ?? s.id })) }])),
+    sheets: Object.fromEntries(Object.entries(doc.sheets).map(([l, rows]) => [l, re(rows)])),
+    groups: Object.fromEntries(Object.entries(doc.groups).map(([l, g]) => [l, reG(g)])),
+    savedGroups: Object.fromEntries(Object.entries(doc.savedGroups).map(([id, g]) => [id, reG(g)])),
+  };
+}
+
+const hasMarks = (r: StudentMarks | undefined) => !!r && (Object.keys(r.v).length > 0 || Object.keys(r.txt ?? {}).length > 0);
+const hasGroups = (g: Grouping | undefined) => !!g && g.count > 0 && Object.values(g.assign).some((x) => x > 0);
+
+/**
+ * Remet dans le coffre actuel ce qu'une ancienne version contenait et qui a disparu : groupes des fiches,
+ * groupes enregistrés, résultats d'élèves, listes d'élèves vidées. Tout est daté de `now` pour passer
+ * aux autres appareils. Ce qui a été fait depuis et n'existait pas avant est gardé.
+ */
+export function restorePrivate(current0: PrivateDoc, old0: PrivateDoc, now: number) {
+  const current = normalizePrivate(current0);
+  const old = remapStudents(normalizePrivate(old0), current);
+  const doc: PrivateDoc = {
+    ...current,
+    rosters: { ...current.rosters },
+    sheets: { ...current.sheets },
+    groups: { ...current.groups },
+    savedGroups: { ...current.savedGroups },
+  };
+  const n = { groups: 0, saved: 0, rows: 0, rosters: 0 };
+  for (const [classId, r] of Object.entries(old.rosters)) {
+    if (r.students.length && !doc.rosters[classId]?.students.length) {
+      doc.rosters[classId] = { students: r.students, updatedAt: now };
+      n.rosters++;
+    }
+  }
+  for (const [lessonId, g] of Object.entries(old.groups)) {
+    const cur = doc.groups[lessonId];
+    if (!hasGroups(g)) continue;
+    if (cur && JSON.stringify([cur.count, Object.entries(cur.assign).filter(([, x]) => x > 0).sort()]) === JSON.stringify([g.count, Object.entries(g.assign).filter(([, x]) => x > 0).sort()])) continue;
+    const at = Object.fromEntries([...new Set([...Object.keys(g.assign), ...Object.keys(cur?.assign ?? {})])].map((sid) => [sid, now]));
+    doc.groups[lessonId] = { assign: Object.fromEntries(Object.keys(at).map((sid) => [sid, g.assign[sid] ?? 0])), count: g.count, at, ct: now, t: now };
+    n.groups++;
+  }
+  for (const [id, g] of Object.entries(old.savedGroups)) {
+    const cur = doc.savedGroups[id];
+    if (g.deleted || (cur && !cur.deleted)) continue;
+    doc.savedGroups[id] = { ...g, deleted: false, t: now };
+    n.saved++;
+  }
+  for (const [lessonId, rows] of Object.entries(old.sheets)) {
+    const cur = doc.sheets[lessonId] ?? {};
+    let next: Record<ID, StudentMarks> | null = null;
+    for (const [sid, r] of Object.entries(rows)) {
+      if (!hasMarks(r) || hasMarks(cur[sid])) continue;
+      next ??= { ...cur };
+      next[sid] = { v: r.v, ...(r.txt ? { txt: r.txt } : {}), ...(r.absent ? { absent: true } : {}), t: now };
+      n.rows++;
+    }
+    if (next) doc.sheets[lessonId] = next;
+  }
+  return { doc, ...n };
+}
 
 /** « Durand Léa\nMARTIN Tom » → noms nettoyés, sans doublon, en gardant l'identifiant des élèves déjà connus. */
 export function parseRoster(text: string, existing: Student[], makeId: () => ID): Student[] {

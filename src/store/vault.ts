@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import type { ID } from '../types';
 import { deriveKey, isEnvelope, newSalt, open, seal, type Envelope } from '../lib/crypto';
-import { emptyPrivate, mergePrivate, normalizePrivate, samePrivate, type Grouping, type PrivateDoc, type SavedGrouping, type Student, type StudentMarks } from '../lib/privateData';
+import { emptyPrivate, mergePrivate, normalizePrivate, remapStudents, restorePrivate, samePrivate, stampGrouping, stampMarks, type Grouping, type PrivateDoc, type SavedGrouping, type Student, type StudentMarks } from '../lib/privateData';
 import { GithubError, getFile, putFile, type GithubConfig } from '../lib/github';
 
 // Coffre des données des élèves : chiffré sur l'appareil (IndexedDB) et, si la synchronisation est réglée,
@@ -21,6 +21,16 @@ interface VaultState {
   revision: number;
   /** Coffre trouvé sur GitHub mais pas encore ouvert sur cet appareil. */
   remote: Envelope | null;
+  /** Le coffre en ligne a déjà été cherché (pour ne pas en créer un second par erreur sur un nouvel appareil). */
+  checked: boolean;
+  /** Coffre en ligne créé avec un autre mot de passe que celui de cet appareil : à réunir. */
+  conflict: Envelope | null;
+  /** Réunit le coffre de cet appareil et celui en ligne (mot de passe de celui en ligne). */
+  joinRemote: (password: string) => Promise<boolean>;
+  /** Déchiffre une ancienne version (avec la clé de l'appareil, ou ce mot de passe si elle en a un autre). */
+  openVersion: (env: Envelope, password?: string) => Promise<PrivateDoc | null>;
+  /** Remet ce qui a disparu depuis une ancienne version. */
+  restore: (old: PrivateDoc) => ReturnType<typeof restorePrivate>;
   load: () => Promise<void>;
   create: (password: string) => Promise<void>;
   unlock: (password: string) => Promise<boolean>;
@@ -42,6 +52,50 @@ export const useVault = create<VaultState>((set, get) => ({
   doc: emptyPrivate(),
   revision: 0,
   remote: null,
+  checked: false,
+  conflict: null,
+
+  async joinRemote(password) {
+    const remote = get().conflict;
+    if (!remote) return false;
+    try {
+      const k = await deriveKey(password, remote.salt);
+      const theirs = normalizePrivate(await open<PrivateDoc>(k, remote));
+      const mine = remapStudents(get().doc, theirs);
+      const doc = mergePrivate(theirs, mine);
+      // Deux listes saisies chacune de leur côté : on garde tous les élèves des deux.
+      for (const [classId, r] of Object.entries(mine.rosters)) {
+        const list = doc.rosters[classId]?.students ?? [];
+        const extra = r.students.filter((s) => !list.some((x) => x.id === s.id));
+        if (extra.length) doc.rosters[classId] = { students: [...list, ...extra], updatedAt: Date.now() };
+      }
+      key = k;
+      salt = remote.salt;
+      await idbSet(KEY_KEY, { key, salt });
+      set({ doc, conflict: null, revision: get().revision + 1 });
+      await persist();
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async openVersion(env, password) {
+    try {
+      if (key && env.salt === salt && !password) return normalizePrivate(await open<PrivateDoc>(key, env));
+      if (!password) return null;
+      return normalizePrivate(await open<PrivateDoc>(await deriveKey(password, env.salt), env));
+    } catch {
+      return null;
+    }
+  },
+
+  restore(old) {
+    const r = restorePrivate(get().doc, old, Date.now());
+    set({ doc: r.doc, revision: get().revision + 1 });
+    void persist();
+    return r;
+  },
 
   async load() {
     try {
@@ -100,14 +154,15 @@ export const useVault = create<VaultState>((set, get) => ({
 
   setMarks(lessonId, studentId, marks) {
     const doc = get().doc;
-    const sheet = { ...(doc.sheets[lessonId] ?? {}), [studentId]: { ...marks, t: Date.now() } };
+    const sheet = { ...(doc.sheets[lessonId] ?? {}), [studentId]: stampMarks(doc.sheets[lessonId]?.[studentId], marks, Date.now()) };
     set({ doc: { ...doc, sheets: { ...doc.sheets, [lessonId]: sheet } }, revision: get().revision + 1 });
     void persist();
   },
 
   setGroups(lessonId, groups) {
     const doc = get().doc;
-    set({ doc: { ...doc, groups: { ...doc.groups, [lessonId]: { ...(groups ?? { assign: {}, count: 0 }), t: Date.now() } } }, revision: get().revision + 1 });
+    const g = stampGrouping(doc.groups[lessonId], groups ?? { assign: {}, count: 0 }, Date.now());
+    set({ doc: { ...doc, groups: { ...doc.groups, [lessonId]: g } }, revision: get().revision + 1 });
     void persist();
   },
 
@@ -163,11 +218,16 @@ export async function syncVault(cfg: GithubConfig): Promise<void> {
     const st = useVault.getState();
     if (st.status !== 'open' || !key) {
       if (remote && st.status !== 'loading') useVault.setState({ remote, status: st.status === 'none' ? 'locked' : st.status });
+      if (st.status !== 'loading') useVault.setState({ checked: true });
       return;
     }
+    useVault.setState({ checked: true, ...(st.conflict ? { conflict: null } : {}) });
     let merged = st.doc;
     if (remote) {
-      if (remote.salt !== salt) throw new Error('Le coffre des élèves en ligne a un autre mot de passe que cet appareil.');
+      if (remote.salt !== salt) {
+        useVault.setState({ conflict: remote, checked: true });
+        throw new Error('Les données des élèves en ligne ont un autre mot de passe que cet appareil : ouvrez une fiche ou Réglages › Sauvegarde pour les réunir.');
+      }
       merged = mergePrivate(st.doc, normalizePrivate(await open<PrivateDoc>(key, remote)));
       if (!samePrivate(merged, st.doc)) {
         useVault.setState({ doc: merged, revision: st.revision });

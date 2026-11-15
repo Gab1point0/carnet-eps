@@ -104,6 +104,28 @@ export async function getFile(cfg: GithubConfig): Promise<RemoteFile> {
   return { content: await raw.text(), sha: json.sha };
 }
 
+export interface FileVersion {
+  sha: string;
+  date: string;
+}
+
+/** Versions successives d'un fichier (historique du dépôt), de la plus récente à la plus ancienne. */
+export async function listVersions(cfg: GithubConfig, max = 100): Promise<FileVersion[]> {
+  const q = `path=${encodeURIComponent(cfg.path)}&sha=${encodeURIComponent(cfg.branch)}&per_page=${max}`;
+  const res = await fetch(`${API}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/commits?${q}`, { headers: headers(cfg), cache: 'no-store' });
+  if (!res.ok) throw await explain(res);
+  const list = (await res.json()) as { sha: string; commit: { committer?: { date?: string }; author?: { date?: string } } }[];
+  return list.map((c) => ({ sha: c.sha, date: c.commit.committer?.date ?? c.commit.author?.date ?? '' }));
+}
+
+/** Contenu d'un fichier tel qu'il était à une version donnée. */
+export async function getFileAt(cfg: GithubConfig, ref: string): Promise<string | null> {
+  const res = await fetch(`${url(cfg)}?ref=${encodeURIComponent(ref)}`, { headers: { ...headers(cfg), Accept: 'application/vnd.github.raw+json' } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw await explain(res);
+  return res.text();
+}
+
 export async function putFile(
   cfg: GithubConfig,
   content: string,

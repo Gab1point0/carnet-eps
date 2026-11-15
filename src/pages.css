@@ -608,7 +608,10 @@ label.btn { cursor: pointer; }
 .fill-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .reuse-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .reuse-list li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 10px; }
-.reuse-list li > button { background: none; border: 0; text-align: left; padding: 10px 12px; font: inherit; color: inherit; cursor: pointer; }
+/* Liste des anciennes versions du coffre. */
+.reuse-list li > div.grow { padding: 10px 12px; }
+.reuse-list li > .btn:last-child { margin-right: 8px; }
+.reuse-list li > button:not(.btn) { background: none; border: 0; text-align: left; padding: 10px 12px; font: inherit; color: inherit; cursor: pointer; }
 .fill-group-cell span { position: sticky; left: 8px; white-space: nowrap; }
 .fill-name > .row { display: flex; }
 .fill-name .group-select { flex: 0 0 auto; }
