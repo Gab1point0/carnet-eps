@@ -17,6 +17,7 @@ import { SettingsPage } from './pages/Settings';
 import { PreparationPage } from './pages/Preparation';
 import { FichesPage } from './pages/Fiches';
 import { FichePage, FichesHubPage } from './pages/Fiche';
+import { TodayPage } from './pages/Today';
 
 export function App() {
   const loaded = useData((s) => s.loaded);
@@ -33,6 +34,7 @@ export function App() {
 
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
+          <Route path="aujourdhui" element={<TodayPage />} />
           <Route path="planning" element={<PlanningPage />} />
           <Route path="preparation" element={<PreparationPage />} />
           <Route path="fiches" element={<FichesHubPage />} />

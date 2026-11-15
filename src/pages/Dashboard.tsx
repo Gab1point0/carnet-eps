@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarOff, CalendarPlus, ClipboardCheck, ClipboardList, Play, Plus, Sparkles, Users } from 'lucide-react';
+import { CalendarOff, CalendarPlus, Check, ClipboardCheck, ClipboardList, Play, Plus, Sparkles, Users } from 'lucide-react';
 import { Button, Card, EmptyState, PageHeader, Section } from '../components/ui';
 import { ReviewModal } from '../components/ReviewModal';
 import { TodoSection } from '../components/TodoSection';
@@ -12,7 +12,7 @@ import { useData } from '../store/data';
 import { useCurrentYear, useSettings, useYearClasses, useYearLessons } from '../store/selectors';
 import { loadSample } from '../store/sample';
 import { newLesson } from '../store/model';
-import { toast } from '../store/ui';
+import { confirmDialog, toast, toastUndo } from '../store/ui';
 import { holidayOn } from '../lib/holidays';
 import { addDays, formatDay, formatDuration, formatShort, todayISO, weekdayOf } from '../lib/dates';
 import { lessonTotalMinutes } from '../store/selectors';
@@ -29,6 +29,7 @@ export function DashboardPage() {
   const [newYear, setNewYear] = useState(false);
   const [reviewing, setReviewing] = useState<Lesson | null>(null);
   const [closing, setClosing] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const today = todayISO();
   const nowHM = new Date().toTimeString().slice(0, 5);
 
@@ -63,6 +64,24 @@ export function DashboardPage() {
     const prepared = lessons.filter((l) => l.blocks.length > 0).length;
     return { total: lessons.length, done, prepared };
   }, [lessons]);
+
+  /** Séances passées marquées faites sans bilan, en un geste (annulable). */
+  const markDone = (list: Lesson[]) => {
+    const set = (status: Lesson['status']) =>
+      useData.getState().transact((tx) => {
+        for (const l of list) tx.patch('lessons', l.id, { status });
+      });
+    set('done');
+    toastUndo(list.length > 1 ? `${list.length} séances marquées faites` : 'Séance marquée faite', () => set('planned'));
+  };
+  const markAllDone = async () => {
+    const ok = await confirmDialog({
+      title: `Marquer ${toReview.length} séances comme faites ?`,
+      message: 'Elles quittent la liste des bilans. Vous pourrez toujours faire leur bilan depuis la séance.',
+      confirmLabel: 'Marquer faites',
+    });
+    if (ok) markDone(toReview);
+  };
 
   const createAt = (klass: Klass, slot: Slot) => {
     const l = newLesson(klass.id, null, 0, 'Nouvelle séance');
@@ -131,7 +150,16 @@ export function DashboardPage() {
 
       {classes.length > 0 && (
         <>
-          <Section title={nextDay ? <span className="cap-first">Prochain cours : {formatDay(nextDay)}</span> : "Aujourd'hui"}>
+          <Section
+            title={nextDay ? <span className="cap-first">Prochain cours : {formatDay(nextDay)}</span> : "Aujourd'hui"}
+            actions={
+              (todayLessons.length > 0 || nextDay) && (
+                <Link to="/aujourdhui" className="small">
+                  Vue du jour et matériel →
+                </Link>
+              )
+            }
+          >
             {holiday && (
               <Card className="callout">
                 🌴 <strong>{holiday.label}</strong> — pas de cours aujourd'hui.
@@ -192,9 +220,18 @@ export function DashboardPage() {
           <EvaluationsToGrade lessons={lessons} classById={classById} today={today} nowHM={nowHM} />
 
           {toReview.length > 0 && (
-            <Section title={`Bilans à faire (${toReview.length})`} actions={<span className="muted small">30 secondes par séance</span>}>
+            <Section
+              title={`Bilans à faire (${toReview.length})`}
+              actions={
+                toReview.length > 1 && (
+                  <Button size="sm" variant="ghost" icon={<Check size={15} />} onClick={markAllDone}>
+                    Tout marquer comme faites
+                  </Button>
+                )
+              }
+            >
               <Card style={{ padding: 6 }} className="lesson-list">
-                {toReview.slice(0, 5).map((l) => {
+                {toReview.slice(0, showAllReviews ? undefined : 5).map((l) => {
                   const k = l.classId ? classById.get(l.classId) : undefined;
                   return (
                     <div key={l.id} className="lesson-row">
@@ -209,14 +246,23 @@ export function DashboardPage() {
                           </div>
                         </div>
                       </Link>
-                      <Button size="sm" icon={<ClipboardCheck size={15} />} onClick={() => setReviewing(l)}>
-                        Bilan
-                      </Button>
+                      <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                        <Button size="sm" variant="ghost" icon={<Check size={15} />} onClick={() => markDone([l])} title="Marquer comme faite, sans bilan">
+                          Faite
+                        </Button>
+                        <Button size="sm" icon={<ClipboardCheck size={15} />} onClick={() => setReviewing(l)}>
+                          Bilan
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
               </Card>
-              {toReview.length > 5 && <p className="muted small">… et {toReview.length - 5} autres séances passées sans bilan.</p>}
+              {toReview.length > 5 && !showAllReviews && (
+                <button type="button" className="cycle-toggle muted small" onClick={() => setShowAllReviews(true)}>
+                  Voir les {toReview.length - 5} autres
+                </button>
+              )}
             </Section>
           )}
 

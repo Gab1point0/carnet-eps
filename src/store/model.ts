@@ -39,8 +39,8 @@ export function newYear(label: string, start: string, end: string, zone: SchoolY
   return { ...stamp(), label, start, end, zone, holidays: [] };
 }
 
-export function newSlot(weekday = 1, start = '08:00', end = '10:00', place = ''): Slot {
-  return { id: uid(), weekday, start, end, place };
+export function newSlot(weekday = 1, start = '08:00', end = '10:00', venueId: ID | null = null): Slot {
+  return { id: uid(), weekday, start, end, place: '', venueId };
 }
 
 export function newKlass(yearId: ID, order: number, name = '', level = ''): Klass {

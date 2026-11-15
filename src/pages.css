@@ -464,3 +464,6 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 .lesson-nav-steps { flex-wrap: nowrap; flex: 0 0 auto; }
 .lesson-nav-steps .back-link { padding: 4px 2px; }
 @media (max-width: 560px) { .hide-sm { display: none; } .lesson-nav-steps { gap: 18px; } }
+
+.today-live { box-shadow: 0 0 0 2px var(--primary), var(--shadow); }
+.today-past { opacity: 0.55; }

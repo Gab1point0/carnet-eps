@@ -1,8 +1,18 @@
-import type { Lesson, Settings, Venue } from '../types';
-import { durationOf } from './dates';
+import type { Klass, Lesson, Settings, Slot, Venue } from '../types';
+import { durationOf, weekdayOf } from './dates';
 
-export const venueOf = (settings: Pick<Settings, 'venues'>, lesson: Pick<Lesson, 'venueId'>): Venue | undefined =>
-  lesson.venueId ? settings.venues.find((v) => v.id === lesson.venueId) : undefined;
+/** Créneau de la classe où tombe la séance (même jour ; même heure de début si la classe a deux créneaux ce jour-là). */
+export function slotOf(klass: Pick<Klass, 'slots'> | undefined, lesson: Pick<Lesson, 'date' | 'start'>): Slot | undefined {
+  if (!klass || !lesson.date) return undefined;
+  const day = klass.slots.filter((s) => s.weekday === weekdayOf(lesson.date!));
+  return day.find((s) => s.start === lesson.start) ?? (day.length === 1 ? day[0] : undefined);
+}
+
+/** Lieu choisi sur la séance ; sinon celui du créneau de l'emploi du temps. */
+export function venueOf(settings: Pick<Settings, 'venues'>, lesson: Pick<Lesson, 'venueId'> & Partial<Pick<Lesson, 'date' | 'start'>>, klass?: Pick<Klass, 'slots'>): Venue | undefined {
+  const id = lesson.venueId ?? slotOf(klass, { date: lesson.date ?? null, start: lesson.start ?? '' })?.venueId;
+  return id ? settings.venues.find((v) => v.id === id) : undefined;
+}
 
 export interface VenueStep {
   id: string;

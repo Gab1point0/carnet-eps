@@ -64,10 +64,7 @@ export function tasksFor(data: AppData, l: Lesson, today: ISODate, weather: Weat
   const auto = (key: string, text: string, extra: Partial<Task> = {}) =>
     out.push({ id: `auto:${key}`, lessonId: l.id, text, manual: false, done: l.tasksDone.includes(`auto:${key}`), to: `/lessons/${l.id}`, ...extra });
 
-  // Séance précédente passée sans bilan.
-  if (prev && prev.date && prev.date <= today && prev.status !== 'cancelled' && !prev.bilan.trim() && prev.rating === null) {
-    auto(`bilan:${prev.id}`, `Faire le bilan de « ${prev.title || 'la séance précédente'} »`, { detail: 'Une minute à l\'oral suffit : les ajustements seront proposés pour cette séance.', to: `/lessons/${prev.id}` });
-  }
+  // Les bilans en retard ont leur propre section sur l'accueil (« Bilans à faire ») : pas de tâche en double ici.
   // Évaluation passée : saisie dans École Directe, niveau relevé.
   if (prev?.evalKind && prev.status === 'done') {
     const k = EVAL_KINDS[prev.evalKind].label.toLowerCase();

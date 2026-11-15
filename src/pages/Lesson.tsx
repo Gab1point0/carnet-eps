@@ -74,7 +74,9 @@ export function LessonPage() {
   };
 
   const planned = lesson.start && lesson.end ? durationOf(lesson.start, lesson.end) : 0;
-  const venue = venueOf(data.settings, lesson);
+  const venue = venueOf(data.settings, lesson, klass);
+  // Lieu venu de l'emploi du temps (la séance n'en a pas à elle).
+  const slotVenue = lesson.venueId ? undefined : venue;
   const venueSteps = venueTime(venue);
   const total = lessonTotalMinutes(lesson);
 
@@ -235,7 +237,7 @@ export function LessonPage() {
           <Field label="Lieu">
             <Select
               value={lesson.venueId ?? ''}
-              placeholder="Non précisé"
+              placeholder={slotVenue ? `${slotVenue.name} (créneau)` : 'Non précisé'}
               onChange={(v) => patch({ venueId: v || null })}
               options={[
                 // Un lieu supprimé des réglages reste choisi : on l'indique plutôt que d'afficher « Non précisé ».

@@ -23,7 +23,7 @@ export function LessonPrintPage() {
   const klass = lesson.classId ? data.classes[lesson.classId] : undefined;
   const cycle = lesson.cycleId ? data.cycles[lesson.cycleId] : undefined;
   const act = activityOf(data, lesson.activityId ?? cycle?.activityId ?? null);
-  const venue = venueOf(data.settings, lesson);
+  const venue = venueOf(data.settings, lesson, klass);
   const time = venueTime(venue);
 
   return (

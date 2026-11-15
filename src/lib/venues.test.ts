@@ -39,3 +39,12 @@ describe('lieux de séance', () => {
     expect(data.lessons.a.venueId).toBeNull();
   });
 });
+
+describe('lieu du créneau', () => {
+  const klass = { slots: [{ id: 's', weekday: 1, start: '13:55', end: '14:50', place: '', venueId: 'picherettes' }] };
+  it('donne à la séance le lieu de son créneau, sauf si elle a le sien', () => {
+    expect(venueOf(settings, { venueId: null, date: '2026-11-16', start: '13:55' }, klass)?.id).toBe('picherettes');
+    expect(venueOf(settings, { venueId: 'college', date: '2026-11-16', start: '13:55' }, klass)?.id).toBe('college');
+    expect(venueOf(settings, { venueId: null, date: '2026-11-17', start: '13:55' }, klass)).toBeUndefined();
+  });
+});

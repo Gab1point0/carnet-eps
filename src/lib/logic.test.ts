@@ -27,7 +27,7 @@ describe('jours fériés', () => {
 });
 
 describe('emploi du temps', () => {
-  const slots = [{ id: 's1', weekday: 2, start: '10:00', end: '12:00', place: '' }];
+  const slots = [{ id: 's1', weekday: 2, start: '10:00', end: '12:00', place: '', venueId: null }];
   it('saute les vacances', () => {
     const holidays = [{ id: 'h', label: 'Toussaint', start: '2026-10-19', end: '2026-11-01', kind: 'vacances' as const }];
     const occ = nextOccurrences(slots, '2026-10-12', holidays, { count: 3 });
@@ -37,8 +37,8 @@ describe('emploi du temps', () => {
 
 describe('créneaux par cycle', () => {
   const slots = [
-    { id: 'jeu', weekday: 4, start: '08:30', end: '10:20', place: '' },
-    { id: 'lun', weekday: 1, start: '13:55', end: '14:50', place: '' },
+    { id: 'jeu', weekday: 4, start: '08:30', end: '10:20', place: '', venueId: null },
+    { id: 'lun', weekday: 1, start: '13:55', end: '14:50', place: '', venueId: null },
   ];
   it('utilise tous les créneaux par défaut, ou seulement ceux choisis', () => {
     expect(slotsForCycle(slots, [])).toHaveLength(2);

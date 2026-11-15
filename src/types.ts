@@ -49,7 +49,10 @@ export interface Slot {
   weekday: number;
   start: HHMM;
   end: HHMM;
+  /** Ancien lieu en texte libre (remplacé par `venueId`). */
   place: string;
+  /** Lieu habituel du créneau : les séances qui n'ont pas de lieu à elles le prennent. */
+  venueId: ID | null;
 }
 
 export interface Klass extends Meta {

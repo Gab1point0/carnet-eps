@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
-import type { Slot, ID } from '../types';
+import type { Slot, ID, Venue } from '../types';
 import { Button, IconButton, Select, TextInput } from './ui';
 import { useData } from '../store/data';
 import { useSettings } from '../store/selectors';
@@ -41,9 +41,10 @@ export function ActivitySelect({
   return <Select<string> value={value ?? ''} onChange={(v) => onChange(v || null)} options={options} placeholder={placeholder} />;
 }
 
-export function slotLabel(s: Slot): string {
+export function slotLabel(s: Slot, venues: Venue[] = []): string {
   const day = WEEKDAYS_LONG[s.weekday - 1] ?? '';
-  return `${day[0]?.toUpperCase() ?? ''}${day.slice(1)} ${s.start}–${s.end}${s.place ? ` · ${s.place}` : ''}`;
+  const place = venues.find((v) => v.id === s.venueId)?.name ?? s.place;
+  return `${day[0]?.toUpperCase() ?? ''}${day.slice(1)} ${s.start}–${s.end}${place ? ` · ${place}` : ''}`;
 }
 
 /**
@@ -53,6 +54,7 @@ export function slotLabel(s: Slot): string {
 export function SlotPicker({ slots, value, onChange }: { slots: Slot[]; value: ID[]; onChange: (ids: ID[]) => void }) {
   const sorted = [...slots].sort((a, b) => a.weekday - b.weekday || a.start.localeCompare(b.start));
   const all = value.length === 0 || value.length >= sorted.length;
+  const venues = useData((st) => st.data.settings.venues);
   const toggle = (id: ID) => {
     const current = all ? sorted.map((s) => s.id) : value;
     const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
@@ -64,7 +66,7 @@ export function SlotPicker({ slots, value, onChange }: { slots: Slot[]; value: I
       {sorted.map((s) => (
         <label key={s.id} className="check">
           <input type="checkbox" checked={all || value.includes(s.id)} onChange={() => toggle(s.id)} />
-          {slotLabel(s)}
+          {slotLabel(s, venues)}
         </label>
       ))}
     </div>
@@ -73,7 +75,7 @@ export function SlotPicker({ slots, value, onChange }: { slots: Slot[]; value: I
 
 /** Édition de l'emploi du temps hebdomadaire d'une classe. */
 export function SlotsEditor({ slots, onChange }: { slots: Slot[]; onChange: (s: Slot[]) => void }) {
-  const places = useData((s) => s.data.settings.places);
+  const venues = useData((s) => s.data.settings.venues);
   const patch = (id: ID, p: Partial<Slot>) => onChange(slots.map((s) => (s.id === id ? { ...s, ...p } : s)));
   return (
     <div className="stack">
@@ -87,24 +89,24 @@ export function SlotsEditor({ slots, onChange }: { slots: Slot[]; onChange: (s: 
           />
           <input className="input" type="time" value={s.start} onChange={(e) => e.target.value && patch(s.id, { start: e.target.value })} aria-label="Début" />
           <input className="input" type="time" value={s.end} onChange={(e) => e.target.value && patch(s.id, { end: e.target.value })} aria-label="Fin" />
-          <TextInput value={s.place} list="places-list" placeholder="Lieu" onChange={(v) => patch(s.id, { place: v })} />
+          <Select<string>
+            value={s.venueId ?? ''}
+            placeholder={s.place || 'Lieu'}
+            onChange={(v) => patch(s.id, { venueId: v || null })}
+            options={venues.map((v) => ({ value: v.id, label: v.name }))}
+          />
           <IconButton label="Supprimer ce créneau" onClick={() => onChange(slots.filter((x) => x.id !== s.id))}>
             <Trash2 size={18} />
           </IconButton>
         </div>
       ))}
-      <datalist id="places-list">
-        {places.map((p) => (
-          <option key={p} value={p} />
-        ))}
-      </datalist>
       <div>
         <Button
           size="sm"
           icon={<Plus size={15} />}
           onClick={() => {
             const last = slots[slots.length - 1];
-            onChange([...slots, newSlot(last ? last.weekday : 1, last?.start ?? '08:00', last?.end ?? '10:00', last?.place ?? '')]);
+            onChange([...slots, newSlot(last ? last.weekday : 1, last?.start ?? '08:00', last?.end ?? '10:00', last?.venueId ?? null)]);
           }}
         >
           Ajouter un créneau

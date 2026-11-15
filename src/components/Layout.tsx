@@ -1,7 +1,9 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ClipboardList, Cloud, CloudAlert, CloudCheck, CloudUpload, Home, CalendarDays, Library, Printer, Search, Settings, Users } from 'lucide-react';
 import { useEffect } from 'react';
-import { useCurrentYear, useYears } from '../store/selectors';
+import { useCurrentYear, useYearLessons, useYears } from '../store/selectors';
+import { currentLesson } from '../pages/Today';
+import { todayISO } from '../lib/dates';
 import { useUi } from '../store/ui';
 import { isConfigured, useSync } from '../store/sync';
 import { Select } from './ui';
@@ -49,6 +51,19 @@ export function Layout() {
   const setYear = useUi((s) => s.setYear);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Au gymnase : sur téléphone, ouvrir l'application pendant un cours (ou dans les 15 min avant) mène à la vue du jour.
+  const lessons = useYearLessons();
+  useEffect(() => {
+    if (location.pathname !== '/' || sessionStorage.getItem('carnet-eps:today-shown')) return;
+    if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+    const d = new Date();
+    if (currentLesson(lessons, todayISO(), d.getHours() * 60 + d.getMinutes())) {
+      sessionStorage.setItem('carnet-eps:today-shown', '1');
+      navigate('/aujourdhui');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessons.length]);
 
   // Retour en haut de page à chaque changement d'écran.
   useEffect(() => {
