@@ -62,7 +62,8 @@ const newest = <T extends { t: number }>(x: T | undefined, y: T | undefined) => 
 export function mergePrivate(a0: PrivateDoc, b0: PrivateDoc): PrivateDoc {
   const a = normalizePrivate(a0);
   const b = normalizePrivate(b0);
-  const out = emptyPrivate();
+  // Ce que cette version ne connaît pas (ajouté par une version plus récente) est gardé tel quel, jamais effacé.
+  const out = { ...b, ...a, ...emptyPrivate() } as PrivateDoc;
   for (const id of new Set([...Object.keys(a.groups), ...Object.keys(b.groups)])) out.groups[id] = mergeGrouping(a.groups[id], b.groups[id]);
   for (const id of new Set([...Object.keys(a.savedGroups), ...Object.keys(b.savedGroups)])) out.savedGroups[id] = newest(a.savedGroups[id], b.savedGroups[id]);
   for (const id of new Set([...Object.keys(a.rosters), ...Object.keys(b.rosters)])) {

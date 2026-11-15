@@ -5,6 +5,7 @@ import { mergeData, sameData } from '../lib/merge';
 import { normalizeData, serialize } from './model';
 import { useData } from './data';
 import { syncVault, useVault } from './vault';
+import { checkForUpdate } from '../lib/appUpdate';
 
 const CONFIG_KEY = 'carnet-eps:github';
 
@@ -64,6 +65,8 @@ export const useSync = create<SyncState>((set, get) => ({
     set({ status: 'syncing', error: null });
     running = (async () => {
       try {
+        // Onglet resté sur une ancienne version : il effacerait ce qu'il ne connaît pas. On attend le rechargement.
+        if (await checkForUpdate(true)) throw new Error("Nouvelle version de l'application en ligne : rechargez la page pour synchroniser.");
         await runSync(cfg);
         // Coffre des élèves : fichier chiffré à part, après le carnet.
         await syncVault(cfg);

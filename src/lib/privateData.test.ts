@@ -109,4 +109,10 @@ describe('données des élèves', () => {
     const abs = { ...emptyPrivate(), sheets: { l: { s: stampMarks(m, { ...m, absent: true }, 50) } } };
     expect(mergePrivate(pc, abs).sheets.l.s.absent).toBe(true);
   });
+
+  it("garde ce qu'une version plus récente a ajouté (une ancienne version n'efface plus rien)", () => {
+    const a = { ...emptyPrivate(), futur: { x: 1 } } as ReturnType<typeof emptyPrivate>;
+    const m = mergePrivate(emptyPrivate(), a) as unknown as { futur: unknown };
+    expect(m.futur).toEqual({ x: 1 });
+  });
 });
