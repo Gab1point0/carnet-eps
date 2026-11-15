@@ -6,7 +6,9 @@ export const GRADED = 'graded';
 /** Séance d'évaluation à noter : formative ou sommative, ou avec un bloc « Évaluation » (une diagnostique ne se note pas). */
 export function isGradedEvaluation(l: Lesson): boolean {
   if (l.evalKind === 'diagnostic') return false;
-  return l.evalKind === 'formative' || l.evalKind === 'summative' || l.blocks.some((b) => b.kind === 'evaluation');
+  if (l.evalKind === 'formative' || l.evalKind === 'summative' || l.blocks.some((b) => b.kind === 'evaluation')) return true;
+  // Séance pas encore réglée mais dont le titre le dit : « Eval BAC », « Évaluation finale », « CCF ».
+  return !l.evalKind && /\b(é|e)val|\bbac\b|\bccf\b/i.test(l.title) && !/diagnos/i.test(l.title);
 }
 
 /** La séance a eu lieu : bilan fait, ou date (et heure de fin) passées. */

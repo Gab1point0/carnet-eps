@@ -106,6 +106,7 @@ export function newLesson(classId: ID | null, cycleId: ID | null, order: number,
     evalKind: null,
     levels: null,
     grading: null,
+    evalSheet: null,
     proposalsDone: [],
     classLevels: [],
     todos: [],
@@ -213,6 +214,7 @@ export function normalizeData(raw: unknown): AppData {
     l.evalKind = l.evalKind === 'diagnostic' || l.evalKind === 'formative' || l.evalKind === 'summative' ? l.evalKind : null;
     l.levels = Array.isArray(l.levels) && l.levels.length === 4 ? (l.levels.map((n) => Math.max(0, Number(n) || 0)) as [number, number, number, number]) : null;
     l.grading = normalizeGrading(l.grading);
+    l.evalSheet = l.evalSheet && typeof l.evalSheet === 'object' && Array.isArray(l.evalSheet.blocks) ? l.evalSheet : null;
   });
   out.exercises = fill<Exercise>(r.exercises, () => newExercise(), (e) => {
     e.tags = Array.isArray(e.tags) ? e.tags : [];

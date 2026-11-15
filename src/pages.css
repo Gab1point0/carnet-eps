@@ -518,3 +518,9 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 
 .settings-tabs { margin-bottom: 4px; }
 .settings-tabs .tabs { width: 100%; }
+
+/* Fiche d'évaluation : aperçu des blocs avant téléchargement */
+.eval-preview { gap: 10px; }
+.eval-block { padding: 10px 12px; }
+.eval-block .input { width: 70px; }
+.eval-criteria { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }

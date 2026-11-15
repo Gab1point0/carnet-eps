@@ -1,6 +1,7 @@
 import type { Animation, Arrow, ArrowStyle, Block, BlockKind, CourtId, CustomSheet, Lesson, Token, TokenKind, TokenPos } from '../types';
 import { tableHasLabels, type FicheSection, type SectionSpan } from './fiches';
-import { callClaude } from './ai';
+import { callClaude, callClaudeResearch } from './ai';
+import { tidyEvalSheet, type EvalSheetSpec } from './evalSheet';
 import type { Change, Draft, FieldKey, VoiceCtx } from './voiceLesson';
 import { sanitizeAnimation } from '../animation/engine';
 import { uid } from './util';
@@ -552,4 +553,84 @@ export async function aiCycleReview(input: unknown) {
     schema: obj({ review: { type: 'string' } }),
   });
   return r.review.trim();
+}
+
+// ── Fiche d'évaluation (tableur) ────────────────────────────────────────────
+
+export const isLyceeLevel = (level: string) => /2nde|seconde|1re|1ère|premi[eè]re|terminale|tle|bac|cap/i.test(level);
+
+export const EVAL_SHEET_SCHEMA = obj({
+  title: { type: 'string' },
+  expectations: strings,
+  blocks: {
+    type: 'array',
+    items: obj({
+      name: { type: 'string' },
+      points: { type: 'number' },
+      criteria: { type: 'array', items: obj({ label: { type: 'string' }, kind: { type: 'string', enum: ['levels', 'single'] }, observe: strings }) },
+    }),
+  },
+  bonus: { type: 'array', items: obj({ label: { type: 'string' }, points: { type: 'number' } }) },
+  sources: strings,
+  notes: { type: 'string' },
+});
+
+const EVAL_SHEET_SYSTEM = `${STYLE}
+
+Tu prépares la fiche d'évaluation que l'enseignant remplira sur tablette pendant la séance d'évaluation décrite : une ligne par élève, uniquement des cases à cocher.
+
+Contenu :
+- Appuie-toi d'abord sur la séance d'évaluation et sur le cycle (objectifs, critères d'évaluation) : la fiche évalue ce que la séance fait faire.
+- expectations : les attendus visés, formulés comme dans les textes officiels. Collège : attendus de fin de cycle (AFC) du champ d'apprentissage concerné, cycle 3 pour la 6e, cycle 4 de la 5e à la 3e. Lycée : attendus de fin de lycée (AFL1, AFL2, AFL3) du champ d'apprentissage ; pour le baccalauréat, ceux du référentiel fourni.
+- Adapte les degrés au niveau dans le cycle : en 5e on débute le cycle 4, en 3e on en vise la fin ; « Acquis » = ce qu'on attend à ce niveau, « Avancé » = au-delà. N'exige pas d'un élève de 6e ce qu'on attend en 3e.
+- Baccalauréat (CCF) : suis le référentiel fourni (éléments à évaluer, repères par degré, répartition des points). Par défaut au lycée général et technologique : AFL1 sur 12 points, AFL2 et AFL3 sur 8 points ensemble (choix de l'élève entre 2/6, 4/4 ou 6/2 : dis-le dans notes et propose 4/4 par défaut). N'invente pas de référentiel : si une information manque, dis-le dans notes.
+
+Forme (règles de l'enseignant) :
+- blocks : 2 à 4 blocs (ex. « Jouer pour gagner », « Arbitrer », « Attitude »), points entiers ou demi-points, total 20.
+- criteria : kind = levels pour un critère à 4 degrés (observe = 4 phrases courtes et observables : Débutant, En cours, Acquis, Avancé) ; kind = single pour un critère réussi ou non (observe = 1 phrase).
+- Pas de surcharge : 2 à 4 critères par bloc, 10 au plus en tout ; regroupe les critères secondaires (attitude et règles = une seule case).
+- label : 6 mots au plus (en-tête de colonne).
+- bonus : seulement si l'enseignant le demande (sinon liste vide).
+- sources : textes officiels utilisés (titre et année, ou adresse web du référentiel), puis « Cycle … du Carnet EPS ».
+- notes : 1 ou 2 phrases sur les choix faits (répartition des points, adaptation au niveau, ce qui manquait).`;
+
+export interface EvalSheetInput {
+  className: string;
+  level: string;
+  students: number | null;
+  activity: string;
+  cycle: { title: string; objectives: string; competences: string; evaluation: string } | null;
+  lesson: { title: string; objective: string; evalKind: string | null; blocks: Array<{ kind: string; title: string; minutes: number; text: string }> };
+  /** Référentiel collé par l'enseignant (bac) ; vide = recherche en ligne au lycée. */
+  referential: string;
+  instruction: string;
+}
+
+/** Fiche d'évaluation : au lycée sans référentiel fourni, Claude le cherche d'abord en ligne. */
+export async function aiEvalSheet(input: EvalSheetInput, onStep?: (step: string) => void): Promise<EvalSheetSpec> {
+  let referential = input.referential.trim();
+  if (!referential && isLyceeLevel(input.level)) {
+    onStep?.('Recherche du référentiel officiel en ligne…');
+    referential = await callClaudeResearch({
+      system: `${STYLE}\nTu cherches en ligne les textes officiels d'évaluation en EPS (eduscol.education.fr, sites académiques) et tu en fais une synthèse fidèle, sans rien inventer.`,
+      user: `Trouve le référentiel d'évaluation officiel pour : ${input.activity}, classe de ${input.level}${/terminale|tle|bac/i.test(input.level) ? ' (baccalauréat, contrôle en cours de formation)' : ''}.
+Donne : le champ d'apprentissage, les AFL visés (AFL1, AFL2, AFL3) avec leur formulation, la situation d'évaluation, les éléments évalués et les repères pour chaque degré, la répartition des points, et l'adresse de chaque source.`,
+    });
+  }
+  onStep?.('Construction de la fiche…');
+  const raw = await callClaude<EvalSheetSpec>({
+    task: 'fiche',
+    system: EVAL_SHEET_SYSTEM,
+    user: [
+      `Classe : ${input.className} (${input.level || 'niveau non précisé'}), ${input.students ?? 'effectif inconnu'} élèves. Activité : ${input.activity || 'non précisée'}.`,
+      input.cycle ? `Cycle :\n${JSON.stringify(input.cycle)}` : '',
+      `Séance d'évaluation :\n<seance>${JSON.stringify(input.lesson)}</seance>`,
+      referential ? `Référentiel :\n<referentiel>${referential}</referentiel>` : '',
+      input.instruction.trim() ? `Demande de l'enseignant :\n<demande>${input.instruction.trim()}</demande>` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    schema: EVAL_SHEET_SCHEMA,
+  });
+  return tidyEvalSheet(raw);
 }

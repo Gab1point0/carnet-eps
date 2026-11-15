@@ -90,3 +90,43 @@ export async function callClaude<T>({ task, system, user, schema }: CallOptions)
     throw e;
   }
 }
+
+/**
+ * Recherche en ligne (référentiels officiels) : Claude cherche avec l'outil de recherche web côté serveur
+ * et renvoie un texte de synthèse. Sonnet au minimum : la recherche filtrée n'existe pas sur Haiku.
+ */
+export async function callClaudeResearch({ system, user }: { system: string; user: string }): Promise<string> {
+  const config = getAiConfig();
+  if (!config.apiKey.trim()) throw new AiError('Aucune clé d\'API : ajoutez-la dans Réglages, « Assistant IA ».');
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey: config.apiKey.trim(), dangerouslyAllowBrowser: true });
+  const model = config.models.fiche.includes('haiku') ? 'claude-sonnet-5-5' : config.models.fiche;
+  const messages: Array<{ role: 'user' | 'assistant'; content: unknown }> = [{ role: 'user', content: user }];
+  try {
+    // La recherche se fait côté serveur ; une longue recherche peut s'arrêter en « pause_turn » : on la relance telle quelle.
+    for (let i = 0; i < 4; i++) {
+      const res = (await client.messages.create({
+        model,
+        max_tokens: 16000,
+        system,
+        messages: messages as never,
+        tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6 } as never],
+      })) as unknown as { stop_reason: string | null; content: Array<{ type: string; text?: string }> };
+      if (res.stop_reason === 'pause_turn') {
+        messages.push({ role: 'assistant', content: res.content });
+        continue;
+      }
+      if (res.stop_reason === 'refusal') throw new AiError('Claude a refusé cette recherche.');
+      const text = res.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('').trim();
+      if (!text) throw new AiError('La recherche du référentiel n\'a rien donné. Collez le référentiel vous-même.');
+      return text;
+    }
+    throw new AiError('La recherche du référentiel est trop longue. Collez le référentiel vous-même.');
+  } catch (e) {
+    if (e instanceof AiError) throw e;
+    if (e instanceof Anthropic.AuthenticationError) throw new AiError('Clé d\'API refusée : vérifiez-la dans Réglages.');
+    if (e instanceof Anthropic.APIConnectionError) throw new AiError('Pas de connexion à l\'API : vérifiez internet.');
+    if (e instanceof Anthropic.APIError) throw new AiError(`Erreur de l'API pendant la recherche (${e.status ?? 'inconnue'}) : ${e.message}`);
+    throw e;
+  }
+}

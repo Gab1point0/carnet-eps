@@ -180,6 +180,8 @@ export interface Lesson extends Meta {
   levels: [number, number, number, number] | null;
   /** Résultats par critère d'une évaluation (barème et moyenne de la classe). */
   grading: Grading | null;
+  /** Fiche d'évaluation (tableur) préparée par Claude pour cette séance. */
+  evalSheet: import('./lib/evalSheet').EvalSheetSpec | null;
   /** Propositions d'ajustement (issues du bilan précédent) déjà acceptées ou refusées. */
   proposalsDone: string[];
   /** Tâches à faire avant cette séance, ajoutées à la main. */

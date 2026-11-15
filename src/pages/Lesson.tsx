@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Ban, BookmarkPlus, CalendarClock, ChevronLeft, ChevronRight, ClipboardCheck, Copy, Library, Play, Plus, Printer, RefreshCw, Trash2 } from 'lucide-react';
-import { Mic } from 'lucide-react';
+import { Mic, Sheet } from 'lucide-react';
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import { VoiceLessonModal } from '../components/VoiceLessonModal';
+import { EvalSheetModal } from '../components/EvalSheetModal';
+import { isGradedEvaluation } from '../lib/evaluations';
 import { ProposalsPanel } from '../components/ProposalsPanel';
 import { MarkdownField } from '../components/MarkdownField';
 import { LevelsField } from '../components/LevelsField';
@@ -36,6 +38,7 @@ export function LessonPage() {
   const [duplicating, setDuplicating] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [dictating, setDictating] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
   // Réglages de la séance (état, date, heures, lieu, évaluation) : une ligne de résumé, dépliée au toucher.
@@ -155,6 +158,11 @@ export function LessonPage() {
             <Button icon={<Mic size={17} />} onClick={() => setDictating(true)}>
               Dicter la séance
             </Button>
+            {!isTemplate && isGradedEvaluation(lesson) && (
+              <Button icon={<Sheet size={17} />} onClick={() => setSheetOpen(true)}>
+                Fiche d'évaluation
+              </Button>
+            )}
             {!isTemplate && (
               <Button icon={<ClipboardCheck size={17} />} onClick={() => setReviewing(true)}>
                 Bilan {lesson.rating ? RATINGS.find((r) => r.value === lesson.rating)?.emoji : ''}
@@ -418,6 +426,7 @@ export function LessonPage() {
       )}
       {reviewing && <ReviewModal lesson={lesson} onClose={() => setReviewing(false)} />}
       {dictating && <VoiceLessonModal lesson={lesson} onClose={() => setDictating(false)} />}
+      {sheetOpen && <EvalSheetModal lesson={lesson} onClose={() => setSheetOpen(false)} />}
       {duplicating && (
         <DuplicateLessonModal
           lesson={lesson}

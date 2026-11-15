@@ -1,0 +1,184 @@
+import { useState } from 'react';
+import { Copy, Download, Loader, RefreshCw, Sparkles } from 'lucide-react';
+import type { Lesson } from '../types';
+import { useData } from '../store/data';
+import { toast } from '../store/ui';
+import { aiReady } from '../lib/ai';
+import { aiEvalSheet, isLyceeLevel } from '../lib/aiTasks';
+import { buildEvalWorkbook, cumulativeScript, LEVEL_NAMES, type EvalSheetSpec } from '../lib/evalSheet';
+import { activityOf } from '../store/selectors';
+import { formatLong } from '../lib/dates';
+import { Button, Field, Modal, NumberInput, TextArea } from './ui';
+
+/**
+ * « Fiche d'évaluation » d'une séance : Claude prépare les critères (d'après la séance, le cycle, la classe,
+ * les attendus officiels ou le référentiel du bac), puis l'application produit un fichier Excel
+ * qui s'ouvre aussi dans Google Sheets.
+ */
+export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: () => void }) {
+  const data = useData((s) => s.data);
+  const klass = lesson.classId ? data.classes[lesson.classId] : undefined;
+  const cycle = lesson.cycleId ? data.cycles[lesson.cycleId] : undefined;
+  const activity = activityOf(data, lesson.activityId ?? cycle?.activityId ?? null)?.name ?? '';
+  const level = klass?.level ?? lesson.classLevels[0] ?? '';
+  const lycee = isLyceeLevel(level);
+
+  const [spec, setSpec] = useState<EvalSheetSpec | null>(lesson.evalSheet);
+  const [referential, setReferential] = useState('');
+  const [instruction, setInstruction] = useState('');
+  const [step, setStep] = useState('');
+  const [error, setError] = useState('');
+  const save = (s: EvalSheetSpec) => {
+    setSpec(s);
+    useData.getState().patch('lessons', lesson.id, { evalSheet: s });
+  };
+
+  const generate = async () => {
+    setError('');
+    setStep('Préparation…');
+    try {
+      const s = await aiEvalSheet(
+        {
+          className: klass?.name ?? '',
+          level,
+          students: klass?.students ?? null,
+          activity,
+          cycle: cycle ? { title: cycle.title, objectives: cycle.objectives, competences: cycle.competences, evaluation: cycle.evaluation } : null,
+          lesson: {
+            title: lesson.title,
+            objective: lesson.objective,
+            evalKind: lesson.evalKind,
+            blocks: lesson.blocks.map((b) => ({ kind: b.kind, title: b.title, minutes: b.minutes, text: b.text })),
+          },
+          referential,
+          instruction: spec ? `${instruction}\nVersion précédente : ${JSON.stringify(spec)}` : instruction,
+        },
+        setStep,
+      );
+      save(s);
+      setInstruction('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Claude est indisponible.');
+    } finally {
+      setStep('');
+    }
+  };
+
+  const download = async () => {
+    if (!spec) return;
+    const { workbook } = await buildEvalWorkbook(spec, {
+      students: klass?.students ?? 30,
+      className: klass?.name ?? 'Classe',
+      activity,
+      date: lesson.date ? formatLong(lesson.date) : undefined,
+    });
+    const buf = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Évaluation - ${klass?.name ?? 'classe'} - ${activity || spec.title}.xlsx`.replace(/[\\/:*?"<>|]/g, '-');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  };
+
+  const copyScript = async () => {
+    if (!spec) return;
+    const { layout } = await buildEvalWorkbook(spec, { students: klass?.students ?? 30, className: '', activity });
+    await navigator.clipboard.writeText(cumulativeScript(layout));
+    toast('Script copié : Extensions > Apps Script dans Google Sheets, collez, enregistrez.', { tone: 'success', ms: 8000 });
+  };
+
+  const setPoints = (i: number, points: number) => spec && save({ ...spec, blocks: spec.blocks.map((b, j) => (j === i ? { ...b, points } : b)) });
+  const total = spec?.blocks.reduce((s, b) => s + b.points, 0) ?? 0;
+
+  return (
+    <Modal
+      title="Fiche d'évaluation"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Fermer
+          </Button>
+          <Button variant="primary" icon={<Download size={16} />} onClick={download} disabled={!spec || !!step}>
+            Télécharger (Excel)
+          </Button>
+        </>
+      }
+    >
+      <p className="muted small">
+        {klass?.name} · {activity || 'activité ?'} · {lycee ? 'attendus de fin de lycée (AFL)' : `attendus de fin de cycle ${level === '6e' ? '3' : '4'} (AFC)`}. Une ligne par élève, des cases à cocher, la note sur 20 se calcule seule.
+      </p>
+
+      {!aiReady() && <p className="error-text small">Il faut une clé d'API Claude : Réglages, onglet « Assistant IA ».</p>}
+
+      {lycee && (
+        <Field label="Référentiel (facultatif)" hint="Collez le référentiel de l'établissement ou de l'académie. Laissé vide, Claude cherche le référentiel officiel en ligne.">
+          <TextArea value={referential} onChange={setReferential} minRows={3} placeholder="AFL1 : … / Repères : … / Barème : …" />
+        </Field>
+      )}
+
+      {spec && (
+        <div className="stack eval-preview">
+          <strong>{spec.title}</strong>
+          {spec.blocks.map((b, i) => (
+            <div key={i} className="card eval-block">
+              <div className="row-between">
+                <strong>{b.name}</strong>
+                <span className="row" style={{ gap: 6 }}>
+                  <NumberInput value={b.points} min={0} max={20} onChange={(v) => setPoints(i, v ?? 0)} aria-label={`Points du bloc ${b.name}`} />
+                  <span className="muted small">pts</span>
+                </span>
+              </div>
+              <ul className="eval-criteria">
+                {b.criteria.map((c, j) => (
+                  <li key={j}>
+                    <span>{c.label}</span> <span className="muted small">{c.kind === 'levels' ? `4 cases (${LEVEL_NAMES.join(' → ')})` : '1 case'}</span>
+                    {c.observe.length > 0 && <div className="muted small">{c.kind === 'levels' ? `Acquis : ${c.observe[2] ?? ''}` : c.observe[0]}</div>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <p className={total === 20 ? 'muted small' : 'error-text small'}>Total : {total}/20</p>
+          {spec.expectations.length > 0 && (
+            <details>
+              <summary className="small">Attendus visés ({spec.expectations.length})</summary>
+              <ul className="small">
+                {spec.expectations.map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {spec.notes && <p className="muted small">{spec.notes}</p>}
+          {spec.sources.length > 0 && <p className="muted small">Sources : {spec.sources.join(' · ')}</p>}
+          <Button size="sm" variant="ghost" icon={<Copy size={14} />} onClick={copyScript}>
+            Copier le script Google Sheets (cocher Acquis coche aussi les cases d'avant)
+          </Button>
+        </div>
+      )}
+
+      {step && (
+        <p className="muted row" style={{ gap: 8 }}>
+          <Loader size={16} className="spin" /> {step}
+        </p>
+      )}
+      {error && <p className="error-text">{error}</p>}
+
+      <div className="voice-type">
+        <TextArea
+          value={instruction}
+          onChange={setInstruction}
+          minRows={2}
+          placeholder={spec ? 'Ce qu\'il faut changer : « retire l\'arbitrage », « 3 blocs seulement », « ajoute un bonus progrès »…' : 'Précisions (facultatif) : barème voulu, critères à garder, ce que vous ne voulez pas évaluer…'}
+        />
+        <Button size="sm" variant={spec ? 'secondary' : 'primary'} icon={spec ? <RefreshCw size={15} /> : <Sparkles size={15} />} onClick={generate} disabled={!!step || !aiReady()}>
+          {spec ? 'Refaire avec ces changements' : 'Préparer la fiche avec Claude'}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
