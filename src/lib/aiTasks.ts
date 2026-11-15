@@ -674,3 +674,47 @@ export async function aiCycleFields(input: {
   const keep = (k: keyof CycleFields) => (typeof r[k] === 'string' ? r[k].trim() : input.current[k]);
   return { objectives: keep('objectives'), competences: keep('competences'), evaluation: keep('evaluation'), notes: keep('notes') };
 }
+
+// ── Plan de séquence (toutes les séances d'un cycle) ────────────────────────
+
+export interface PlannedLesson {
+  title: string;
+  objective: string;
+  evalKind: 'diagnostic' | 'formative' | 'summative' | null;
+}
+
+const CYCLE_PLAN_SYSTEM = `${STYLE}
+
+Tu proposes le plan d'une séquence (cycle) d'EPS : une ligne par séance, dans l'ordre, exactement le nombre de séances demandé.
+- title : « Séance N — » suivi de ce qu'on y apprend (6 mots au plus après le tiret).
+- objective : ce que les élèves doivent savoir faire à la fin de la séance, en une phrase observable.
+- evalKind : diagnostic (début de cycle), formative (vers le milieu), summative (fin de cycle, conforme à l'évaluation du cycle) ; null pour les autres séances.
+- Progression : du plus simple au plus complexe, au service des objectifs et des attendus du cycle, au niveau de la classe ; prévois les séances d'appropriation, de régulation (avant l'évaluation) et l'évaluation finale annoncée.
+- Tiens compte des séances déjà préparées (titres et objectifs fournis) : garde leur place dans la progression.`;
+
+export async function aiCyclePlan(input: {
+  className: string;
+  level: string;
+  students: number | null;
+  activity: string;
+  cycle: { title: string; objectives: string; competences: string; evaluation: string; notes: string };
+  lessons: Array<{ number: number; date: string | null; minutes: number; title: string; objective: string; prepared: boolean }>;
+  instruction: string;
+}): Promise<PlannedLesson[]> {
+  const r = await callClaude<{ lessons: PlannedLesson[] }>({
+    task: 'lesson',
+    system: CYCLE_PLAN_SYSTEM,
+    user: `Classe : ${input.className} (${input.level || 'niveau ?'}), ${input.students ?? '?'} élèves. Activité : ${input.activity || '?'}.\n\nCycle :\n${JSON.stringify(input.cycle)}\n\nSéances (${input.lessons.length}) :\n${JSON.stringify(input.lessons)}${input.instruction.trim() ? `\n\nDemande de l'enseignant :\n<demande>${input.instruction.trim()}</demande>` : ''}`,
+    schema: obj({
+      lessons: { type: 'array', items: obj({ title: { type: 'string' }, objective: { type: 'string' }, evalKind: nullableEnum(['diagnostic', 'formative', 'summative']) }) },
+    }),
+  });
+  // Exactement une ligne par séance : on complète ou on coupe si Claude s'est trompé de nombre.
+  const out = (r.lessons ?? []).slice(0, input.lessons.length).map((l) => ({
+    title: (l.title ?? '').trim(),
+    objective: (l.objective ?? '').trim(),
+    evalKind: l.evalKind === 'diagnostic' || l.evalKind === 'formative' || l.evalKind === 'summative' ? l.evalKind : null,
+  }));
+  while (out.length < input.lessons.length) out.push({ title: '', objective: '', evalKind: null });
+  return out;
+}

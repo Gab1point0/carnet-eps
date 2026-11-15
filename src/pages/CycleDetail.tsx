@@ -6,6 +6,7 @@ import { ActivityChip, ClassDot, LessonRow, formatDateRange } from '../component
 import { ActivitySelect, DateField, SlotPicker } from '../components/forms';
 import { EvalPath } from '../components/EvalPath';
 import { CycleAiFill, CycleReview, CycleTimeline, TitlesButton } from '../components/CycleExtras';
+import { CycleGenerateButton } from '../components/CycleGenerate';
 import { LevelsField } from '../components/LevelsField';
 import { CopyCycleModal, RedateModal } from '../components/CycleModals';
 import { useData } from '../store/data';
@@ -98,6 +99,7 @@ export function CycleDetailPage() {
         title={`Séances (${lessons.length})`}
         actions={
           <>
+            {!isTemplate && <CycleGenerateButton cycle={cycle} lessons={lessons} />}
             <TitlesButton cycle={cycle} lessons={lessons} />
             <Button size="sm" icon={<Printer size={16} />} onClick={() => navigate(`/cycles/${cycle.id}/fiches`)}>
               Fiches élèves

@@ -568,3 +568,10 @@ code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; font-
 @media screen and (max-width: 700px) {
   .fiche-copies .sheet, .print-page .sheet.fiche { overflow-x: auto; }
 }
+
+/* Générer les séances d'un cycle */
+.gen-disclaimer { display: flex; gap: 10px; align-items: flex-start; border-left: 4px solid var(--warn); }
+.gen-disclaimer p { margin: 0; }
+.gen-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.gen-mode { display: flex; flex-direction: column; gap: 6px; text-align: left; font: inherit; color: inherit; cursor: pointer; border: 2px solid var(--border); }
+.gen-mode-on { border-color: var(--primary); background: var(--primary-soft); }
