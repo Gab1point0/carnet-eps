@@ -1,7 +1,8 @@
 import { toast } from '../store/ui';
 
 const CHECK_EVERY = 60_000;
-const scriptOf = (html: string) => html.match(/assets\/index-[^"']+\.js/)?.[0] ?? null;
+/** Date de construction inscrite dans la page (voir vite.config.ts). */
+const buildOf = (html: string) => html.match(/name="app-build" content="([^"]+)"/)?.[1] ?? null;
 
 let current: string | null = null;
 let outdated = false;
@@ -19,8 +20,9 @@ export async function checkForUpdate(force = false): Promise<boolean> {
   lastCheck = Date.now();
   try {
     const res = await fetch('./index.html', { cache: 'no-store' });
-    const latest = res.ok ? scriptOf(await res.text()) : null;
-    if (latest && latest !== current) {
+    const latest = res.ok ? buildOf(await res.text()) : null;
+    // Seulement si le site est plus récent (juste après une mise en ligne, il peut encore servir l'ancienne page).
+    if (latest && latest > current) {
       outdated = true;
       if (!warned) {
         warned = true;
@@ -37,7 +39,7 @@ export async function checkForUpdate(force = false): Promise<boolean> {
 }
 /** Surveille les mises à jour ; quand on revient sur un onglet périmé, il se recharge tout seul (jamais pendant qu'on s'en sert). */
 export function watchAppUpdates() {
-  current = scriptOf(document.documentElement.outerHTML);
+  current = buildOf(document.documentElement.outerHTML);
   if (!current) return;
   void checkForUpdate();
   document.addEventListener('visibilitychange', () => {
