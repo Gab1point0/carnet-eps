@@ -110,12 +110,14 @@ export function LessonPage() {
     return { prev: i > 0 ? list[i - 1] : undefined, next: i >= 0 ? list[i + 1] : undefined };
   })();
 
-  // Séance suivante de la classe (par date ; à défaut, la suivante du cycle), pour y copier un bloc.
+  // Séance suivante de la même classe dans la même activité (par date ; à défaut, la suivante du cycle), pour y copier un bloc.
   const nextLesson = (() => {
     if (isTemplate) return undefined;
-    if (lesson.date) {
+    if (lesson.date && activityId) {
+      const activityOfLesson = (l: Lesson) => l.activityId ?? (l.cycleId ? data.cycles[l.cycleId]?.activityId : null) ?? null;
       const after = Object.values(data.lessons)
-        .filter((l) => l.classId === lesson.classId && l.id !== lesson.id && l.status !== 'cancelled' && l.date && (l.date > lesson.date! || (l.date === lesson.date && l.start > lesson.start)))
+        .filter((l) => l.classId === lesson.classId && l.id !== lesson.id && l.status !== 'cancelled' && activityOfLesson(l) === activityId)
+        .filter((l) => l.date && (l.date > lesson.date! || (l.date === lesson.date && l.start > lesson.start)))
         .sort((a, b) => a.date!.localeCompare(b.date!) || a.start.localeCompare(b.start));
       if (after.length) return after[0];
     }
@@ -397,7 +399,7 @@ export function LessonPage() {
               }}
               onCopyToNext={
                 nextLesson && {
-                  label: `Copier ce bloc dans la séance suivante (${nextLesson.date ? formatShort(nextLesson.date) : nextLesson.title || 'sans date'})`,
+                  label: `Copier ce bloc dans la séance suivante${activityOf(data, activityId) ? ` de ${activityOf(data, activityId)!.name.toLowerCase()}` : ''} (${nextLesson.date ? formatShort(nextLesson.date) : nextLesson.title || 'sans date'})`,
                   run: () => copyToNext(b),
                 }
               }
