@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CalendarOff, CalendarPlus, Check, ClipboardCheck, ClipboardList, Play, Plus, Sparkles, Users } from 'lucide-react';
+import { CalendarOff, CalendarPlus, Check, ClipboardCheck, ClipboardList, Play, Plus, Shuffle, Sparkles, Users } from 'lucide-react';
 import { Button, Card, EmptyState, PageHeader, Section } from '../components/ui';
 import { ReviewModal } from '../components/ReviewModal';
 import { TodoSection } from '../components/TodoSection';
@@ -8,6 +8,7 @@ import { EvaluationsToGrade } from '../components/EvaluationsToGrade';
 import { ClosureModal } from '../components/ClosureModal';
 import { ClassDot, LessonRow, StatusIcon } from '../components/cards';
 import { NewYearModal } from '../components/YearModals';
+import { RandomGroupsModal } from '../components/RandomGroupsModal';
 import { useData } from '../store/data';
 import { useCurrentYear, useSettings, useYearClasses, useYearLessons } from '../store/selectors';
 import { loadSample } from '../store/sample';
@@ -29,6 +30,7 @@ export function DashboardPage() {
   const [newYear, setNewYear] = useState(false);
   const [reviewing, setReviewing] = useState<Lesson | null>(null);
   const [closing, setClosing] = useState(false);
+  const [randomGroups, setRandomGroups] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const today = todayISO();
   const nowHM = new Date().toTimeString().slice(0, 5);
@@ -135,6 +137,11 @@ export function DashboardPage() {
         subtitle={<span className="cap-first">{formatDay(today)}</span>}
         actions={
           <>
+            {classes.length > 0 && (
+              <Button variant="primary" icon={<Shuffle size={17} />} onClick={() => setRandomGroups(true)}>
+                Groupes au hasard
+              </Button>
+            )}
             <Button icon={<CalendarOff size={17} />} onClick={() => setClosing(true)}>
               Jour sans cours
             </Button>
@@ -305,6 +312,14 @@ export function DashboardPage() {
         </>
       )}
       {reviewing && <ReviewModal lesson={reviewing} onClose={() => setReviewing(null)} />}
+      {randomGroups && (
+        <RandomGroupsModal
+          classes={classes}
+          // La classe du cours en cours (ou du prochain cours du jour) est choisie d'avance.
+          initialClassId={(todayLessons.find((l) => l.end >= nowHM) ?? todayLessons[0] ?? nextLessons[0])?.classId ?? undefined}
+          onClose={() => setRandomGroups(false)}
+        />
+      )}
       {closing && year && <ClosureModal yearId={year.id} onClose={() => setClosing(false)} />}
     </>
   );

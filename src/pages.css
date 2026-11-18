@@ -650,3 +650,9 @@ code.formula { font-family: ui-monospace, Consolas, monospace; background: var(-
 /* Cases garçon / fille de la liste d'élèves. */
 .sex-check { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 6px 2px; }
 .sex-check input { width: 20px; height: 20px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.random-absent { text-decoration: line-through; opacity: 0.55; border-style: dashed; }
+.random-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.random-group { border: 2px solid var(--grp); border-radius: 12px; padding: 8px 12px; background: color-mix(in srgb, var(--grp) 8%, var(--surface)); }
+.random-group-title { color: var(--grp); display: block; margin-bottom: 4px; }
+.random-group ul { margin: 0; padding-left: 18px; }
+.random-group li { padding: 2px 0; }

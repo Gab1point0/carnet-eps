@@ -5,6 +5,7 @@ import { Mic, Sheet } from 'lucide-react';
 import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import { VoiceLessonModal } from '../components/VoiceLessonModal';
 import { EvalSheetModal } from '../components/EvalSheetModal';
+import { LessonGroupsButton } from '../components/RandomGroupsModal';
 import { isGradedEvaluation } from '../lib/evaluations';
 import { ProposalsPanel } from '../components/ProposalsPanel';
 import { MarkdownField } from '../components/MarkdownField';
@@ -109,6 +110,31 @@ export function LessonPage() {
     return { prev: i > 0 ? list[i - 1] : undefined, next: i >= 0 ? list[i + 1] : undefined };
   })();
 
+  // Séance suivante de la classe (par date ; à défaut, la suivante du cycle), pour y copier un bloc.
+  const nextLesson = (() => {
+    if (isTemplate) return undefined;
+    if (lesson.date) {
+      const after = Object.values(data.lessons)
+        .filter((l) => l.classId === lesson.classId && l.id !== lesson.id && l.status !== 'cancelled' && l.date && (l.date > lesson.date! || (l.date === lesson.date && l.start > lesson.start)))
+        .sort((a, b) => a.date!.localeCompare(b.date!) || a.start.localeCompare(b.start));
+      if (after.length) return after[0];
+    }
+    return siblings.next;
+  })();
+  const copyToNext = (b: Block) => {
+    if (!nextLesson) return;
+    const copy = cloneBlockWithNewId(b);
+    useData.getState().patch('lessons', nextLesson.id, { blocks: [...nextLesson.blocks, copy] });
+    toast(`« ${b.title || 'Bloc'} » copié à la fin de la séance ${nextLesson.date ? `du ${formatShort(nextLesson.date)}` : 'suivante du cycle'}`, {
+      tone: 'success',
+      ms: 8000,
+      action: { label: 'Annuler', run: () => {
+        const cur = useData.getState().data.lessons[nextLesson.id];
+        if (cur) useData.getState().patch('lessons', cur.id, { blocks: cur.blocks.filter((x) => x.id !== copy.id) });
+      } },
+    });
+  };
+
   const backTo = cycle ?`/cycles/${cycle.id}` : klass ? `/classes/${klass.id}` : '/library';
   const backLabel = cycle ? cycle.title || 'Cycle' : klass ? klass.name : 'Bibliothèque';
 
@@ -158,6 +184,7 @@ export function LessonPage() {
             <Button icon={<Mic size={17} />} onClick={() => setDictating(true)}>
               Dicter la séance
             </Button>
+            {!isTemplate && <LessonGroupsButton lesson={lesson} />}
             {!isTemplate && isGradedEvaluation(lesson) && (
               <Button icon={<Sheet size={17} />} onClick={() => setSheetOpen(true)}>
                 Fiche d'évaluation
@@ -368,6 +395,12 @@ export function LessonPage() {
                   setDragOver(null);
                 },
               }}
+              onCopyToNext={
+                nextLesson && {
+                  label: `Copier ce bloc dans la séance suivante (${nextLesson.date ? formatShort(nextLesson.date) : nextLesson.title || 'sans date'})`,
+                  run: () => copyToNext(b),
+                }
+              }
               onDelete={() => {
                 const before = lesson.blocks;
                 setBlocks(lesson.blocks.filter((x) => x.id !== b.id));

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, BookmarkPlus, ChevronDown, ChevronRight, Copy, Film, GripVertical, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookmarkPlus, CopyPlus, ChevronDown, ChevronRight, Copy, Film, GripVertical, Trash2 } from 'lucide-react';
 import type { Block, BlockKind, CourtId, ID, Lesson } from '../types';
 import { AiBlockTools } from './AiBlockTools';
 import { IconButton, Menu, NumberInput, Select, TextArea, TextInput } from './ui';
@@ -40,6 +40,7 @@ export function BlockEditor({
   onDelete,
   onDuplicate,
   onSaveToLibrary,
+  onCopyToNext,
   cycleId,
   lesson,
   dragProps,
@@ -55,6 +56,8 @@ export function BlockEditor({
   onDelete: () => void;
   onDuplicate: () => void;
   onSaveToLibrary: () => void;
+  /** Copier le bloc dans la séance suivante de la classe (absent s'il n'y en a pas). */
+  onCopyToNext?: { label: string; run: () => void };
   cycleId?: ID | null;
   /** Séance du bloc : donne à Claude le contexte de la classe. */
   lesson?: Lesson;
@@ -123,6 +126,7 @@ export function BlockEditor({
           <Menu
             items={[
               { label: 'Dupliquer', icon: <Copy size={16} />, onClick: onDuplicate },
+              { label: onCopyToNext?.label ?? '', icon: <CopyPlus size={16} />, hidden: !onCopyToNext, onClick: () => onCopyToNext?.run() },
               { label: 'Enregistrer dans la bibliothèque', icon: <BookmarkPlus size={16} />, onClick: onSaveToLibrary },
               { label: 'Supprimer ce bloc', icon: <Trash2 size={16} />, danger: true, onClick: onDelete },
             ]}
