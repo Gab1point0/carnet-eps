@@ -8,6 +8,8 @@ import {
   parseExpr,
   rankFraction,
   rankToExcel,
+  rankBySexToExcel,
+  type SexCells,
   scaleFraction,
   scaleToExcel,
   slugRef,
@@ -37,6 +39,8 @@ export interface EvalScoring {
   steps?: boolean;
   /** Rang : la meilleure valeur est la plus grande (`high`, ex. VMA) ou la plus petite (`low`, ex. chrono). */
   best?: 'high' | 'low';
+  /** Rang : filles et garçons classés séparément (d'après le sexe renseigné dans la liste d'élèves). */
+  bySex?: boolean;
 }
 
 export interface EvalCriterion {
@@ -140,7 +144,7 @@ function tidyCriterion(c: EvalCriterion, used: Set<string>): EvalCriterion {
     if (t === 'table') {
       const points = (c.scoring?.points ?? []).map((p) => ({ at: num(p.at, NaN), pct: Math.max(0, Math.min(100, num(p.pct, NaN))) })).filter((p) => Number.isFinite(p.at) && Number.isFinite(p.pct));
       out.scoring = points.length ? { type: 'table', points: points.sort((a, b) => a.at - b.at), ...(c.scoring?.steps ? { steps: true } : {}) } : { type: 'none' };
-    } else if (t === 'rank') out.scoring = { type: 'rank', best: c.scoring?.best === 'low' ? 'low' : 'high' };
+    } else if (t === 'rank') out.scoring = { type: 'rank', best: c.scoring?.best === 'low' ? 'low' : 'high', ...(c.scoring?.bySex ? { bySex: true } : {}) };
     else out.scoring = { type: 'none' };
   }
   if (kind === 'choice') out.options = (c.options ?? []).filter((o) => o.label?.trim()).map((o) => ({ label: o.label.trim().replace(/,/g, ' '), pct: Math.max(0, Math.min(100, num(o.pct, 0))) }));
@@ -218,6 +222,14 @@ export function sheetProblems(spec: EvalSheetSpec): string[] {
 }
 
 const refsOf = (e: Expr) => exprRefs(e).all;
+
+/** La formule appelle-t-elle cette fonction ? */
+function usesFn(e: Expr, name: string): boolean {
+  if (e.t === 'fn') return e.name === name || e.args.some((a) => usesFn(a, name));
+  if (e.t === 'bin') return usesFn(e.a, name) || usesFn(e.b, name);
+  if (e.t === 'neg') return usesFn(e.a, name);
+  return false;
+}
 
 const withRefsCache = new WeakMap<EvalSheetSpec, EvalSheetSpec>();
 /** Fiches anciennes (sans noms courts) : on les complète, sans rien changer d'autre. */
@@ -318,7 +330,7 @@ export function evaluateSheet(spec0: EvalSheetSpec, rows: SheetRow[], keyOf: (bl
           if (x.c.editable && typeof raw === 'number' && Number.isFinite(raw)) v = raw;
           else if (e) {
             const inner = new Set(stack).add(ref);
-            v = evalExpr(e, { get: (n) => valueOf(ri, n, inner), classValues: (n) => classOf(n, inner) });
+            v = evalExpr(e, { get: (n) => valueOf(ri, n, inner), classValues: (n) => classOf(n, inner), sexValues: (n) => sexClassOf(n, rows[ri].sex, inner) });
           }
           break;
         }
@@ -335,6 +347,17 @@ export function evaluateSheet(spec0: EvalSheetSpec, rows: SheetRow[], keyOf: (bl
     classMemo.set(ref, out);
     return out;
   };
+  /** Valeurs des élèves présents du même sexe (filles et garçons classés séparément) ; null si le sexe n'est pas renseigné. */
+  const sexClassOf = (ref: string, sex: 'F' | 'G' | undefined, stack: Set<string>): number[] | null => {
+    if (!sex) return null;
+    const id = `${sex}:${ref}`;
+    if (classMemo.has(id)) return classMemo.get(id)!;
+    if (stack.has(`classe:${id}`)) return [];
+    const inner = new Set(stack).add(`classe:${id}`);
+    const out = rows.flatMap((r, i) => (r.absent || r.sex !== sex ? [] : [valueOf(i, ref, inner)])).filter((v): v is number => v !== null);
+    classMemo.set(id, out);
+    return out;
+  };
 
   const rounding = spec.rounding ?? 0.1;
   return rows.map((row, ri) => {
@@ -349,7 +372,10 @@ export function evaluateSheet(spec0: EvalSheetSpec, rows: SheetRow[], keyOf: (bl
       else if (c.kind === 'single') f = v ?? 0;
       else if (c.kind === 'choice') f = (v ?? 0) / 100;
       else if (v !== null && c.scoring?.type === 'table') f = scaleFraction(v, c.scoring.points ?? [], c.scoring.steps);
-      else if (v !== null && c.scoring?.type === 'rank') f = rankFraction(v, classOf(c.ref!, new Set()), c.scoring.best ?? 'high');
+      else if (v !== null && c.scoring?.type === 'rank') {
+        const pool = c.scoring.bySex ? sexClassOf(c.ref!, row.sex, new Set()) : classOf(c.ref!, new Set());
+        f = pool ? rankFraction(v, pool, c.scoring.best ?? 'high') : 0;
+      }
       fracs[key] = f;
     }
     const blocks = spec.blocks.map((b) => {
@@ -403,7 +429,8 @@ export function scoringText(c: EvalCriterion, pointsOfCrit?: number): string {
   };
   const unit = c.unit ? ` ${c.unit}` : '';
   if (c.kind === 'choice') return (c.options ?? []).map((o) => `${o.label} → ${pts(o.pct)}`).join(' ; ');
-  if (c.scoring?.type === 'rank') return `Rang dans la classe : ${c.scoring.best === 'low' ? 'la plus petite valeur' : 'la plus grande valeur'} a tous les points, la dernière aucun, régulièrement entre les deux.`;
+  if (c.scoring?.type === 'rank')
+    return `Rang ${c.scoring.bySex ? 'parmi les élèves du même sexe (filles et garçons classés séparément)' : 'dans la classe'} : ${c.scoring.best === 'low' ? 'la plus petite valeur' : 'la plus grande valeur'} a tous les points, la dernière aucun, régulièrement entre les deux.`;
   if (c.scoring?.type === 'table') {
     const fmt = (v: number) => (c.format === 'time' ? `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}` : String(v).replace('.', ','));
     return `${(c.scoring.points ?? []).map((p) => `${fmt(p.at)}${unit} → ${pts(p.pct)}`).join(' ; ')} (${c.scoring.steps ? 'par paliers' : 'régulièrement entre deux lignes'})`;
@@ -439,8 +466,9 @@ export async function buildEvalWorkbook(
   // Barème filles / garçons (formule avec « fille » ou « garcon ») : une colonne « F / G », à remplir dans le tableur si la fiche est vierge.
   const withSex = spec.blocks.some((b) =>
     b.criteria.some((c) => {
+      if (c.scoring?.type === 'rank' && c.scoring.bySex) return true;
       const e = c.kind === 'computed' ? parsed(c.expr) : null;
-      return !!e && [...refsOf(e)].some(isSexRef);
+      return !!e && ([...refsOf(e)].some(isSexRef) || usesFn(e, 'RANG_SEXE'));
     }),
   );
   const groupCol = 2;
@@ -493,6 +521,8 @@ export async function buildEvalWorkbook(
         return a;
     }
   };
+  /** Sexe de l'élève sur une ligne et colonne de toute la classe (pour classer filles et garçons séparément). */
+  const sexCells = (row: number | string): SexCells => ({ cell: `$${col(sexCol)}${row}`, range: `$${col(sexCol)}$${FIRST}:$${col(sexCol)}$${LAST}` });
   const rangeOf = (ref: string) => {
     const x = byRef.get(ref);
     if (!x) return '""';
@@ -506,7 +536,8 @@ export async function buildEvalWorkbook(
     if (c.kind === 'single') return v;
     if (c.kind === 'choice') return `IFERROR(${v}/100,0)`;
     const cell = `${abs}${col(place.get(key)!)}${row}`;
-    if (c.scoring?.type === 'rank') return `IF(${cell}="",0,${rankToExcel(cell, rangeOf(c.ref!), c.scoring.best ?? 'high')})`;
+    if (c.scoring?.type === 'rank')
+      return `IF(${cell}="",0,${c.scoring.bySex ? rankBySexToExcel(cell, rangeOf(c.ref!), c.scoring.best ?? 'high', sexCells(row)) : rankToExcel(cell, rangeOf(c.ref!), c.scoring.best ?? 'high')})`;
     return `IF(${cell}="",0,${scaleToExcel(cell, c.scoring?.points ?? [], c.scoring?.steps)})`;
   };
 
@@ -721,7 +752,7 @@ export async function buildEvalWorkbook(
           } else if (crit.kind === 'computed') {
             const e = parsed(crit.expr);
             const forced = crit.editable ? src?.marks[key] : undefined;
-            cell.value = typeof forced === 'number' && Number.isFinite(forced) ? forced : e ? { formula: exprToExcel(e, (n) => cellOf(n, row), rangeOf) } : '';
+            cell.value = typeof forced === 'number' && Number.isFinite(forced) ? forced : e ? { formula: exprToExcel(e, (n) => cellOf(n, row), rangeOf, withSex ? sexCells(row) : undefined) } : '';
             cell.numFmt = numFmt(crit);
             cell.font = { italic: true, color: { argb: 'FF475467' } };
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } };

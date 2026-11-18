@@ -246,10 +246,20 @@ export function EvalSheetEditor({ spec, onChange }: { spec: EvalSheetSpec; onCha
                         <option value="rank">Rang dans la classe</option>
                       </select>
                       {c.scoring?.type === 'rank' && (
-                        <select className="input input-sm" value={c.scoring.best ?? 'high'} onChange={(e) => setCrit(bi, ci, { scoring: { type: 'rank', best: e.target.value as 'high' | 'low' } })} aria-label="Meilleure valeur">
+                        <select className="input input-sm" value={c.scoring.best ?? 'high'} onChange={(e) => setCrit(bi, ci, { scoring: { ...c.scoring, type: 'rank', best: e.target.value as 'high' | 'low' } })} aria-label="Meilleure valeur">
                           <option value="high">la plus grande valeur est la meilleure</option>
                           <option value="low">la plus petite valeur est la meilleure (chrono)</option>
                         </select>
+                      )}
+                      {c.scoring?.type === 'rank' && (
+                        <label className="check small" title="D'après les cases garçon / fille de la liste d'élèves de la classe">
+                          <input
+                            type="checkbox"
+                            checked={!!c.scoring.bySex}
+                            onChange={(e) => setCrit(bi, ci, { scoring: { type: 'rank', best: c.scoring?.best ?? 'high', ...(e.target.checked ? { bySex: true } : {}) } })}
+                          />
+                          Classer filles et garçons séparément
+                        </label>
                       )}
                     </div>
                     {c.scoring?.type === 'table' && (

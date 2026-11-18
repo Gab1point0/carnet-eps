@@ -213,3 +213,43 @@ describe('barème filles / garçons', () => {
   });
 });
 
+describe('classement filles et garçons séparément', () => {
+  const spec = {
+    title: 'VMA',
+    blocks: [
+      {
+        name: 'Niveau',
+        points: 10,
+        criteria: [
+          { label: 'VMA', kind: 'number', observe: [], ref: 'vma', scoring: { type: 'rank', best: 'high', bySex: true } },
+          { label: 'Rang', kind: 'computed', observe: [], ref: 'rang', expr: 'RANG_SEXE(vma)' },
+        ],
+      },
+    ],
+    bonus: [],
+    sources: [],
+    expectations: [],
+    notes: '',
+  } as unknown as EvalSheetSpec;
+  const k = (b: string, l: string) => `${b}::${l}`;
+  const row = (vma: number, sex?: 'F' | 'G') => ({ marks: { 'Niveau::VMA': vma }, sex });
+
+  it('classe chaque élève parmi ceux de son sexe', () => {
+    expect(sheetProblems(spec)).toEqual([]);
+    // Filles : 12, 11, 10 ; garçons : 15, 13 ; un élève sans sexe renseigné.
+    const res = evaluateSheet(spec, [row(12, 'F'), row(11, 'F'), row(10, 'F'), row(15, 'G'), row(13, 'G'), row(14)], k);
+    expect(res.map((r) => r.values['Niveau::Rang'])).toEqual([1, 2, 3, 1, 2, null]);
+    expect(res.map((r) => r.total)).toEqual([10, 5, 0, 10, 0, 0]);
+  });
+
+  it('fait le même calcul dans le tableur', async () => {
+    const { workbook } = await buildEvalWorkbook(spec, { students: 2, className: 'X', activity: '', rows: [{ name: 'A', marks: { 'Niveau::VMA': 12 }, sex: 'F' }, { name: 'B', marks: { 'Niveau::VMA': 15 }, sex: 'G' }], keyOf: k });
+    const ws = workbook.getWorksheet('Évaluation')!;
+    expect(ws.getCell('B2').value).toBe('F / G');
+    expect(ws.getCell('B4').value).toBe('G');
+    const rang = String((ws.getCell('D3').value as { formula: string }).formula);
+    expect(rang).toContain('COUNTIFS($C$3:$C$4,">"&C3,$B$3:$B$4,$B3)+1');
+    const note = String((ws.getCell('E3').value as { formula: string }).formula);
+    expect(note).toContain('COUNTIFS($C$3:$C$4,">-1E+300",$B$3:$B$4,$B3)');
+  });
+});

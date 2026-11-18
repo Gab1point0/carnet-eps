@@ -11,7 +11,7 @@ export type Expr =
   | { t: 'fn'; name: Fn; args: Expr[] };
 
 type BinOp = '+' | '-' | '*' | '/' | '^' | '<' | '>' | '<=' | '>=' | '=' | '<>';
-type Fn = 'ABS' | 'MIN' | 'MAX' | 'MOY' | 'SOMME' | 'ROUND' | 'PLANCHER' | 'PLAFOND' | 'RACINE' | 'SI' | 'ET' | 'OU' | 'NON' | 'CLASSE_MOY' | 'CLASSE_MIN' | 'CLASSE_MAX' | 'RANG' | 'BAREME' | 'PALIERS';
+type Fn = 'ABS' | 'MIN' | 'MAX' | 'MOY' | 'SOMME' | 'ROUND' | 'PLANCHER' | 'PLAFOND' | 'RACINE' | 'SI' | 'ET' | 'OU' | 'NON' | 'CLASSE_MOY' | 'CLASSE_MIN' | 'CLASSE_MAX' | 'RANG' | 'RANG_SEXE' | 'BAREME' | 'PALIERS';
 
 /** Noms acceptés (français comme dans Excel ou Sheets en français, et anglais). */
 const FN_ALIASES: Record<string, Fn> = {
@@ -45,6 +45,7 @@ const FN_ALIASES: Record<string, Fn> = {
   CLASSE_MIN: 'CLASSE_MIN',
   CLASSE_MAX: 'CLASSE_MAX',
   RANG: 'RANG',
+  RANG_SEXE: 'RANG_SEXE',
   BAREME: 'BAREME',
   TABLE: 'BAREME',
   PALIERS: 'PALIERS',
@@ -62,6 +63,7 @@ export const FUNCTION_HELP: Array<[string, string]> = [
   ['RACINE(x)', 'racine carrée'],
   ['CLASSE_MOY(v) · CLASSE_MIN(v) · CLASSE_MAX(v)', 'moyenne, plus petite, plus grande valeur de la classe'],
   ['RANG(v)', 'rang dans la classe (1 = la plus grande valeur)'],
+  ['RANG_SEXE(v)', 'rang parmi les élèves du même sexe (filles et garçons classés séparément ; vide si le sexe n’est pas renseigné)'],
   ['BAREME(x; 8; 27; 9; 31; …)', "table de correspondance : x = 8 → 27, x = 9 → 31… (régulièrement entre deux lignes) ; ex. score cible d'après la VMA"],
   ['PALIERS(x; 8; 27; 9; 31; …)', 'même table, par paliers : on garde la ligne atteinte'],
 ];
@@ -69,7 +71,7 @@ export const FUNCTION_HELP: Array<[string, string]> = [
 /** Fonctions qui ignorent les valeurs vides (comme dans un tableur). */
 const AGGREGATES = new Set<Fn>(['MIN', 'MAX', 'MOY', 'SOMME']);
 /** Fonctions qui portent sur toute la classe : leur argument est un nom de valeur. */
-const CLASS_FNS = new Set<Fn>(['CLASSE_MOY', 'CLASSE_MIN', 'CLASSE_MAX', 'RANG']);
+const CLASS_FNS = new Set<Fn>(['CLASSE_MOY', 'CLASSE_MIN', 'CLASSE_MAX', 'RANG', 'RANG_SEXE']);
 export const FUNCTION_NAMES = Object.keys(FN_ALIASES).map((n) => n.toLowerCase());
 
 export class ExprError extends Error {}
@@ -230,7 +232,7 @@ export function exprRefs(e: Expr): { all: Set<string>; strict: Set<string>; loos
       if (CLASS_FNS.has(x.name)) {
         const r = x.args[0] as { name: string };
         all.add(r.name);
-        if (x.name === 'RANG') strict.add(r.name);
+        if (x.name === 'RANG' || x.name === 'RANG_SEXE') strict.add(r.name);
         return;
       }
       x.args.forEach((a) => walk(a, inAgg || AGGREGATES.has(x.name)));
@@ -245,6 +247,8 @@ export interface ExprEnv {
   get: (name: string) => number | null;
   /** Valeurs de toute la classe (élèves présents, cases remplies). */
   classValues: (name: string) => number[];
+  /** Valeurs des élèves du même sexe que cet élève (`null` : sexe pas renseigné). */
+  sexValues?: (name: string) => number[] | null;
 }
 
 /**
@@ -295,6 +299,11 @@ export function evalExpr(e: Expr, env: ExprEnv): number | null {
       case 'fn': {
         if (CLASS_FNS.has(x.name)) {
           const name = (x.args[0] as { name: string }).name;
+          if (x.name === 'RANG_SEXE') {
+            const same = env.sexValues?.(name);
+            const v = env.get(name);
+            return !same || v === null ? NaN : 1 + same.filter((o) => o > v).length;
+          }
           const all = env.classValues(name);
           if (!all.length) return NaN;
           if (x.name === 'CLASSE_MOY') return all.reduce((a, b) => a + b, 0) / all.length;
@@ -358,7 +367,7 @@ export function evalExpr(e: Expr, env: ExprEnv): number | null {
  * Formule Excel / Google Sheets équivalente. `cell(name)` : adresse de la valeur sur la ligne de l'élève ;
  * `range(name)` : la colonne entière de la classe (adresses absolues).
  */
-export function exprToExcel(e: Expr, cell: (name: string) => string, range: (name: string) => string): string {
+export function exprToExcel(e: Expr, cell: (name: string) => string, range: (name: string) => string, sex?: SexCells): string {
   const { strict, loose } = exprRefs(e);
   const num = (v: number) => (v < 0 ? `(${v})` : String(v));
   const xl = (x: Expr): string => {
@@ -388,6 +397,11 @@ export function exprToExcel(e: Expr, cell: (name: string) => string, range: (nam
           case 'RANG': {
             const n = (x.args[0] as { name: string }).name;
             return `RANK(${cell(n)},${range(n)},0)`;
+          }
+          case 'RANG_SEXE': {
+            const n = (x.args[0] as { name: string }).name;
+            if (!sex) return '""';
+            return `IF(${sex.cell}="","",COUNTIFS(${range(n)},">"&${cell(n)},${sex.range},${sex.cell})+1)`;
           }
           case 'BAREME':
           case 'PALIERS':
@@ -482,6 +496,19 @@ export function rankFraction(v: number, all: number[], best: 'high' | 'low'): nu
 
 export const rankToExcel = (v: string, range: string, best: 'high' | 'low') =>
   `IF(COUNT(${range})<2,1,(COUNT(${range})-RANK(${v},${range},${best === 'high' ? 0 : 1}))/(COUNT(${range})-1))`;
+
+/** Colonne du sexe dans le tableur : la case de l'élève et toute la colonne (adresses absolues). */
+export interface SexCells {
+  cell: string;
+  range: string;
+}
+
+/** Rang parmi les élèves du même sexe (sexe vide : aucun point). */
+export function rankBySexToExcel(v: string, range: string, best: 'high' | 'low', sex: SexCells) {
+  const n = `COUNTIFS(${range},">-1E+300",${sex.range},${sex.cell})`;
+  const better = `COUNTIFS(${range},"${best === 'high' ? '>' : '<'}"&${v},${sex.range},${sex.cell})`;
+  return `IF(${sex.cell}="",0,IF(${n}<2,1,(${n}-1-${better})/(${n}-1)))`;
+}
 
 // ── Valeurs saisies ─────────────────────────────────────────────────────────
 
