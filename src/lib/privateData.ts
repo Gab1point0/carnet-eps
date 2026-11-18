@@ -7,6 +7,8 @@ export interface Student {
   id: ID;
   /** Prénom et initiale suffisent (minimisation). */
   name: string;
+  /** Pour les barèmes différenciés : « F » fille, « G » garçon (vide = pas renseigné). */
+  sex?: 'F' | 'G';
 }
 
 /** Résultats d'un élève sur une fiche : niveau 0 à 4 par critère (0/1 pour une case unique), date de modification. */

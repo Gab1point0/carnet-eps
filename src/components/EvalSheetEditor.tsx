@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react';
 import type { EvalBlock, EvalCriterion, EvalSheetSpec, CriterionKind } from '../lib/evalSheet';
-import { critPoints, isScored, KIND_NAMES, LEVEL_NAMES, sheetProblems, tidyEvalSheet, withRefs } from '../lib/evalSheet';
+import { critPoints, isScored, KIND_NAMES, LEVEL_NAMES, SEX_REFS, sheetProblems, tidyEvalSheet, withRefs } from '../lib/evalSheet';
 import { FUNCTION_HELP, formatValue, parseValue, slugRef, type ScalePoint, type ValueFormat } from '../lib/evalCalc';
 import { Button, Field, IconButton, NumberInput, TextArea, TextInput } from './ui';
 
@@ -40,6 +40,7 @@ const PRESETS: Array<{ label: string; make: (a: string, b: string) => string }> 
   { label: 'Si… alors…', make: (a) => `SI(${a} >= 10; 1; 0)` },
   { label: 'Vitesse (km/h)', make: (a, b) => `${a} / ${b} * 3,6` },
   { label: 'Par rapport au meilleur', make: (a) => `${a} / CLASSE_MAX(${a}) * 100` },
+  { label: 'Barème filles / garçons', make: (a) => `SI(fille; BAREME(${a}; 8; 0; 12; 20); BAREME(${a}; 10; 0; 14; 20))` },
 ];
 
 /** Modifier la fiche d'évaluation à la main, avec les outils d'un tableur : valeurs, formules, barèmes, listes, poids. */
@@ -192,6 +193,11 @@ export function EvalSheetEditor({ spec, onChange }: { spec: EvalSheetSpec; onCha
                             {r.ref}
                           </button>
                         ))}
+                      {SEX_REFS.map((r) => (
+                        <button key={r} type="button" className="chip chip-btn small" title={r === 'fille' ? "1 si l'élève est une fille, 0 sinon (cases de la liste d'élèves)" : "1 si l'élève est un garçon, 0 sinon (cases de la liste d'élèves)"} onClick={() => setCrit(bi, ci, { expr: `${c.expr ?? ''}${c.expr?.trim() ? ' ' : ''}${r}` })}>
+                          {r}
+                        </button>
+                      ))}
                     </div>
                     <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
                       <span className="muted small">Modèles :</span>

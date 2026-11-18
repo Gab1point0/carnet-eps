@@ -52,7 +52,7 @@ export function EvalFillPage() {
     if (!spec) return out;
     const res = evaluateSheet(
       spec,
-      students.map((s) => ({ marks: rows[s.id]?.v ?? {}, absent: rows[s.id]?.absent })),
+      students.map((s) => ({ marks: rows[s.id]?.v ?? {}, absent: rows[s.id]?.absent, sex: s.sex })),
       criterionKey,
     );
     students.forEach((s, i) => out.set(s.id, res[i]));
@@ -92,6 +92,7 @@ export function EvalFillPage() {
           marks: rows[s.id]?.absent ? {} : marksOf(s.id),
           texts: rows[s.id]?.txt,
           group: count ? (sec.group ? `Groupe ${sec.group}` : 'À placer') : undefined,
+          sex: s.sex,
         })),
       ),
       keyOf: criterionKey,
@@ -436,7 +437,7 @@ function ReuseValues({ lesson, spec, block, criterion, students, onDone }: { les
     const rows = doc.sheets[src.l.id] ?? {};
     const res = evaluateSheet(
       src.l.evalSheet!,
-      students.map((s) => ({ marks: rows[s.id]?.v ?? {}, absent: rows[s.id]?.absent })),
+      students.map((s) => ({ marks: rows[s.id]?.v ?? {}, absent: rows[s.id]?.absent, sex: s.sex })),
       criterionKey,
     );
     const key = criterionKey(block.name, criterion.label);

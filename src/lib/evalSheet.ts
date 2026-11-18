@@ -96,7 +96,10 @@ export const KIND_NAMES: Record<CriterionKind, string> = {
   text: 'Observation (texte)',
 };
 
-const RESERVED = new Set(FUNCTION_NAMES);
+/** Valeurs toujours disponibles dans les formules : 1 si l'élève est une fille (ou un garçon), 0 sinon, vide si pas renseigné. */
+export const SEX_REFS = ['fille', 'garcon'] as const;
+const isSexRef = (r: string) => (SEX_REFS as readonly string[]).includes(r);
+const RESERVED = new Set<string>([...FUNCTION_NAMES, ...SEX_REFS]);
 
 /** Le critère rapporte-t-il des points ? */
 export function isScored(c: EvalCriterion): boolean {
@@ -190,7 +193,7 @@ export function sheetProblems(spec: EvalSheetSpec): string[] {
       try {
         const e = parseExpr(c.expr);
         const all = refsOf(e);
-        const unknown = [...all].filter((r) => !refs.has(r));
+        const unknown = [...all].filter((r) => !refs.has(r) && !isSexRef(r));
         if (unknown.length) out.push(`« ${c.label} » : ${unknown.map((u) => `« ${u} »`).join(', ')} n'existe pas (noms disponibles : ${[...refs.keys()].join(', ')}).`);
         if (c.ref) deps.set(c.ref, all);
       } catch (err) {
@@ -260,6 +263,8 @@ function parsed(src: string | undefined): Expr | null {
 export interface SheetRow {
   marks: Record<string, number>;
   absent?: boolean;
+  /** Sexe de l'élève, pour les formules « fille » / « garcon ». */
+  sex?: 'F' | 'G';
 }
 
 export interface RowResult {
@@ -286,7 +291,10 @@ export function evaluateSheet(spec0: EvalSheetSpec, rows: SheetRow[], keyOf: (bl
     if (m.has(ref)) return m.get(ref)!;
     const x = byRef.get(ref);
     let v: number | null = null;
-    if (x && !stack.has(ref)) {
+    if (!x && isSexRef(ref)) {
+      const sex = rows[ri].sex;
+      v = sex ? Number(sex === (ref === 'fille' ? 'F' : 'G')) : null;
+    } else if (x && !stack.has(ref)) {
       const marks = rows[ri].marks;
       const raw = marks[x.key];
       switch (x.c.kind) {
@@ -418,7 +426,7 @@ export async function buildEvalWorkbook(
     activity: string;
     date?: string;
     /** Fiche remplie dans l'application : noms et résultats par clé de critère. */
-    rows?: Array<{ name: string; marks: Record<string, number>; texts?: Record<string, string>; group?: string; absent?: boolean }>;
+    rows?: Array<{ name: string; marks: Record<string, number>; texts?: Record<string, string>; group?: string; absent?: boolean; sex?: 'F' | 'G' }>;
     keyOf?: (block: string, label: string) => string;
   },
 ): Promise<{ workbook: Workbook; layout: SheetLayout }> {
@@ -428,7 +436,16 @@ export async function buildEvalWorkbook(
   wb.creator = 'Carnet EPS';
   // Fiche rangée par groupes : une colonne « Groupe » après le nom.
   const withGroups = !!opts.rows?.some((r) => r.group);
-  const ws = wb.addWorksheet('Évaluation', { views: [{ state: 'frozen', xSplit: withGroups ? 2 : 1, ySplit: 2 }] });
+  // Barème filles / garçons (formule avec « fille » ou « garcon ») : une colonne « F / G », à remplir dans le tableur si la fiche est vierge.
+  const withSex = spec.blocks.some((b) =>
+    b.criteria.some((c) => {
+      const e = c.kind === 'computed' ? parsed(c.expr) : null;
+      return !!e && [...refsOf(e)].some(isSexRef);
+    }),
+  );
+  const groupCol = 2;
+  const sexCol = withGroups ? 3 : 2;
+  const ws = wb.addWorksheet('Évaluation', { views: [{ state: 'frozen', xSplit: 1 + (withGroups ? 1 : 0) + (withSex ? 1 : 0), ySplit: 2 }] });
   const bareme = wb.addWorksheet('Barème');
   const keyOf = opts.keyOf ?? ((b: string, l: string) => `${b}::${l}`);
 
@@ -439,7 +456,7 @@ export async function buildEvalWorkbook(
   const groups: Array<[number, number]> = [];
 
   // ── Colonnes : placées d'abord, car une formule peut citer une valeur d'un bloc suivant ──
-  const startCol = withGroups ? 3 : 2;
+  const startCol = 2 + (withGroups ? 1 : 0) + (withSex ? 1 : 0);
   const place = new Map<string, number>();
   {
     let c = startCol;
@@ -456,6 +473,10 @@ export async function buildEvalWorkbook(
   /** Expression Excel de la valeur d'un critère sur une ligne (`abs` : colonne figée, pour la mise en forme conditionnelle). */
   const cellOf = (ref: string, row: number | string, abs = ''): string => {
     const x = byRef.get(ref);
+    if (!x && withSex && isSexRef(ref)) {
+      const s = `${abs}${col(sexCol)}${row}`;
+      return `IF(${s}="${ref === 'fille' ? 'F' : 'G'}",1,IF(${s}="${ref === 'fille' ? 'G' : 'F'}",0,""))`;
+    }
     if (!x) return '""';
     const c0 = place.get(x.key)!;
     const a = `${abs}${col(c0)}${row}`;
@@ -596,15 +617,27 @@ export async function buildEvalWorkbook(
   ws.getCell('A1').font = { bold: true, size: 12 };
   opts.rows?.forEach((row, i) => (ws.getCell(FIRST + i, 1).value = row.name));
   if (withGroups) {
-    ws.getColumn(2).width = 11;
-    ws.getCell('B2').value = 'Groupe';
-    ws.getCell('B2').font = { bold: true };
+    ws.getColumn(groupCol).width = 11;
+    ws.getCell(2, groupCol).value = 'Groupe';
+    ws.getCell(2, groupCol).font = { bold: true };
     opts.rows?.forEach((row, i) => {
-      const cell = ws.getCell(FIRST + i, 2);
+      const cell = ws.getCell(FIRST + i, groupCol);
       cell.value = row.group ?? '';
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       cell.border = { top: thin, bottom: thin, right: thin };
     });
+  }
+  if (withSex) {
+    ws.getColumn(sexCol).width = 7;
+    ws.getCell(2, sexCol).value = 'F / G';
+    ws.getCell(2, sexCol).font = { bold: true };
+    for (let rr = FIRST; rr <= LAST; rr++) {
+      const cell = ws.getCell(rr, sexCol);
+      cell.value = opts.rows?.[rr - FIRST]?.sex ?? '';
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = { top: thin, bottom: thin, right: thin };
+      cell.dataValidation = { type: 'list', allowBlank: true, formulae: ['"F,G"'] };
+    }
   }
   ws.getCell('A2').font = { bold: true };
   const noteCols: string[] = [];

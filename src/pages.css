@@ -646,3 +646,7 @@ code.formula { font-family: ui-monospace, Consolas, monospace; background: var(-
 .voice-mic { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 64px; border-radius: 12px; border: 2px dashed var(--primary); background: var(--primary-soft); color: var(--text); font-weight: 700; font-size: 0.75rem; cursor: pointer; }
 .voice-mic-on { border-style: solid; background: var(--primary); color: var(--on-primary); animation: voice-pulse 1.2s ease-in-out infinite; }
 @keyframes voice-pulse { 50% { opacity: 0.75; } }
+
+/* Cases garçon / fille de la liste d'élèves. */
+.sex-check { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; font-size: 0.85rem; font-weight: 600; cursor: pointer; padding: 6px 2px; }
+.sex-check input { width: 20px; height: 20px; margin: 0; accent-color: var(--primary); cursor: pointer; }

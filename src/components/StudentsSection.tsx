@@ -17,6 +17,11 @@ export function StudentsSection({ klass }: { klass: Klass }) {
   const [pasting, setPasting] = useState(false);
   const [text, setText] = useState('');
   const set = (list: typeof students) => useVault.getState().setStudents(klass.id, list);
+  // Garçon / fille : cocher une case, la recocher l'enlève (pour les barèmes différenciés).
+  const setSex = (id: string, sex: 'F' | 'G') =>
+    set(students.map((x) => (x.id !== id ? x : x.sex === sex ? { id: x.id, name: x.name } : { ...x, sex })));
+  const girls = students.filter((s) => s.sex === 'F').length;
+  const boys = students.filter((s) => s.sex === 'G').length;
 
   return (
     <Section
@@ -42,12 +47,26 @@ export function StudentsSection({ klass }: { klass: Klass }) {
           </p>
         ) : (
           <Card className="stack" style={{ gap: 8 }}>
+            {students.length > 0 && (
+              <p className="muted small">
+                Cochez garçon ou fille pour les barèmes différenciés : {girls} fille{girls > 1 ? 's' : ''}, {boys} garçon{boys > 1 ? 's' : ''}
+                {students.length - girls - boys ? `, ${students.length - girls - boys} à renseigner` : ''}.
+              </p>
+            )}
             {students.map((s, i) => (
               <div key={s.id} className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
                 <span className="muted small" style={{ width: 22, textAlign: 'right' }}>
                   {i + 1}
                 </span>
                 <input className="input" value={s.name} aria-label={`Élève ${i + 1}`} onChange={(e) => set(students.map((x) => (x.id === s.id ? { ...x, name: e.target.value } : x)))} />
+                <label className="sex-check" title="Garçon">
+                  <input type="checkbox" checked={s.sex === 'G'} onChange={() => setSex(s.id, 'G')} aria-label={`${s.name || 'Élève'} : garçon`} />
+                  <span>G</span>
+                </label>
+                <label className="sex-check" title="Fille">
+                  <input type="checkbox" checked={s.sex === 'F'} onChange={() => setSex(s.id, 'F')} aria-label={`${s.name || 'Élève'} : fille`} />
+                  <span>F</span>
+                </label>
                 <IconButton
                   label={`Retirer ${s.name}`}
                   onClick={() => {

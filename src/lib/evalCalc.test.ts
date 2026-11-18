@@ -172,3 +172,44 @@ describe('listes, observations, chronos', () => {
     expect(String((ws.getCell('K3').value as { formula: string }).formula)).toContain('2*(MAX(F3*1,G3*2,H3*3,I3*4)/4)');
   });
 });
+
+describe('barème filles / garçons', () => {
+  const spec: EvalSheetSpec = {
+    title: 'Course',
+    blocks: [
+      {
+        name: 'Performance',
+        points: 20,
+        criteria: [
+          { label: 'Temps', kind: 'number', observe: [], ref: 'temps' },
+          { label: 'Note', kind: 'computed', observe: [], ref: 'note', expr: 'SI(fille; BAREME(temps; 10; 20; 14; 0); BAREME(temps; 8; 20; 12; 0))', scoring: { type: 'table', points: [{ at: 0, pct: 0 }, { at: 20, pct: 100 }] } },
+        ],
+      },
+    ],
+    bonus: [],
+    sources: [],
+    expectations: [],
+    notes: '',
+  } as unknown as EvalSheetSpec;
+  const k = (b: string, l: string) => `${b}::${l}`;
+
+  it('calcule selon le sexe, et attend que le sexe soit renseigné', () => {
+    expect(sheetProblems(spec)).toEqual([]);
+    const res = evaluateSheet(spec, [{ marks: { 'Performance::Temps': 12 }, sex: 'F' }, { marks: { 'Performance::Temps': 12 }, sex: 'G' }, { marks: { 'Performance::Temps': 12 } }], k);
+    expect(res[0].values['Performance::Note']).toBe(10);
+    expect(res[1].values['Performance::Note']).toBe(0);
+    expect(res[2].values['Performance::Note']).toBeNull();
+    expect(res[0].total).toBe(10);
+  });
+
+  it('ajoute une colonne F / G dans le tableur', async () => {
+    const { workbook } = await buildEvalWorkbook(spec, { students: 2, className: 'X', activity: '', rows: [{ name: 'A', marks: { 'Performance::Temps': 12 }, sex: 'F' }, { name: 'B', marks: {} }], keyOf: k });
+    const ws = workbook.getWorksheet('Évaluation')!;
+    expect(ws.getCell('B2').value).toBe('F / G');
+    expect(ws.getCell('B3').value).toBe('F');
+    expect(ws.getCell('C3').value).toBe(12);
+    const f = String((ws.getCell('D3').value as { formula: string }).formula);
+    expect(f).toContain('IF(B3="F",1,IF(B3="G",0,""))');
+  });
+});
+
