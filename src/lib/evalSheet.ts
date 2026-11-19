@@ -876,3 +876,61 @@ export function cumulativeScript(layout: SheetLayout): string {
 
 /** Clé d'un bonus dans les résultats d'un élève. */
 export const bonusKey = (label: string) => `bonus::${label}`;
+
+/**
+ * Noms déjà remplis gardés quand Claude refait une fiche : les résultats des élèves sont rangés sous « bloc::critère »
+ * (et « bonus::nom ») ; renommer un bloc ou un critère rempli cacherait ses résultats. Un élément rempli qui a disparu
+ * de la nouvelle version reprend son ancien nom s'il a été renommé à la même place ; s'il a été retiré, rien ne change.
+ * `filled` : clés qui ont au moins un résultat (toutes les clés de l'ancienne fiche si on ne peut pas le savoir).
+ */
+export function keepFilledNames(prev: EvalSheetSpec, next: EvalSheetSpec, filled: Set<string>): { spec: EvalSheetSpec; restored: string[] } {
+  const key = (b: string, l: string) => `${b}::${l}`;
+  const spec: EvalSheetSpec = { ...next, blocks: next.blocks.map((b) => ({ ...b, criteria: b.criteria.map((c) => ({ ...c })) })), bonus: next.bonus.map((b) => ({ ...b })) };
+  const restored: string[] = [];
+  const prevNames = new Set(prev.blocks.map((b) => b.name));
+  prev.blocks.forEach((pb, i) => {
+    if (!pb.criteria.some((c) => filled.has(key(pb.name, c.label)))) return;
+    let nb = spec.blocks.find((b) => b.name === pb.name);
+    // Bloc renommé à la même place : il reprend son nom.
+    if (!nb && spec.blocks[i] && !prevNames.has(spec.blocks[i].name)) {
+      restored.push(`${spec.blocks[i].name} → ${pb.name}`);
+      nb = spec.blocks[i];
+      nb.name = pb.name;
+    }
+    if (!nb) return;
+    const prevLabels = new Set(pb.criteria.map((c) => c.label));
+    pb.criteria.forEach((pc, j) => {
+      if (!filled.has(key(pb.name, pc.label)) || nb!.criteria.some((c) => c.label === pc.label)) return;
+      const nc = nb!.criteria[j];
+      if (nc && !prevLabels.has(nc.label)) {
+        restored.push(`${nc.label} → ${pc.label}`);
+        nc.label = pc.label;
+      }
+    });
+  });
+  const prevBonus = new Set(prev.bonus.map((b) => b.label));
+  prev.bonus.forEach((pb, i) => {
+    if (!filled.has(bonusKey(pb.label)) || spec.bonus.some((b) => b.label === pb.label)) return;
+    const nb = spec.bonus[i];
+    if (nb && !prevBonus.has(nb.label)) {
+      restored.push(`${nb.label} → ${pb.label}`);
+      nb.label = pb.label;
+    }
+  });
+  return { spec, restored };
+}
+
+/** Clés de la fiche qui ont au moins un résultat chez un élève. */
+export function filledKeys(rows: Record<string, { v?: Record<string, number>; txt?: Record<string, string> }> | undefined): Set<string> {
+  const out = new Set<string>();
+  for (const r of Object.values(rows ?? {})) {
+    for (const [k, v] of Object.entries(r.v ?? {})) if (v !== null && v !== undefined) out.add(k);
+    for (const [k, v] of Object.entries(r.txt ?? {})) if (v) out.add(k);
+  }
+  return out;
+}
+
+/** Toutes les clés d'une fiche (quand on ne peut pas savoir lesquelles sont remplies). */
+export function allKeys(spec: EvalSheetSpec): Set<string> {
+  return new Set([...spec.blocks.flatMap((b) => b.criteria.map((c) => `${b.name}::${c.label}`)), ...spec.bonus.map((b) => bonusKey(b.label))]);
+}

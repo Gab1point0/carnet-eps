@@ -4,11 +4,12 @@ import { ClipboardCheck, Copy, Download, Eye, FileText, Image, Loader, Paperclip
 import { EvalSheetEditor, cleanEvalSheet } from './EvalSheetEditor';
 import type { Lesson } from '../types';
 import { useData } from '../store/data';
+import { useVault } from '../store/vault';
 import { toast } from '../store/ui';
 import { aiReady, type Attachment } from '../lib/ai';
 import { MAX_TOTAL_BYTES, attachmentBytes, fileToAttachment } from '../lib/attachments';
 import { aiEvalSheet, isLyceeLevel } from '../lib/aiTasks';
-import { buildEvalWorkbook, critPoints, cumulativeScript, isScored, KIND_NAMES, LEVEL_NAMES, scoringText, sheetProblems, type EvalSheetSpec } from '../lib/evalSheet';
+import { allKeys, buildEvalWorkbook, filledKeys, keepFilledNames, critPoints, cumulativeScript, isScored, KIND_NAMES, LEVEL_NAMES, scoringText, sheetProblems, type EvalSheetSpec } from '../lib/evalSheet';
 import { activityOf } from '../store/selectors';
 import { formatLong } from '../lib/dates';
 import { Button, IconButton, Modal, NumberInput, TextArea } from './ui';
@@ -67,8 +68,16 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
     // Derniers mots dictés compris dans la demande.
     const said = (await voice.current?.finish()) ?? instruction;
     setStep('Préparation…');
+    // Éléments déjà remplis par des élèves : leur nom ne doit pas changer (sinon leurs résultats ne s'affichent plus).
+    // Coffre fermé : on ne sait pas, on protège tous les noms de la fiche.
+    const vault = useVault.getState();
+    const filled = spec ? (vault.status === 'open' ? filledKeys(vault.doc.sheets[lesson.id]) : allKeys(spec)) : new Set<string>();
+    const keep = [...filled].map((k) => (k.startsWith('bonus::') ? `bonus « ${k.slice(7)} »` : `« ${k.split('::')[1]} » (bloc « ${k.split('::')[0]} »)`));
+    const keepNote = keep.length
+      ? `\nÉléments déjà remplis par les élèves : garder MOT POUR MOT le nom de leur bloc et leur nom, même si la demande invite à les reformuler (on peut changer le reste : points, barème, ce qu'on observe) : ${keep.join(' ; ')}.`
+      : '';
     try {
-      const s = await aiEvalSheet(
+      const raw = await aiEvalSheet(
         {
           className: klass?.name ?? '',
           level,
@@ -83,12 +92,14 @@ export function EvalSheetModal({ lesson, onClose }: { lesson: Lesson; onClose: (
           },
           referential,
           attachments: docs,
-          instruction: spec ? `${said}\nVersion précédente : ${JSON.stringify(spec)}` : said,
+          instruction: spec ? `${said}${keepNote}\nVersion précédente : ${JSON.stringify(spec)}` : said,
         },
         setStep,
       );
+      const { spec: s, restored } = spec && filled.size ? keepFilledNames(spec, raw, filled) : { spec: raw, restored: [] };
       save(s);
       setInstruction('');
+      if (restored.length) toast(`Noms gardés pour ne pas perdre les résultats déjà saisis : ${restored.join(' ; ')}.`, { ms: 10000 });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Claude est indisponible.');
     } finally {
