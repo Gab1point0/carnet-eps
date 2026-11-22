@@ -22,4 +22,10 @@ describe('connaissances EPS données à Claude', () => {
     expect(college).toContain('CA2, environnements');
     expect(college).not.toContain('AFL1');
   });
+
+  it("ajoute la fiche de l'activité", () => {
+    expect(epsKnowledgeFor('5e', 'ca4', 'volley')).toContain("Fiche de l'activité (Volley-ball)");
+    expect(epsKnowledgeFor('5e', 'ca4', 'gym-sol')).toContain('Gymnastique (sol et agrès)');
+    expect(epsKnowledgeFor('5e', 'ca4', 'inconnue')).not.toContain("Fiche de l'activité");
+  });
 });

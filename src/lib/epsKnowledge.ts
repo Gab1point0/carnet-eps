@@ -6,6 +6,7 @@
 
 import { useData } from '../store/data';
 import { DEFAULT_ACTIVITIES } from './defaults';
+import { ACTIVITY_KNOWLEDGE } from './epsActivities';
 
 export interface EpsSource {
   ref: string;
@@ -120,12 +121,15 @@ const STAGE_TEXT: Record<Stage, string> = { cycle3: CYCLE3, cycle4: CYCLE4, lyce
  * Connaissances à joindre aux consignes de Claude : principes généraux, programme et repères d'âge de la classe,
  * repères du champ d'apprentissage de l'activité. `fieldId` : « ca1 »… « ca5 » (champ de l'activité).
  */
-export function epsKnowledgeFor(level: string, fieldId: string | null | undefined): string {
+export function epsKnowledgeFor(level: string, fieldId: string | null | undefined, activityId?: string | null): string {
   const stage = stageOf(level);
   const parts = [GENERAL];
   if (stage) parts.push(STAGE_TEXT[stage]);
   else parts.push('Niveau de classe non précisé : adapte au collège par défaut.');
   if (fieldId && FIELDS[fieldId]) parts.push(FIELDS[fieldId]);
+  const act = activityId ? ACTIVITY_KNOWLEDGE[activityId] : undefined;
+  if (act) parts.push(`Fiche de l'activité (${act.title}) :
+${act.text}`);
   return `\n\n<connaissances_eps>\nCe qui suit est une base de connaissances vérifiée (programmes officiels, recherche de 2000 ou après). Appuie-toi dessus pour choisir les situations, l'organisation, les consignes et l'adaptation à l'âge, sans la recopier ni la citer, sauf si l'enseignant le demande.\n\n${parts.join('\n\n')}\n</connaissances_eps>`;
 }
 
@@ -138,13 +142,16 @@ export const EPS_KNOWLEDGE_SECTIONS: Array<{ title: string; text: string }> = [
   ...Object.entries(FIELDS).map(([id, text]) => ({ title: `Champ ${id.toUpperCase()}`, text })),
 ];
 
-/** Champ d'apprentissage d'une activité, d'après son nom (activités des réglages, sinon activités par défaut). */
-function fieldOfActivity(name: string): string | null {
+/** Activité (identifiant et champ d'apprentissage) d'après son nom : activités des réglages, sinon activités par défaut. */
+function activityByName(name: string): { id: string; fieldId: string } | null {
   const n = name.trim().toLowerCase();
   if (!n) return null;
   const list = [...(useData.getState().data.settings.activities ?? []), ...DEFAULT_ACTIVITIES];
-  return list.find((a) => a.name.trim().toLowerCase() === n)?.fieldId ?? null;
+  return list.find((a) => a.name.trim().toLowerCase() === n) ?? null;
 }
 
 /** Connaissances EPS pour une classe et une activité (nom), à ajouter aux consignes de Claude. */
-export const knowledge = (level: string, activity: string) => epsKnowledgeFor(level, fieldOfActivity(activity));
+export const knowledge = (level: string, activity: string) => {
+  const a = activityByName(activity);
+  return epsKnowledgeFor(level, a?.fieldId, a?.id);
+};

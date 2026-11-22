@@ -4,6 +4,7 @@ import { Button, Card, Field, Section, TextInput } from './ui';
 import { AI_MODELS, getAiConfig, setAiConfig, type AiConfig, type AiTask } from '../lib/ai';
 import { testAi } from '../lib/aiTasks';
 import { EPS_KNOWLEDGE_SECTIONS, EPS_SOURCES } from '../lib/epsKnowledge';
+import { ACTIVITY_KNOWLEDGE } from '../lib/epsActivities';
 
 declare const __BUILD_TIME__: string;
 
@@ -81,11 +82,13 @@ export function AiSection() {
 
 /** « Ce que sait l'IA » : la base de connaissances EPS jointe aux demandes, et ses sources. */
 function KnowledgeCard() {
+  // Une fiche par activité, sans les doublons (activités qui partagent une fiche).
+  const activities = [...new Set(Object.values(ACTIVITY_KNOWLEDGE))].sort((x, y) => x.title.localeCompare(y.title, 'fr'));
   return (
     <Card className="stack" style={{ marginTop: 12 }}>
       <strong>Ce que sait l'IA de l'application</strong>
       <p className="muted small">
-        À chaque demande (dictée, séances générées, plan de cycle, fiches, mise en forme), Claude reçoit les principes généraux, le programme et les repères d'âge du niveau de la classe, et les repères du champ d'apprentissage de l'activité. Programmes officiels relus et publications de 2000 ou après, toutes retrouvées en ligne.
+        À chaque demande (dictée, séances générées, plan de cycle, fiches, mise en forme), Claude reçoit les principes généraux, le programme et les repères d'âge du niveau de la classe, les repères du champ d'apprentissage et la fiche de l'activité (enjeu, étapes des élèves, situations, rôles, sécurité). Programmes officiels relus et publications de 2000 ou après, toutes retrouvées en ligne.
       </p>
       {EPS_KNOWLEDGE_SECTIONS.map((s) => (
         <details key={s.title}>
@@ -96,7 +99,27 @@ function KnowledgeCard() {
         </details>
       ))}
       <details>
-        <summary>Sources ({EPS_SOURCES.length})</summary>
+        <summary>Fiches par activité ({activities.length})</summary>
+        {activities.map((a) => (
+          <details key={a.title} style={{ marginLeft: 12 }}>
+            <summary>{a.title}</summary>
+            <p className="small" style={{ whiteSpace: 'pre-wrap' }}>
+              {a.text}
+            </p>
+            <ul className="small">
+              {a.sources.map((s) => (
+                <li key={s.url}>
+                  <a href={s.url} target="_blank" rel="noreferrer">
+                    {s.ref}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </details>
+      <details>
+        <summary>Sources générales ({EPS_SOURCES.length})</summary>
         <ul className="small">
           {EPS_SOURCES.map((s) => (
             <li key={s.url}>
