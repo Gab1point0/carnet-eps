@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, BookmarkPlus, CopyPlus, ChevronDown, ChevronRight, Copy, Film, GripVertical, Trash2 } from 'lucide-react';
 import type { Block, BlockKind, CourtId, ID, Lesson } from '../types';
 import { AiBlockTools, teachingCtx } from './AiBlockTools';
-import { aiFormatBlockText } from '../lib/aiTasks';
+import { aiFormatBlockText, type FormattedBlock } from '../lib/aiTasks';
 import { aiReady } from '../lib/ai';
 import { IconButton, Menu, NumberInput, Select, TextArea, TextInput } from './ui';
 import { AnimationField } from './AnimationField';
@@ -30,6 +30,9 @@ export const DEFAULT_MINUTES: Record<BlockKind, number> = {
   cooldown: 10,
   free: 10,
 };
+
+/** Texte mis en forme par Claude → titre, durée et matériel d'avant (pour « Revenir à mon texte »). */
+const BEFORE_AI_FIELDS = new Map<string, Pick<Block, 'title' | 'minutes' | 'materials'>>();
 
 export function BlockEditor({
   block,
@@ -69,6 +72,7 @@ export function BlockEditor({
 }) {
   // Replié par défaut : une ligne par bloc. Un bloc encore vide (tout juste ajouté) s'ouvre pour être rempli.
   const [open, setOpen] = useState(() => !block.text.trim());
+  const aiPending = useRef<FormattedBlock | null>(null);
   const kind = BLOCK_KINDS[block.kind];
   const activityName = useData((s) => s.data.settings.activities.find((a) => a.id === activityId)?.name ?? '');
   const sheetGroups = useMemo(() => {
@@ -144,8 +148,28 @@ export function BlockEditor({
             value={block.text}
             minRows={8}
             placeholder={'Organisation, consignes, critères de réussite, variables…\n- une ligne par idée\n**gras** pour insister'}
-            onChange={(v) => onChange({ text: v })}
-            aiFormat={lesson && aiReady() ? (text) => aiFormatBlockText({ ...block, text }, teachingCtx(useData.getState().data, lesson)) : undefined}
+            onChange={(v, why) => {
+              // Mise en forme par Claude : titre, durée et matériel changent avec le texte ; « Revenir à mon texte » les remet aussi.
+              if (why === 'ai' && aiPending.current) {
+                const { text, ...rest } = aiPending.current;
+                BEFORE_AI_FIELDS.set(text, { title: block.title, minutes: block.minutes, materials: block.materials });
+                aiPending.current = null;
+                onChange({ ...rest, text: v });
+              } else if (why === 'undo') {
+                const prev = BEFORE_AI_FIELDS.get(block.text);
+                BEFORE_AI_FIELDS.delete(block.text);
+                onChange({ ...prev, text: v });
+              } else onChange({ text: v });
+            }}
+            aiFormat={
+              lesson && aiReady()
+                ? async (text) => {
+                    const r = await aiFormatBlockText({ ...block, text }, teachingCtx(useData.getState().data, lesson));
+                    aiPending.current = r;
+                    return r.text;
+                  }
+                : undefined
+            }
           />
           <span className="field-label">🧰 Matériel du bloc</span>
           <MarkdownField

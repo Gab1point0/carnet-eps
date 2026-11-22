@@ -783,17 +783,32 @@ L'enseignant a écrit à la main le texte d'un bloc de sa séance, souvent vite,
 - Reste fidèle à ce qui est écrit : garde toutes les informations (chiffres, durées, règles, variantes), n'en retire aucune et ne change pas l'intention. Tu peux compléter brièvement l'organisation quand elle est évidente (groupes, rotations d'après l'effectif), sans inventer d'installation particulière.
 - N'ajoute pas de section vide : une section absente du texte et qu'on ne peut pas déduire est simplement omise.
 ${BLOCK_TEXT_FORMAT}
-Réponds avec le texte mis en forme dans text.`;
+Champs de la réponse :
+- text : le texte mis en forme.
+- title : titre court de la situation (6 mots au plus), d'après le texte ; garde le titre actuel s'il convient déjà.
+- minutes : durée du bloc en minutes, d'après ce qui est écrit (séries, durées des étapes, rotations, temps d'installation et de consignes) ; null si le texte ne permet pas de l'estimer (on garde alors la durée actuelle).
+- materials : matériel du bloc, une ligne par objet, « - 12 plots (usage) », avec des quantités calculées d'après l'effectif ; reprends et complète le matériel actuel ; null si rien à préciser.`;
 
 /** Texte d'un bloc écrit à la main → même texte, rédigé et mis en forme (mini-Markdown). */
-export async function aiFormatBlockText(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text'>, ctx: TeachingCtx): Promise<string> {
-  const r = await callClaude<{ text: string }>({
+export interface FormattedBlock {
+  text: string;
+  title: string;
+  minutes: number;
+  materials: string;
+}
+
+/** Texte d'un bloc écrit à la main → texte rédigé (mini-Markdown), avec titre, durée et matériel ajustés. */
+export async function aiFormatBlockText(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text' | 'materials'>, ctx: TeachingCtx): Promise<FormattedBlock> {
+  const r = await callClaude<{ text: string; title: string; minutes: number | null; materials: string | null }>({
     task: 'lesson',
     system: FORMAT_BLOCK_SYSTEM,
-    user: `Contexte :\n${JSON.stringify(describe(ctx))}\n\nBloc (${block.kind}) :\n<bloc>\nTitre : ${block.title}\nDurée : ${block.minutes} min\n${block.text}\n</bloc>`,
-    schema: obj({ text: { type: 'string' } }),
+    user: `Contexte :\n${JSON.stringify(describe(ctx))}\n\nBloc (${block.kind}) :\n<bloc>\nTitre : ${block.title}\nDurée : ${block.minutes} min\nMatériel actuel : ${block.materials.trim() || 'aucun'}\n${block.text}\n</bloc>`,
+    schema: obj({ text: { type: 'string' }, title: { type: 'string' }, minutes: nullable('integer'), materials: nullable('string') }),
   });
   const text = typeof r.text === 'string' ? r.text.trim() : '';
   if (!text) throw new Error('Claude n’a rien renvoyé : réessayez.');
-  return text;
+  const title = typeof r.title === 'string' && r.title.trim() ? r.title.trim() : block.title;
+  const minutes = typeof r.minutes === 'number' && r.minutes > 0 && r.minutes <= 240 ? Math.round(r.minutes) : block.minutes;
+  const materials = typeof r.materials === 'string' && r.materials.trim() ? r.materials.trim() : block.materials;
+  return { text, title, minutes, materials };
 }

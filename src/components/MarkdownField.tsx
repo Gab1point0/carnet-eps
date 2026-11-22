@@ -19,7 +19,8 @@ export function MarkdownField({
   aiFormat,
 }: {
   value: string;
-  onChange: (v: string) => void;
+  /** `why` : « ai » pour le texte mis en forme par Claude, « undo » pour le retour au texte d'avant. */
+  onChange: (v: string, why?: 'ai' | 'undo') => void;
   minRows?: number;
   placeholder?: string;
   /** « Mettre en forme avec Claude » : renvoie le texte rédigé (bouton absent sinon). */
@@ -36,7 +37,7 @@ export function MarkdownField({
     try {
       const text = await aiFormat(mine);
       BEFORE_AI.set(text, mine);
-      onChange(text);
+      onChange(text, 'ai');
       setEditing(false);
       toast('Texte mis en forme par Claude. « Revenir à mon texte » est à côté de « Modifier le texte ».', { tone: 'success', ms: 8000 });
     } catch (e) {
@@ -59,7 +60,7 @@ export function MarkdownField({
               icon={<Undo2 size={14} />}
               onClick={() => {
                 BEFORE_AI.delete(value);
-                onChange(before);
+                onChange(before, 'undo');
               }}
             >
               Revenir à mon texte
@@ -71,7 +72,7 @@ export function MarkdownField({
   }
   return (
     <div className="md-field">
-      <TextArea value={value} onChange={onChange} minRows={minRows} placeholder={placeholder} />
+      <TextArea value={value} onChange={(v) => onChange(v)} minRows={minRows} placeholder={placeholder} />
       {value.trim() && (
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           <Button size="sm" icon={<Check size={14} />} onClick={() => setEditing(false)} disabled={busy}>
