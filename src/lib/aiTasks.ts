@@ -5,6 +5,7 @@ import { tidyEvalSheet, type EvalSheetSpec } from './evalSheet';
 import type { Change, Draft, FieldKey, VoiceCtx } from './voiceLesson';
 import { sanitizeAnimation } from '../animation/engine';
 import { uid } from './util';
+import { knowledge } from './epsKnowledge';
 
 // Ce que l'on demande à Claude, et la conversion de ses réponses vers le modèle de l'application.
 // Les conversions sont pures et tolérantes : rien de ce que renvoie le modèle n'entre tel quel dans les données.
@@ -175,7 +176,7 @@ export function applyOps(draft: Draft, lesson: Lesson, ops: LessonOp[], heard: s
 }
 
 export async function aiIngest(draft: Draft, lesson: Lesson, spoken: string, ctx: TeachingCtx) {
-  const r = await callClaude<{ operations: LessonOp[] }>({ task: 'lesson', system: LESSON_SYSTEM, user: lessonPrompt(draft, lesson, ctx, spoken), schema: LESSON_SCHEMA });
+  const r = await callClaude<{ operations: LessonOp[] }>({ task: 'lesson', system: LESSON_SYSTEM + knowledge(ctx.level, ctx.activity), user: lessonPrompt(draft, lesson, ctx, spoken), schema: LESSON_SCHEMA });
   return applyOps(draft, lesson, r.operations, spoken);
 }
 
@@ -216,7 +217,7 @@ export async function aiFromObjective(draft: Draft, lesson: Lesson, objective: s
   };
   const format = cycle?.format ? `\n\nFormat de séance imposé par l'enseignant pour ce cycle (à respecter pour l'ordre et la nature des blocs) :\n${cycle.format}` : '';
   const user = `Contexte :\n${JSON.stringify(state)}\n\nObjectif de la séance, dicté par l'enseignant :\n<objectif>${objective}</objectif>${format}`;
-  const r = await callClaude<{ operations: LessonOp[] }>({ task: 'lesson', system: OBJECTIVE_SYSTEM, user, schema: LESSON_SCHEMA });
+  const r = await callClaude<{ operations: LessonOp[] }>({ task: 'lesson', system: OBJECTIVE_SYSTEM + knowledge(ctx.level, ctx.activity), user, schema: LESSON_SCHEMA });
   return applyOps(draft, lesson, r.operations, objective);
 }
 
@@ -412,7 +413,7 @@ function blockPrompt(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text'>, 
 }
 
 export async function aiFiche(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text'>, ctx: TeachingCtx, previous: CustomSheet | null, instruction: string): Promise<CustomSheet> {
-  const raw = await callClaude<RawSheet>({ task: 'fiche', system: FICHE_SYSTEM, user: blockPrompt(block, ctx, previous, instruction), schema: FICHE_SCHEMA });
+  const raw = await callClaude<RawSheet>({ task: 'fiche', system: FICHE_SYSTEM + knowledge(ctx.level, ctx.activity), user: blockPrompt(block, ctx, previous, instruction), schema: FICHE_SCHEMA });
   return toCustomSheet(raw);
 }
 
@@ -674,7 +675,7 @@ Donne : le champ d'apprentissage, les AFL visés (AFL1, AFL2, AFL3) avec leur fo
   onStep?.(docs.length ? `Claude lit le référentiel (${docs.length} document${docs.length > 1 ? 's' : ''}) et construit la fiche…` : 'Construction de la fiche…');
   const raw = await callClaude<EvalSheetSpec>({
     task: 'fiche',
-    system: EVAL_SHEET_SYSTEM,
+    system: EVAL_SHEET_SYSTEM + knowledge(input.level, input.activity),
     user: [
       `Classe : ${input.className} (${input.level || 'niveau non précisé'}), ${input.students ?? 'effectif inconnu'} élèves. Activité : ${input.activity || 'non précisée'}.`,
       input.cycle ? `Cycle :\n${JSON.stringify(input.cycle)}` : '',
@@ -725,7 +726,7 @@ export async function aiCycleFields(input: {
 }): Promise<CycleFields> {
   const r = await callClaude<CycleFields>({
     task: 'lesson',
-    system: CYCLE_FIELDS_SYSTEM,
+    system: CYCLE_FIELDS_SYSTEM + knowledge(input.level, input.activity),
     user: `Cycle :\n${JSON.stringify({ classe: input.className, niveau: input.level, effectif: input.students, activite: input.activity, titre: input.title, dates: input.dates, seances: input.lessons, champs_actuels: input.current })}${input.spoken.trim() ? `\n\nDemande de l'enseignant :\n<demande>${input.spoken.trim()}</demande>` : ''}`,
     schema: obj({ objectives: { type: 'string' }, competences: { type: 'string' }, evaluation: { type: 'string' }, notes: { type: 'string' } }),
   });
@@ -763,7 +764,7 @@ export async function aiCyclePlan(input: {
 }): Promise<PlannedLesson[]> {
   const r = await callClaude<{ lessons: PlannedLesson[] }>({
     task: 'lesson',
-    system: CYCLE_PLAN_SYSTEM,
+    system: CYCLE_PLAN_SYSTEM + knowledge(input.level, input.activity),
     user: `Classe : ${input.className} (${input.level || 'niveau ?'}), ${input.students ?? '?'} élèves. Activité : ${input.activity || '?'}.\n\nCycle :\n${JSON.stringify(input.cycle)}\n\nSéances (${input.lessons.length}) :\n${JSON.stringify(input.lessons)}${input.format ? `\n\nToutes les séances suivront ce format : formule des objectifs qu'il permet de travailler.\n${input.format}` : ''}${input.instruction.trim() ? `\n\nDemande de l'enseignant :\n<demande>${input.instruction.trim()}</demande>` : ''}`,
     schema: obj({
       lessons: { type: 'array', items: obj({ title: { type: 'string' }, objective: { type: 'string' }, evalKind: nullableEnum(['diagnostic', 'formative', 'summative']) }) },
@@ -806,7 +807,7 @@ export interface FormattedBlock {
 export async function aiFormatBlockText(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text' | 'materials'>, ctx: TeachingCtx): Promise<FormattedBlock> {
   const r = await callClaude<{ text: string; title: string; minutes: number | null; materials: string | null }>({
     task: 'lesson',
-    system: FORMAT_BLOCK_SYSTEM,
+    system: FORMAT_BLOCK_SYSTEM + knowledge(ctx.level, ctx.activity),
     user: `Contexte :\n${JSON.stringify(describe(ctx))}\n\nBloc (${block.kind}) :\n<bloc>\nTitre : ${block.title}\nDurée : ${block.minutes} min\nMatériel actuel : ${block.materials.trim() || 'aucun'}\n${block.text}\n</bloc>`,
     schema: obj({ text: { type: 'string' }, title: { type: 'string' }, minutes: nullable('integer'), materials: nullable('string') }),
   });
