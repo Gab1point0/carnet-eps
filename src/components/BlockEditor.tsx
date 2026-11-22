@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, BookmarkPlus, CopyPlus, ChevronDown, ChevronRight, Copy, Film, GripVertical, Trash2 } from 'lucide-react';
 import type { Block, BlockKind, CourtId, ID, Lesson } from '../types';
-import { AiBlockTools } from './AiBlockTools';
+import { AiBlockTools, teachingCtx } from './AiBlockTools';
+import { aiFormatBlockText } from '../lib/aiTasks';
+import { aiReady } from '../lib/ai';
 import { IconButton, Menu, NumberInput, Select, TextArea, TextInput } from './ui';
 import { AnimationField } from './AnimationField';
 import { Markdown } from './Markdown';
@@ -143,6 +145,7 @@ export function BlockEditor({
             minRows={8}
             placeholder={'Organisation, consignes, critères de réussite, variables…\n- une ligne par idée\n**gras** pour insister'}
             onChange={(v) => onChange({ text: v })}
+            aiFormat={lesson && aiReady() ? (text) => aiFormatBlockText({ ...block, text }, teachingCtx(useData.getState().data, lesson)) : undefined}
           />
           <span className="field-label">🧰 Matériel du bloc</span>
           <MarkdownField

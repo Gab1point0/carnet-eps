@@ -60,6 +60,17 @@ export const LESSON_SCHEMA = obj({
   },
 });
 
+// Mise en forme du texte d'un bloc : la même pour la dictée et pour « Mettre en forme avec Claude ».
+const BLOCK_TEXT_FORMAT = `- text d'un échauffement ou d'un retour au calme : liste numérotée d'étapes avec leur durée, par exemple « 1. **Footing progressif** (5 min) ».
+- text des autres blocs, en mini-Markdown, une section par ligne :
+**But :** …
+**Organisation :** … (groupes, espace, qui fait quoi)
+**Déroulé :** suivi d'une liste numérotée
+**Rotations et rôles :** … (quand l'observateur devient pratiquant, comment les groupes tournent)
+**Séries et durée :** …
+**Critères de réussite :** …
+**Pour adapter :** … (simplifier, complexifier)`;
+
 const LESSON_SYSTEM = `${STYLE}
 
 L'enseignant dicte sa séance par morceaux, avec des hésitations et des erreurs de reconnaissance vocale. Tu transformes le morceau reçu en opérations sur la séance.
@@ -76,15 +87,7 @@ Règles :
 - Ne reprends pas ses mots tels quels : rédige. Corrige les mots visiblement mal reconnus.
 - Durée : si elle est donnée, minutes = cette durée et estimated = false. Sinon, estime-la d'après le créneau, le reste de la séance et le bloc, et mets estimated = true.
 - Tiens compte de l'effectif, du niveau de classe et de l'activité pour calculer groupes, rotations, séries et durées. N'invente pas d'installations particulières.
-- text d'un échauffement ou d'un retour au calme : liste numérotée d'étapes avec leur durée, par exemple « 1. **Footing progressif** (5 min) ».
-- text des autres blocs, en mini-Markdown, une section par ligne :
-**But :** …
-**Organisation :** … (groupes, espace, qui fait quoi)
-**Déroulé :** suivi d'une liste numérotée
-**Rotations et rôles :** … (quand l'observateur devient pratiquant, comment les groupes tournent)
-**Séries et durée :** …
-**Critères de réussite :** …
-**Pour adapter :** … (simplifier, complexifier)
+${BLOCK_TEXT_FORMAT}
 - materials : une ligne par objet, « - 12 plots (usage) », avec des quantités calculées d'après l'effectif ; null si rien à préciser.
 - Reste fidèle à ce qui est dit : tu complètes l'organisation, tu ne changes pas l'intention.
 Tous les champs sont obligatoires : utilise null quand ils ne s'appliquent pas.`;
@@ -769,4 +772,28 @@ export async function aiCyclePlan(input: {
   }));
   while (out.length < input.lessons.length) out.push({ title: '', objective: '', evalKind: null });
   return out;
+}
+
+// ── Mise en forme du texte d'un bloc écrit à la main ────────────────────────
+
+const FORMAT_BLOCK_SYSTEM = `${STYLE}
+
+L'enseignant a écrit à la main le texte d'un bloc de sa séance, souvent vite, en notes ou en abrégé. Tu le mets au propre : clair, bien rédigé, agréable à lire en cours.
+- Ne reprends pas ses mots tels quels : rédige des phrases courtes et précises. Corrige les fautes et les abréviations.
+- Reste fidèle à ce qui est écrit : garde toutes les informations (chiffres, durées, règles, variantes), n'en retire aucune et ne change pas l'intention. Tu peux compléter brièvement l'organisation quand elle est évidente (groupes, rotations d'après l'effectif), sans inventer d'installation particulière.
+- N'ajoute pas de section vide : une section absente du texte et qu'on ne peut pas déduire est simplement omise.
+${BLOCK_TEXT_FORMAT}
+Réponds avec le texte mis en forme dans text.`;
+
+/** Texte d'un bloc écrit à la main → même texte, rédigé et mis en forme (mini-Markdown). */
+export async function aiFormatBlockText(block: Pick<Block, 'kind' | 'title' | 'minutes' | 'text'>, ctx: TeachingCtx): Promise<string> {
+  const r = await callClaude<{ text: string }>({
+    task: 'lesson',
+    system: FORMAT_BLOCK_SYSTEM,
+    user: `Contexte :\n${JSON.stringify(describe(ctx))}\n\nBloc (${block.kind}) :\n<bloc>\nTitre : ${block.title}\nDurée : ${block.minutes} min\n${block.text}\n</bloc>`,
+    schema: obj({ text: { type: 'string' } }),
+  });
+  const text = typeof r.text === 'string' ? r.text.trim() : '';
+  if (!text) throw new Error('Claude n’a rien renvoyé : réessayez.');
+  return text;
 }
