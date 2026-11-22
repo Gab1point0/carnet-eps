@@ -11,6 +11,7 @@ import { materialsFromBlocks } from '../lib/materials';
 import { durationOf } from '../lib/dates';
 import { cls } from '../lib/util';
 import { teachingCtx } from './AiBlockTools';
+import { LESSON_FORMATS, lessonFormatOf } from '../lib/lessonFormats';
 import { Button, Modal } from './ui';
 import { VoiceTextArea, type VoiceTextAreaHandle } from './VoiceTextArea';
 
@@ -50,6 +51,9 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
   const targets = live.filter((l) => replace || isEmptyLesson(l));
   const missing = [!cycle.objectives.trim() && 'les objectifs', !cycle.competences.trim() && 'les attendus', !cycle.evaluation.trim() && "l'évaluation"].filter(Boolean) as string[];
   const klass = cycle.classId ? data.classes[cycle.classId] : undefined;
+  // Format de séance gardé avec le cycle : le même à chaque génération, tant qu'on ne le change pas.
+  const format = lessonFormatOf(cycle.lessonFormat);
+  const setFormat = (id: string) => useData.getState().patch('cycles', cycle.id, { lessonFormat: id || undefined });
 
   const run = async () => {
     setError('');
@@ -75,6 +79,7 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
           prepared: !isEmptyLesson(l),
         })),
         instruction: said,
+        format: format?.prompt,
       });
       const planText = plan.map((p, k) => `${k + 1}. ${p.title} — ${p.objective}`).join('\n');
 
@@ -104,6 +109,7 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
             position: pos + 1,
             count: all.length,
             previous: all.slice(Math.max(0, pos - 3), pos).map((x) => ({ title: x.title, objective: x.objective, bilan: x.bilan })),
+            format: format?.prompt,
           };
           const r = await aiFromObjective(
             emptyDraft(),
@@ -177,6 +183,19 @@ function CycleGenerateModal({ cycle, lessons, onClose }: { cycle: Cycle; lessons
           <span className="muted small">Chaque séance construite en détail : échauffement, situations, organisation, matériel. Une demande à Claude par séance (quelques minutes).</span>
         </button>
       </div>
+
+      <label className="field">
+        <span className="field-label">Format des séances</span>
+        <select className="input" value={format?.id ?? ''} onChange={(e) => setFormat(e.target.value)}>
+          <option value="">Libre : Claude choisit la structure de chaque séance</option>
+          {LESSON_FORMATS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label} ({f.fits})
+            </option>
+          ))}
+        </select>
+        <span className="field-hint">{format ? `${format.hint} Gardé pour ce cycle.` : 'Choisissez un format pour que toutes les séances du cycle aient la même structure.'}</span>
+      </label>
 
       <label className="check small">
         <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />

@@ -199,6 +199,8 @@ export interface CycleCtx {
   position: number | null;
   count: number | null;
   previous: Array<{ title: string; objective: string; bilan: string }>;
+  /** Format de séance choisi pour le cycle : consigne pour Claude (`LessonFormat.prompt`). */
+  format?: string;
 }
 
 export async function aiFromObjective(draft: Draft, lesson: Lesson, objective: string, ctx: TeachingCtx, cycle: CycleCtx | null) {
@@ -212,7 +214,8 @@ export async function aiFromObjective(draft: Draft, lesson: Lesson, objective: s
     blocs_de_la_seance: lesson.blocks.map((b) => ({ id: b.id, kind: b.kind, title: b.title, minutes: b.minutes, text: b.text })),
     changements_en_attente: draft.changes.map((c) => ({ id: c.id, action: c.op, kind: c.kind, title: c.title, minutes: c.minutes, text: c.text, field: c.field ?? null, value: c.value ?? null })),
   };
-  const user = `Contexte :\n${JSON.stringify(state)}\n\nObjectif de la séance, dicté par l'enseignant :\n<objectif>${objective}</objectif>`;
+  const format = cycle?.format ? `\n\nFormat de séance imposé par l'enseignant pour ce cycle (à respecter pour l'ordre et la nature des blocs) :\n${cycle.format}` : '';
+  const user = `Contexte :\n${JSON.stringify(state)}\n\nObjectif de la séance, dicté par l'enseignant :\n<objectif>${objective}</objectif>${format}`;
   const r = await callClaude<{ operations: LessonOp[] }>({ task: 'lesson', system: OBJECTIVE_SYSTEM, user, schema: LESSON_SCHEMA });
   return applyOps(draft, lesson, r.operations, objective);
 }
@@ -755,11 +758,13 @@ export async function aiCyclePlan(input: {
   cycle: { title: string; objectives: string; competences: string; evaluation: string; notes: string };
   lessons: Array<{ number: number; date: string | null; minutes: number; title: string; objective: string; prepared: boolean }>;
   instruction: string;
+  /** Format de séance choisi pour le cycle (consigne pour Claude). */
+  format?: string;
 }): Promise<PlannedLesson[]> {
   const r = await callClaude<{ lessons: PlannedLesson[] }>({
     task: 'lesson',
     system: CYCLE_PLAN_SYSTEM,
-    user: `Classe : ${input.className} (${input.level || 'niveau ?'}), ${input.students ?? '?'} élèves. Activité : ${input.activity || '?'}.\n\nCycle :\n${JSON.stringify(input.cycle)}\n\nSéances (${input.lessons.length}) :\n${JSON.stringify(input.lessons)}${input.instruction.trim() ? `\n\nDemande de l'enseignant :\n<demande>${input.instruction.trim()}</demande>` : ''}`,
+    user: `Classe : ${input.className} (${input.level || 'niveau ?'}), ${input.students ?? '?'} élèves. Activité : ${input.activity || '?'}.\n\nCycle :\n${JSON.stringify(input.cycle)}\n\nSéances (${input.lessons.length}) :\n${JSON.stringify(input.lessons)}${input.format ? `\n\nToutes les séances suivront ce format : formule des objectifs qu'il permet de travailler.\n${input.format}` : ''}${input.instruction.trim() ? `\n\nDemande de l'enseignant :\n<demande>${input.instruction.trim()}</demande>` : ''}`,
     schema: obj({
       lessons: { type: 'array', items: obj({ title: { type: 'string' }, objective: { type: 'string' }, evalKind: nullableEnum(['diagnostic', 'formative', 'summative']) }) },
     }),

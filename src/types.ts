@@ -93,6 +93,8 @@ export interface Cycle extends Meta {
   review: string;
   /** Lieu de pratique du cycle : ses séances le prennent, sauf si elles ont le leur. */
   venueId: ID | null;
+  /** Format de séance imposé à Claude pour générer les séances (`LESSON_FORMATS`, `src/lib/lessonFormats.ts`). */
+  lessonFormat?: string;
   order: number;
 }
 
