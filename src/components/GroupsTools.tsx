@@ -14,6 +14,49 @@ import { Button, Field, IconButton, Modal, NumberInput, Tabs, TextInput } from '
 export const GROUP_COLORS = ['#2563eb', '#16a34a', '#ea580c', '#9333ea', '#0d9488', '#db2777', '#ca8a04', '#4f46e5', '#dc2626', '#0891b2'];
 export const groupColor = (g: number) => GROUP_COLORS[(g - 1) % GROUP_COLORS.length];
 
+const PARITY_KEY = 'carnet-eps:groupes-parite';
+
+/** Case « parité filles-garçons », gardée d'une fois sur l'autre sur cet appareil. */
+export function useParity(): [boolean, (v: boolean) => void] {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(PARITY_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const set = (v: boolean) => {
+    setOn(v);
+    try {
+      localStorage.setItem(PARITY_KEY, v ? '1' : '0');
+    } catch {
+      /* stockage indisponible : le choix vaut pour cette fois */
+    }
+  };
+  return [on, set];
+}
+
+export function ParityCheck({ students, checked, onChange, disabled }: { students: Student[]; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  const girls = students.filter((s) => s.sex === 'F').length;
+  const boys = students.filter((s) => s.sex === 'G').length;
+  const unknown = students.length - girls - boys;
+  return (
+    <div className="stack" style={{ gap: 2 }}>
+      <label className="check">
+        <input type="checkbox" checked={checked && !disabled} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+        <span>
+          <strong>Parité filles-garçons</strong> <span className="muted small">: autant de filles et de garçons que possible dans chaque groupe</span>
+        </span>
+      </label>
+      <p className="muted small">
+        {disabled
+          ? 'Pas avec les groupes homogènes : ils sont faits par niveau.'
+          : `${plural(girls, 'fille')}, ${plural(boys, 'garçon')}${unknown ? ` · ${plural(unknown, 'élève')} sans F ou G coché dans la liste de la classe (placé${unknown > 1 ? 's' : ''} à la fin)` : ''}.`}
+      </p>
+    </div>
+  );
+}
+
 /** Petit choix du groupe d'un élève, sur sa carte ou sa ligne. */
 export function GroupSelect({ value, count, onChange, label }: { value: number | undefined; count: number; onChange: (g: number | null) => void; label: string }) {
   return (
@@ -196,6 +239,7 @@ function AutoGroupsModal({ lesson, students, hasGroups, onClose, onDone }: { les
   const [n, setN] = useState(4);
   const [mode, setMode] = useState<GroupMode>('random');
   const [source, setSource] = useState<ID>(withMarks[0]?.id ?? '');
+  const [parity, setParity] = useParity();
   const count = Math.max(1, by === 'count' ? n : Math.ceil(students.length / Math.max(1, n)));
 
   const run = async () => {
@@ -211,7 +255,7 @@ function AutoGroupsModal({ lesson, students, hasGroups, onClose, onDone }: { les
         present.forEach((s, i) => (scores[s.id] = res[i].total));
       }
     }
-    onDone({ assign: autoGroups(students, count, mode, scores), count });
+    onDone({ assign: autoGroups(students, count, mode, scores, Math.random, parity), count });
     onClose();
   };
 
@@ -257,6 +301,7 @@ function AutoGroupsModal({ lesson, students, hasGroups, onClose, onDone }: { les
           </label>
         ))}
       </div>
+      <ParityCheck students={students} checked={parity} onChange={setParity} disabled={mode === 'homogeneous'} />
       {mode !== 'random' &&
         (withMarks.length ? (
           <Field label="Niveaux pris dans la fiche">

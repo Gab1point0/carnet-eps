@@ -10,7 +10,7 @@ import { formatShort } from '../lib/dates';
 import { cls, plural, uid } from '../lib/util';
 import { Button, Field, Modal, NumberInput, Tabs } from './ui';
 import { VaultGate } from './VaultGate';
-import { groupColor } from './GroupsTools';
+import { groupColor, ParityCheck, useParity } from './GroupsTools';
 
 // Groupes au hasard (accueil) et groupes d'une séance. Tout se fait sur l'appareil : rien n'est envoyé à Claude.
 
@@ -73,6 +73,7 @@ function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g:
   const [showAbsent, setShowAbsent] = useState(false);
   const [result, setResult] = useState<NewGroups | null>(null);
   const [saved, setSaved] = useState(false);
+  const [parity, setParity] = useParity();
   const present = useMemo(() => students.filter((s) => !absent.has(s.id)), [students, absent]);
   // « 3 élèves par groupe » pour 13 élèves : 4 groupes de 3 ou 4 plutôt que 5 groupes de 2 ou 3.
   const count = Math.max(1, Math.min(present.length || 1, by === 'count' ? n : Math.round(present.length / Math.max(1, n))));
@@ -80,7 +81,7 @@ function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g:
   if (!students.length) return <p className="muted">Pas encore d'élèves dans cette classe : ajoutez-les depuis la page de la classe.</p>;
 
   const draw = () => {
-    setResult({ assign: autoGroups(present, count, 'random'), count });
+    setResult({ assign: autoGroups(present, count, 'random', {}, Math.random, parity), count });
     setSaved(false);
   };
   const toggleAbsent = (id: ID) => {
@@ -118,6 +119,14 @@ function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g:
           }}
         />
       </Field>
+      <ParityCheck
+        students={present}
+        checked={parity}
+        onChange={(v) => {
+          setParity(v);
+          setResult(null);
+        }}
+      />
       <div>
         <button type="button" className="cycle-toggle muted small" onClick={() => setShowAbsent(!showAbsent)}>
           {absent.size ? `${plural(absent.size, 'absent')} · modifier` : 'Des absents ? Touchez-les pour les retirer'}

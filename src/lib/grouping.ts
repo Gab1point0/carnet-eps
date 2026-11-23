@@ -21,8 +21,17 @@ function shuffle<T>(list: T[], rand: () => number): T[] {
  * - hétérogènes : niveaux mélangés, distribués en serpentin pour équilibrer les groupes.
  * Les élèves sans note (`scores` absent) sont répartis au hasard à la fin, sans déséquilibrer les effectifs.
  */
-export function autoGroups(students: Student[], count: number, mode: GroupMode, scores: Record<ID, number> = {}, rand: () => number = Math.random): Record<ID, number> {
+export function autoGroups(
+  students: Student[],
+  count: number,
+  mode: GroupMode,
+  scores: Record<ID, number> = {},
+  rand: () => number = Math.random,
+  /** Parité filles-garçons : autant de filles et de garçons que possible dans chaque groupe (hasard et hétérogènes). */
+  mixSex = false,
+): Record<ID, number> {
   const n = Math.max(1, Math.min(count, students.length || 1));
+  if (mixSex && mode !== 'homogeneous') return mixedGroups(students, n, mode === 'heterogeneous' ? scores : {}, rand);
   const withScore = students.filter((s) => scores[s.id] !== undefined);
   const without = shuffle(
     students.filter((s) => scores[s.id] === undefined),
@@ -60,6 +69,29 @@ export function autoGroups(students: Student[], count: number, mode: GroupMode, 
     assign[s.id] = g + 1;
     sizes[g]++;
   }
+  return assign;
+}
+
+/**
+ * Groupes mixtes : les filles, puis les garçons, puis les élèves dont le sexe n'est pas renseigné sont distribués
+ * à la suite, en serpentin (1, 2, 3, 3, 2, 1…). Chaque groupe reçoit ainsi autant de filles (à une près) et autant
+ * de garçons (à un près), et les effectifs restent équilibrés. Avec des notes, chaque sexe est rangé du meilleur au
+ * moins bon avant la distribution (groupes hétérogènes) ; sinon, l'ordre est tiré au hasard.
+ */
+function mixedGroups(students: Student[], n: number, scores: Record<ID, number>, rand: () => number): Record<ID, number> {
+  const order = (list: Student[]) => {
+    const scored = list.filter((s) => scores[s.id] !== undefined).sort((a, b) => scores[b.id] - scores[a.id]);
+    return [...scored, ...shuffle(list.filter((s) => scores[s.id] === undefined), rand)];
+  };
+  const queue = [...order(students.filter((s) => s.sex === 'F')), ...order(students.filter((s) => s.sex === 'G')), ...shuffle(students.filter((s) => s.sex !== 'F' && s.sex !== 'G'), rand)];
+  // Point de départ tiré au hasard : ce n'est pas toujours le groupe 1 qui prend la fille ou le garçon en plus.
+  const shift = Math.floor(rand() * n);
+  const assign: Record<ID, number> = {};
+  queue.forEach((s, i) => {
+    const round = Math.floor(i / n);
+    const g = round % 2 === 0 ? i % n : n - 1 - (i % n);
+    assign[s.id] = ((g + shift) % n) + 1;
+  });
   return assign;
 }
 

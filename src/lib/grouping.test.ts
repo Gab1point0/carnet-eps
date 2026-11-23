@@ -31,6 +31,28 @@ describe('groupes', () => {
     expect(sizes(a, 2)).toEqual([5, 5]);
   });
 
+  it('parité filles-garçons : autant de filles et de garçons par groupe', () => {
+    // 7 filles, 5 garçons, 1 élève sans sexe renseigné.
+    const mixed = Array.from({ length: 13 }, (_, i) => ({ id: `m${i}`, name: '', sex: i < 7 ? ('F' as const) : i < 12 ? ('G' as const) : undefined }));
+    for (const mode of ['random', 'heterogeneous'] as const) {
+      const a = autoGroups(mixed, 3, mode, {}, seeded(), true);
+      expect(Object.keys(a)).toHaveLength(13);
+      const per = (sex: 'F' | 'G') => [1, 2, 3].map((g) => mixed.filter((s) => s.sex === sex && a[s.id] === g).length);
+      expect(Math.max(...per('F')) - Math.min(...per('F'))).toBeLessThanOrEqual(1);
+      expect(Math.max(...per('G')) - Math.min(...per('G'))).toBeLessThanOrEqual(1);
+      const sz = sizes(a, 3);
+      expect(Math.max(...sz) - Math.min(...sz)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('parité et niveaux : les deux meilleures filles sont séparées', () => {
+    const mixed = Array.from({ length: 8 }, (_, i) => ({ id: `m${i}`, name: '', sex: i < 4 ? ('F' as const) : ('G' as const) }));
+    const sc = Object.fromEntries(mixed.map((s, i) => [s.id, 20 - i]));
+    const a = autoGroups(mixed, 2, 'heterogeneous', sc, seeded(), true);
+    expect(a.m0).not.toBe(a.m1);
+    expect(a.m4).not.toBe(a.m5);
+  });
+
   it('range par groupe, puis les élèves à placer', () => {
     const r = byGroup(students.slice(0, 4), { s0: 2, s1: 1, s2: 2 }, 2);
     expect(r.map((g) => [g.group, g.students.map((s) => s.id)])).toEqual([
