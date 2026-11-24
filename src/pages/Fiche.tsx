@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, Printer } from 'lucide-react';
 import { useData } from '../store/data';
-import { Button, Card, PageHeader, Section } from '../components/ui';
+import { Button, Card, NumberInput, PageHeader, Section } from '../components/ui';
 import { FICHES, FICHE_BY_ID, FICHE_GROUPS, LEVEL_KEYS, LEVEL_LABELS, buildFiche, customDef, tableHasLabels, fichesOfActivity, levelKeyOf, type FicheCtx, type FicheDef, type FicheSection, type LevelKey } from '../lib/fiches';
 import { criteriaOf } from '../lib/materials';
 import { printPage } from '../lib/printPdf';
@@ -190,15 +190,7 @@ export function FichePage() {
         </Button>
         <label className="row" style={{ gap: 8 }}>
           Exemplaires
-          <input
-            className="input"
-            type="number"
-            min={1}
-            max={60}
-            value={copies}
-            style={{ width: 80 }}
-            onChange={(e) => setQuery({ copies: String(e.target.value) })}
-          />
+          <NumberInput min={1} max={60} value={copies} style={{ width: 80 }} onChange={(v) => v != null && v >= 1 && setQuery({ copies: String(Math.min(60, v)) })} />
         </label>
         {!custom && <label className="row" style={{ gap: 8 }}>
           Niveau

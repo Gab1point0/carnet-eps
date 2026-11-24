@@ -85,7 +85,7 @@ export function NewCycleModal({
           <Button variant="ghost" onClick={onClose}>
             Annuler
           </Button>
-          <Button variant="primary" onClick={create} disabled={tab === 'template' && !template}>
+          <Button variant="primary" onClick={create} disabled={(tab === 'template' && !template) || (tab === 'new' && !count)}>
             Créer le cycle
           </Button>
         </>
@@ -115,7 +115,7 @@ export function NewCycleModal({
             <TextInput value={title} onChange={setTitle} placeholder="Ex. Badminton — jouer en simple" />
           </Field>
           <div className="grid grid-2">
-            <Field label="Nombre de séances">
+            <Field label="Nombre de séances" hint={count ? undefined : 'Indiquez le nombre de séances pour créer le cycle.'}>
               <NumberInput value={count} min={1} max={40} onChange={setCount} />
             </Field>
             <Field label="Première séance à partir du">

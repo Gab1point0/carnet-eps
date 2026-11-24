@@ -1,7 +1,7 @@
 import { ArrowDown, ArrowUp, Plus, Trash2, X } from 'lucide-react';
 import type { CustomSheet } from '../types';
 import { tableHasLabels, type FicheSection, type SectionSpan } from '../lib/fiches';
-import { Button, Field, IconButton, TextArea, TextInput } from './ui';
+import { Button, Field, IconButton, NumberInput, TextArea, TextInput } from './ui';
 
 const LABELS: Record<FicheSection['type'], string> = {
   table: 'Tableau',
@@ -145,7 +145,7 @@ function TableFields({ t, previous, onChange }: { t: Table; previous?: Table; on
             {widths.map((w, k) => (
               <label key={k} className="small grid-edit-width">
                 {labels && k === 0 ? '1re col.' : `Col. ${labels ? k : k + 1}`}
-                <input className="input" type="number" min={1} max={100} value={w} onChange={(e) => setWidth(k, e.target.value === '' ? null : Number(e.target.value))} />
+                <NumberInput min={1} max={100} value={w} onChange={(v) => setWidth(k, v)} />
               </label>
             ))}
           </div>
@@ -207,7 +207,7 @@ function SectionFields({ s, previousTable, onChange }: { s: FicheSection; previo
         <>
           {titleField}
           <Field label={s.type === 'box' ? 'Hauteur (en lignes)' : 'Nombre de lignes'}>
-            <input className="input" type="number" min={1} max={s.type === 'box' ? 30 : 12} value={s.n ?? (s.type === 'box' ? 6 : 2)} onChange={(e) => onChange({ ...s, n: Number(e.target.value) })} />
+            <NumberInput min={1} max={s.type === 'box' ? 30 : 12} value={s.n ?? (s.type === 'box' ? 6 : 2)} onChange={(v) => v != null && v >= 1 && onChange({ ...s, n: v })} />
           </Field>
         </>
       );

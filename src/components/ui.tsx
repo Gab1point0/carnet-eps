@@ -198,30 +198,54 @@ export function TextInput({
   return <input className={cls('input', className)} value={value} onChange={(e) => onChange(e.target.value)} {...rest} />;
 }
 
+/**
+ * Zone de chiffres. Pendant la saisie, on affiche exactement ce qui est tapé : on peut vider la zone puis écrire
+ * (vide = `null` pour le parent, même si celui-ci garde une valeur par défaut). En quittant la zone, une valeur hors
+ * de `min`/`max` est ramenée dans les bornes, et l'affichage reprend la valeur retenue.
+ */
 export function NumberInput({
   value,
   onChange,
   min,
   max,
   className,
+  onFocus,
+  onBlur,
   ...rest
-}: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> & {
-  value: number | null;
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value' | 'min' | 'max'> & {
+  value: number | null | undefined;
   onChange: (v: number | null) => void;
+  min?: number;
+  max?: number;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
   return (
     <input
       className={cls('input', className)}
       type="number"
-      inputMode="numeric"
+      inputMode={rest.step && Number(rest.step) % 1 ? 'decimal' : 'numeric'}
       min={min}
       max={max}
-      value={value ?? ''}
+      value={draft ?? value ?? ''}
+      onFocus={(e) => {
+        setDraft(value == null ? '' : String(value));
+        onFocus?.(e);
+      }}
       onChange={(e) => {
         const raw = e.target.value;
+        setDraft(raw);
         if (raw === '') return onChange(null);
         const n = Number(raw);
         if (!Number.isNaN(n)) onChange(n);
+      }}
+      onBlur={(e) => {
+        setDraft(null);
+        const n = e.target.value === '' ? null : Number(e.target.value);
+        if (n != null && !Number.isNaN(n)) {
+          const clamped = Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n));
+          if (clamped !== n) onChange(clamped);
+        }
+        onBlur?.(e);
       }}
       {...rest}
     />

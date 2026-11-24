@@ -239,14 +239,14 @@ function TeamsSetup({ lesson, scope, onStart }: { lesson?: Lesson; scope: string
   const students = useStudents(lesson?.classId);
   const hasGroups = !!grouping?.count;
   const [useGroups, setUseGroups] = useState(hasGroups);
-  const [count, setCount] = useState(grouping?.count && grouping.count > 1 ? grouping.count : 6);
+  const [count, setCount] = useState<number | null>(grouping?.count && grouping.count > 1 ? grouping.count : 6);
   const participants: Participant[] = useMemo(() => {
     if (useGroups && hasGroups && grouping) {
       return byGroup(students, grouping.assign, grouping.count)
         .filter((g) => g.group)
         .map((g) => ({ id: `g${g.group}`, label: `Équipe ${g.group}`, team: g.group!, members: g.students.map((s) => s.name || 'Élève sans nom').join(', ') }));
     }
-    return Array.from({ length: Math.max(2, count) }, (_, i) => ({ id: `g${i + 1}`, label: `Équipe ${i + 1}`, team: i + 1 }));
+    return Array.from({ length: Math.max(0, Math.min(40, count ?? 0)) }, (_, i) => ({ id: `g${i + 1}`, label: `Équipe ${i + 1}`, team: i + 1 }));
   }, [useGroups, hasGroups, grouping, students, count]);
 
   return (
@@ -273,7 +273,7 @@ function TeamsSetup({ lesson, scope, onStart }: { lesson?: Lesson; scope: string
       )}
       {!(useGroups && hasGroups) && (
         <Field label="Nombre d'équipes" hint="Les équipes sont numérotées : formez-les sur le terrain, ou faites d'abord les groupes de la séance (bouton « Groupes »).">
-          <NumberInput value={count} min={2} max={40} onChange={(v) => setCount(Math.max(2, v ?? 2))} />
+          <NumberInput value={count} min={2} max={40} onChange={setCount} />
         </Field>
       )}
     </Setup>
@@ -342,7 +342,8 @@ function Setup({ scope, participants, kind, onStart, children }: { scope: string
   const choices = FORMULAS.filter((f) => !f.soloOnly || kind === 'solo');
   const [formula0, setFormula] = useKept<Formula>(`${scope}:formule`, 'rr');
   const formula = choices.some((f) => f.id === formula0) ? formula0 : 'rr';
-  const [courts, setCourts] = useState(() => Math.max(1, Math.min(4, Math.floor(participants.length / 2))));
+  const [courtsIn, setCourts] = useState<number | null>(() => Math.max(1, Math.min(4, Math.floor(participants.length / 2))));
+  const courts = courtsIn ?? 0;
   const n = participants.length;
   const f = formulaOf(formula);
   const perMatch = formula === 'melee' ? 4 : 2;
@@ -361,10 +362,12 @@ function Setup({ scope, participants, kind, onStart, children }: { scope: string
           ))}
         </select>
       </Field>
-      <Field label={formula === 'ladder' ? 'Terrains (ou tables)' : 'Terrains'} hint={n >= perMatch ? (formula === 'ladder' && used < courts ? `${plural(used, 'terrain')} utilisés : 2 joueurs au moins par terrain` : `${plural(used, 'match')} à la fois`) : ''}>
-        <NumberInput value={courts} min={1} max={30} onChange={(v) => setCourts(Math.max(1, v ?? 1))} />
+      <Field label={formula === 'ladder' ? 'Terrains (ou tables)' : 'Terrains'} hint={courts < 1 ? '' : n >= perMatch ? (formula === 'ladder' && used < courts ? `${plural(used, 'terrain')} utilisés : 2 joueurs au moins par terrain` : `${plural(used, 'match')} à la fois`) : ''}>
+        <NumberInput value={courtsIn} min={1} max={30} onChange={setCourts} />
       </Field>
-      {n < (f.min ?? 2) ? (
+      {courts < 1 ? (
+        <p className="error-text small">Indiquez le nombre de terrains pour continuer.</p>
+      ) : n < (f.min ?? 2) ? (
         <p className="error-text small">Il faut au moins {f.min ?? 2} participants pour cette formule.</p>
       ) : formula === 'rr' ? (
         <RRSetup participants={participants} courts={courts} go={go} />
@@ -403,12 +406,13 @@ function Setup({ scope, participants, kind, onStart, children }: { scope: string
   );
 }
 
-function StartButton({ label, onClick }: { label: string; onClick: () => void }) {
+function StartButton({ label, onClick, missing }: { label: string; onClick: () => void; missing?: string }) {
   return (
     <div>
-      <Button variant="primary" icon={<Play size={17} />} onClick={onClick}>
+      <Button variant="primary" icon={<Play size={17} />} onClick={onClick} disabled={!!missing}>
         {label}
       </Button>
+      {missing && <p className="error-text small">{missing}</p>}
     </div>
   );
 }
@@ -442,29 +446,30 @@ function RRSetup({ participants, courts, go }: { participants: Participant[]; co
 
 function PoolsSetup({ participants, go }: { participants: Participant[]; go: (s: Partial<PoolsState>) => void }) {
   const n = participants.length;
-  const [pools, setPools] = useState(() => Math.max(1, Math.round(n / 4)));
-  const [qualify, setQualify] = useState(2);
-  const k = Math.max(1, Math.min(pools, Math.floor(n / 2)));
+  const [pools, setPools] = useState<number | null>(() => Math.max(1, Math.round(n / 4)));
+  const [qualify, setQualify] = useState<number | null>(2);
+  const k = Math.max(1, Math.min(pools ?? 1, Math.floor(n / 2)));
   const small = Math.floor(n / k);
   return (
     <>
       <div className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
-        <Field label="Poules" hint={`${plural(k, 'poule')} de ${small}${n % k ? ` ou ${small + 1}` : ''}`}>
-          <NumberInput value={pools} min={1} max={Math.max(1, Math.floor(n / 2))} onChange={(v) => setPools(Math.max(1, v ?? 1))} />
+        <Field label="Poules" hint={pools ? `${plural(k, 'poule')} de ${small}${n % k ? ` ou ${small + 1}` : ''}` : ''}>
+          <NumberInput value={pools} min={1} max={Math.max(1, Math.floor(n / 2))} onChange={setPools} />
         </Field>
         <Field label="Qualifiés par poule" hint="Pour le tableau final ; les autres jouent la consolante">
-          <NumberInput value={qualify} min={1} max={Math.max(1, small)} onChange={(v) => setQualify(Math.max(1, v ?? 1))} />
+          <NumberInput value={qualify} min={1} max={Math.max(1, small)} onChange={setQualify} />
         </Field>
       </div>
       <p className="muted small">Victoire 2 points, nul 1, défaite 0. À égalité de points, la confrontation directe départage.</p>
       <StartButton
         label="Tirer les poules"
+        missing={!pools ? 'Indiquez le nombre de poules.' : !qualify ? 'Indiquez le nombre de qualifiés par poule.' : undefined}
         onClick={() => {
           const p = poolsStart(
             participants.map((x) => x.id),
             k,
           );
-          go({ pools: p, matches: p.map(poolMatches), qualify: Math.min(qualify, small) });
+          go({ pools: p, matches: p.map(poolMatches), qualify: Math.max(1, Math.min(qualify ?? 1, small)) });
         }}
       />
     </>
@@ -472,14 +477,14 @@ function PoolsSetup({ participants, go }: { participants: Participant[]; go: (s:
 }
 
 function ChallengeSetup({ participants, go }: { participants: Participant[]; go: (s: Partial<ChallengeState>) => void }) {
-  const [reach, setReach] = useState(2);
+  const [reach, setReach] = useState<number | null>(2);
   return (
     <>
       <Field label="On peut défier jusqu’à" hint="places au-dessus de soi">
-        <NumberInput value={reach} min={1} max={10} onChange={(v) => setReach(Math.max(1, v ?? 1))} />
+        <NumberInput value={reach} min={1} max={10} onChange={setReach} />
       </Field>
-      <ChallengeRules reach={reach} />
-      <StartButton label="Tirer le classement de départ" onClick={() => go({ start: shuffleIds(participants.map((p) => p.id)), log: [], reach })} />
+      {reach ? <ChallengeRules reach={reach} /> : null}
+      <StartButton label="Tirer le classement de départ" missing={reach ? undefined : 'Indiquez jusqu’à combien de places on peut défier.'} onClick={() => go({ start: shuffleIds(participants.map((p) => p.id)), log: [], reach: Math.max(1, reach ?? 1) })} />
     </>
   );
 }

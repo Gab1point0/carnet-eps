@@ -68,7 +68,7 @@ function GroupsGrid({ students, grouping }: { students: Student[]; grouping: New
 function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g: NewGroups) => unknown; saveLabel: string }) {
   const students = useStudents(classId);
   const [by, setBy] = useState<'count' | 'size'>('count');
-  const [n, setN] = useState(4);
+  const [n, setN] = useState<number | null>(4);
   const [absent, setAbsent] = useState<Set<ID>>(new Set());
   const [showAbsent, setShowAbsent] = useState(false);
   const [result, setResult] = useState<NewGroups | null>(null);
@@ -76,7 +76,7 @@ function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g:
   const [parity, setParity] = useParity();
   const present = useMemo(() => students.filter((s) => !absent.has(s.id)), [students, absent]);
   // « 3 élèves par groupe » pour 13 élèves : 4 groupes de 3 ou 4 plutôt que 5 groupes de 2 ou 3.
-  const count = Math.max(1, Math.min(present.length || 1, by === 'count' ? n : Math.round(present.length / Math.max(1, n))));
+  const count = Math.max(1, Math.min(present.length || 1, by === 'count' ? (n ?? 1) : Math.round(present.length / Math.max(1, n ?? 1))));
 
   if (!students.length) return <p className="muted">Pas encore d'élèves dans cette classe : ajoutez-les depuis la page de la classe.</p>;
 
@@ -108,13 +108,13 @@ function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g:
           { id: 'size', label: 'Élèves par groupe' },
         ]}
       />
-      <Field label={by === 'count' ? 'Nombre de groupes' : 'Élèves par groupe'} hint={`${plural(present.length, 'élève')} → ${plural(count, 'groupe')} de ${small}${present.length % count ? ` ou ${small + 1}` : ''}`}>
+      <Field label={by === 'count' ? 'Nombre de groupes' : 'Élèves par groupe'} hint={n ? `${plural(present.length, 'élève')} → ${plural(count, 'groupe')} de ${small}${present.length % count ? ` ou ${small + 1}` : ''}` : ''}>
         <NumberInput
           value={n}
           min={1}
           max={present.length || 1}
           onChange={(v) => {
-            setN(v ?? 1);
+            setN(v);
             setResult(null);
           }}
         />
@@ -142,7 +142,7 @@ function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g:
         )}
       </div>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        <Button variant={result ? 'secondary' : 'primary'} icon={<Shuffle size={17} />} onClick={draw} disabled={!present.length}>
+        <Button variant={result ? 'secondary' : 'primary'} icon={<Shuffle size={17} />} onClick={draw} disabled={!present.length || !n}>
           {result ? 'Refaire le tirage' : `Tirer ${plural(count, 'groupe')} au sort`}
         </Button>
         {result && (
@@ -158,6 +158,7 @@ function RandomGroups({ classId, onSave, saveLabel }: { classId: ID; onSave: (g:
           </Button>
         )}
       </div>
+      {!n && <p className="error-text small">Indiquez {by === 'count' ? 'le nombre de groupes' : 'le nombre d’élèves par groupe'} pour faire le tirage.</p>}
       {result && <GroupsGrid students={present} grouping={result} />}
     </div>
   );

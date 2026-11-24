@@ -236,11 +236,11 @@ function AutoGroupsModal({ lesson, students, hasGroups, onClose, onDone }: { les
   const doc = useVault((s) => s.doc);
   const withMarks = [lesson, ...sheets].filter((l) => l.evalSheet && Object.keys(doc.sheets[l.id] ?? {}).length);
   const [by, setBy] = useState<'count' | 'size'>('count');
-  const [n, setN] = useState(4);
+  const [n, setN] = useState<number | null>(4);
   const [mode, setMode] = useState<GroupMode>('random');
   const [source, setSource] = useState<ID>(withMarks[0]?.id ?? '');
   const [parity, setParity] = useParity();
-  const count = Math.max(1, by === 'count' ? n : Math.ceil(students.length / Math.max(1, n)));
+  const count = Math.max(1, by === 'count' ? (n ?? 1) : Math.ceil(students.length / Math.max(1, n ?? 1)));
 
   const run = async () => {
     if (hasGroups && !(await confirmDialog({ title: 'Remplacer les groupes actuels ?', confirmLabel: 'Remplacer' }))) return;
@@ -268,7 +268,7 @@ function AutoGroupsModal({ lesson, students, hasGroups, onClose, onDone }: { les
           <Button variant="ghost" onClick={onClose}>
             Annuler
           </Button>
-          <Button variant="primary" onClick={run} disabled={mode !== 'random' && !source}>
+          <Button variant="primary" onClick={run} disabled={(mode !== 'random' && !source) || !n}>
             Former {plural(count, 'groupe')}
           </Button>
         </>
@@ -282,8 +282,8 @@ function AutoGroupsModal({ lesson, students, hasGroups, onClose, onDone }: { les
           { id: 'size', label: 'Élèves par groupe' },
         ]}
       />
-      <Field label={by === 'count' ? 'Nombre de groupes' : 'Élèves par groupe'} hint={`${students.length} élèves → ${plural(count, 'groupe')} d'environ ${Math.round(students.length / count)}`}>
-        <NumberInput value={n} min={1} max={students.length || 1} onChange={(v) => setN(v ?? 1)} />
+      <Field label={by === 'count' ? 'Nombre de groupes' : 'Élèves par groupe'} hint={n ? `${students.length} élèves → ${plural(count, 'groupe')} d'environ ${Math.round(students.length / count)}` : 'Indiquez un nombre pour former les groupes.'}>
+        <NumberInput value={n} min={1} max={students.length || 1} onChange={setN} />
       </Field>
       <div className="stack" style={{ gap: 6 }}>
         {(

@@ -2,7 +2,7 @@ import { Plus, X } from 'lucide-react';
 import type { Grading } from '../types';
 import { LEVELS } from '../lib/levels';
 import { classAverage } from '../lib/grading';
-import { Button, IconButton } from './ui';
+import { Button, IconButton, NumberInput } from './ui';
 
 const n = (v: string) => Math.max(0, Math.round(Number(v) || 0));
 
@@ -61,15 +61,13 @@ export function GradingField({ value, onChange }: { value: Grading; onChange: (g
               <td className="muted small">Note du degré (/20)</td>
               {value.scale.map((p, j) => (
                 <td key={j}>
-                  <input
-                    className="input"
-                    type="number"
+                  <NumberInput
                     min={0}
                     max={20}
                     step={0.5}
                     value={p}
                     aria-label={`Note sur 20 du degré ${LEVELS[j].label}`}
-                    onChange={(e) => onChange({ ...value, scale: value.scale.map((x, m) => (m === j ? Math.min(20, Number(e.target.value) || 0) : x)) as Grading['scale'] })}
+                    onChange={(v) => onChange({ ...value, scale: value.scale.map((x, m) => (m === j ? Math.min(20, v ?? 0) : x)) as Grading['scale'] })}
                   />
                 </td>
               ))}
