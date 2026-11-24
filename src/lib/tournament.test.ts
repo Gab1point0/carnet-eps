@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rotationsForAll, schedule } from './tournament';
+import { ladderNext, ladderStart, rotationsForAll, schedule, swissPairing, swissStandings, type SwissRound } from './tournament';
 
 const seeded = () => {
   let x = 7;
@@ -67,5 +67,76 @@ describe('roulement de matchs', () => {
   it('compte les rotations nécessaires', () => {
     expect(rotationsForAll(4, 2)).toBe(3);
     expect(rotationsForAll(6, 3)).toBe(5);
+  });
+});
+
+describe('rondes suisses', () => {
+  const ids = Array.from({ length: 8 }, (_, i) => `p${i}`);
+  const play = (r: SwissRound) => r.matches.forEach((m) => (m.result = m.a < m.b ? 'a' : 'b'));
+
+  it('fait se rencontrer ceux qui ont le même nombre de points, sans revanche', () => {
+    const rounds: SwissRound[] = [];
+    for (let k = 0; k < 3; k++) {
+      const r = swissPairing(ids, rounds);
+      const pts = Object.fromEntries(swissStandings(ids, rounds).map((s) => [s.id, s.points]));
+      for (const m of r.matches) expect(pts[m.a]).toBe(pts[m.b]);
+      expect(r.rematches).toBeUndefined();
+      play(r);
+      rounds.push(r);
+    }
+    const pairs = rounds.flatMap((r) => r.matches.map((m) => [m.a, m.b].sort().join()));
+    expect(new Set(pairs).size).toBe(pairs.length);
+    expect(swissStandings(ids, rounds)[0].wins).toBe(3);
+  });
+
+  it('nombre impair : un exempt différent à chaque ronde, qui marque un point', () => {
+    const odd = ids.slice(0, 7);
+    const rounds: SwissRound[] = [];
+    for (let k = 0; k < 5; k++) {
+      const r = swissPairing(odd, rounds);
+      expect(r.bye).toBeDefined();
+      expect(r.matches.length).toBe(3);
+      play(r);
+      rounds.push(r);
+    }
+    expect(new Set(rounds.map((r) => r.bye)).size).toBe(5);
+    expect(swissStandings(odd, rounds).reduce((t, s) => t + s.points, 0)).toBe(5 * 4);
+  });
+
+  it("accepte une revanche seulement quand il n'y a plus le choix", () => {
+    const four = ids.slice(0, 4);
+    const rounds: SwissRound[] = [];
+    for (let k = 0; k < 4; k++) {
+      const r = swissPairing(four, rounds);
+      if (k < 3) expect(r.rematches).toBeUndefined();
+      else expect(r.rematches).toBe(2);
+      r.matches.forEach((m) => (m.result = 'draw'));
+      rounds.push(r);
+    }
+  });
+});
+
+describe('montante-descendante', () => {
+  it('répartit tout le monde sur les terrains, 2 au moins par terrain', () => {
+    const ids = Array.from({ length: 19 }, (_, i) => `e${i}`);
+    const t = ladderStart(ids, 8);
+    expect(t.length).toBe(8);
+    expect(t.flat().sort()).toEqual([...ids].sort());
+    expect(Math.min(...t.map((x) => x.length))).toBe(2);
+    expect(ladderStart(ids.slice(0, 5), 8).length).toBe(2);
+  });
+
+  it('le gagnant monte, le perdant descend, les effectifs ne changent pas', () => {
+    const tables = [
+      ['a', 'b'],
+      ['c', 'd', 'x'],
+      ['e', 'f'],
+    ];
+    const next = ladderNext(tables, ['a', 'c', 'e'], [undefined, 'd', undefined]);
+    expect(next).toEqual([
+      ['a', 'c'],
+      ['e', 'x', 'b'],
+      ['d', 'f'],
+    ]);
   });
 });

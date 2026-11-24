@@ -134,3 +134,153 @@ export function schedule(
   }
   return out;
 }
+
+// ————— Rondes suisses —————
+// À chaque ronde, on fait se rencontrer ceux qui ont le même nombre de points (victoire 1, nul ½, exempt 1), sans
+// revanche tant que c'est possible. Les résultats sont donnés à la fin de chaque ronde.
+
+export type SwissResult = 'a' | 'b' | 'draw';
+export interface SwissMatch {
+  a: string;
+  b: string;
+  result?: SwissResult;
+}
+export interface SwissRound {
+  matches: SwissMatch[];
+  /** Participant sans adversaire (nombre impair) : il gagne d'office. */
+  bye?: string;
+  /** Nombre de revanches qu'on n'a pas pu éviter (fin de tournoi, peu de participants). */
+  rematches?: number;
+}
+export interface Standing {
+  id: string;
+  points: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  byes: number;
+  /** Départage : somme des points des adversaires rencontrés. */
+  buchholz: number;
+}
+
+/** Classement après les rondes données (points, puis force des adversaires, puis victoires, puis ordre de départ). */
+export function swissStandings(ids: string[], rounds: SwissRound[]): Standing[] {
+  const s: Record<string, Standing> = Object.fromEntries(ids.map((id) => [id, { id, points: 0, wins: 0, draws: 0, losses: 0, byes: 0, buchholz: 0 }]));
+  const opponents: Record<string, string[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  for (const r of rounds) {
+    if (r.bye && s[r.bye]) {
+      s[r.bye].points += 1;
+      s[r.bye].byes++;
+    }
+    for (const m of r.matches) {
+      if (!s[m.a] || !s[m.b] || !m.result) continue;
+      opponents[m.a].push(m.b);
+      opponents[m.b].push(m.a);
+      if (m.result === 'draw') {
+        for (const x of [m.a, m.b]) {
+          s[x].points += 0.5;
+          s[x].draws++;
+        }
+      } else {
+        const [w, l] = m.result === 'a' ? [m.a, m.b] : [m.b, m.a];
+        s[w].points += 1;
+        s[w].wins++;
+        s[l].losses++;
+      }
+    }
+  }
+  for (const id of ids) s[id].buchholz = opponents[id].reduce((t, o) => t + s[o].points, 0);
+  return ids.map((id) => s[id]).sort((x, y) => y.points - x.points || y.buchholz - x.buchholz || y.wins - x.wins || ids.indexOf(x.id) - ids.indexOf(y.id));
+}
+
+/**
+ * Ronde suivante : du premier au dernier du classement, chacun reçoit l'adversaire libre le plus proche en points
+ * qu'il n'a pas encore rencontré (recherche avec retour en arrière). Si c'est impossible sans revanche, on en accepte.
+ * Nombre impair : le moins bien classé qui n'a pas encore été exempt ne joue pas et gagne d'office.
+ * `ids` donne l'ordre de départ (tiré au hasard une fois pour toutes par l'appelant).
+ */
+export function swissPairing(ids: string[], rounds: SwissRound[]): SwissRound {
+  const table = swissStandings(ids, rounds);
+  const pts = Object.fromEntries(table.map((t) => [t.id, t.points]));
+  const met = new Set<string>();
+  for (const r of rounds) for (const m of r.matches) met.add(pairKey(m.a, m.b));
+  const order = table.map((t) => t.id);
+
+  const pairUp = (list: string[], allowRematch: boolean): Array<[string, string]> | null => {
+    let nodes = 0;
+    const dfs = (rest: string[]): Array<[string, string]> | null => {
+      if (!rest.length) return [];
+      const [p, ...others] = rest;
+      const cands = [...others].sort((x, y) => Math.abs(pts[p] - pts[x]) - Math.abs(pts[p] - pts[y]));
+      for (const q of cands) {
+        if (!allowRematch && met.has(pairKey(p, q))) continue;
+        if (++nodes > 50000) return null;
+        const sub = dfs(others.filter((o) => o !== q));
+        if (sub) return [[p, q], ...sub];
+      }
+      return null;
+    };
+    return dfs(list);
+  };
+
+  const finish = (pairs: Array<[string, string]>, bye?: string): SwissRound => {
+    const rematches = pairs.filter(([a, b]) => met.has(pairKey(a, b))).length;
+    return { matches: pairs.map(([a, b]) => ({ a, b })), ...(bye ? { bye } : {}), ...(rematches ? { rematches } : {}) };
+  };
+
+  if (order.length % 2 === 0) return finish(pairUp(order, false) ?? (pairUp(order, true) as Array<[string, string]>));
+  const byes = Object.fromEntries(table.map((t) => [t.id, t.byes]));
+  const minBye = Math.min(...order.map((id) => byes[id]));
+  const candidates = [...order].reverse().filter((id) => byes[id] === minBye);
+  for (const bye of candidates) {
+    const pairs = pairUp(
+      order.filter((id) => id !== bye),
+      false,
+    );
+    if (pairs) return finish(pairs, bye);
+  }
+  const bye = candidates[0];
+  return finish(
+    pairUp(
+      order.filter((id) => id !== bye),
+      true,
+    ) as Array<[string, string]>,
+    bye,
+  );
+}
+
+// ————— Montante-descendante —————
+// Les participants sont répartis sur les terrains (terrain 1 = en haut). À la fin de chaque match, le gagnant monte
+// d'un terrain, le perdant descend d'un terrain ; le gagnant du terrain 1 et le perdant du dernier terrain restent.
+
+/** Répartition au hasard, aussi égale que possible, sur `courts` terrains (2 participants au moins par terrain). */
+export function ladderStart(ids: string[], courts: number, rand: () => number = Math.random): string[][] {
+  const n = Math.max(1, Math.min(courts, Math.floor(ids.length / 2)));
+  const tables: string[][] = Array.from({ length: n }, () => []);
+  shuffle(ids, rand).forEach((id, i) => tables[i % n].push(id));
+  return tables;
+}
+
+/**
+ * Tour suivant. `winners[i]` et `losers[i]` : gagnant et perdant du terrain i (le perdant se déduit quand ils sont
+ * deux). Les autres participants d'un terrain (à 3 ou plus) restent. Le nombre de participants par terrain ne change pas.
+ */
+export function ladderNext(tables: string[][], winners: Array<string | undefined>, losers: Array<string | undefined>): string[][] {
+  const last = tables.length - 1;
+  const res = tables.map((t, i) => {
+    const w = winners[i];
+    const l = losers[i] ?? (t.length === 2 && w ? t.find((x) => x !== w) : undefined);
+    return { w, l, stay: t.filter((x) => x !== w && x !== l) };
+  });
+  return tables.map((_, i) => {
+    const out: string[] = [];
+    if (i === 0 && res[0].w) out.push(res[0].w);
+    const up = res[i + 1]?.w; // gagnant du terrain du dessous
+    if (up) out.push(up);
+    out.push(...res[i].stay);
+    const down = i > 0 ? res[i - 1].l : undefined; // perdant du terrain du dessus
+    if (down) out.push(down);
+    if (i === last && res[last].l) out.push(res[last].l as string);
+    return out;
+  });
+}

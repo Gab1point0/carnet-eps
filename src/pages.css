@@ -667,3 +667,17 @@ code.formula { font-family: ui-monospace, Consolas, monospace; background: var(-
 .tourney-rot ul { margin: 6px 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
 .tourney-team { color: var(--grp); font-weight: 800; border-bottom: 2px solid var(--grp); }
 .tourney-members { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+.tourney-matches { margin: 8px 0; padding-left: 0; list-style: none; display: grid; gap: 8px; }
+.tourney-matches li { display: grid; gap: 4px; }
+.tourney-duel, .tourney-players { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tourney-players { margin-top: 6px; }
+.tourney-pick { display: inline-flex; align-items: center; gap: 4px; min-height: 38px; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface); color: inherit; font: inherit; cursor: pointer; }
+.tourney-pick[aria-pressed='true'], .tourney-pick.is-win { background: color-mix(in srgb, var(--success, #16a34a) 18%, var(--surface)); border-color: var(--success, #16a34a); }
+.tourney-pick.is-lose { background: color-mix(in srgb, var(--danger, #dc2626) 12%, var(--surface)); border-color: var(--danger, #dc2626); }
+.tourney-draw[aria-pressed='true'] { background: color-mix(in srgb, var(--accent, #2563eb) 15%, var(--surface)); border-color: var(--accent, #2563eb); }
+.tourney-done { border-color: var(--success, #16a34a); }
+.tourney-rules { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.tourney-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 0.92rem; }
+.tourney-table th, .tourney-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+.tourney-table th:nth-child(n + 3), .tourney-table td:nth-child(n + 3) { text-align: center; }
+.tourney-scroll { overflow-x: auto; }
