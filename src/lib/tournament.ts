@@ -284,3 +284,244 @@ export function ladderNext(tables: string[][], winners: Array<string | undefined
     return out;
   });
 }
+
+// Formules suivantes : d'après « Formes de tournois », Office fédéral du sport suisse (OFSPO, Macolin, 2001, réimpr.
+// 2014) : groupes puis K.-O., K.-O. avec tour de consolation, tournoi du sapin (défis), tournoi deux en un (mêlée).
+
+// ————— Poules puis phase finale —————
+
+export interface ScoredMatch {
+  a: string;
+  b: string;
+  result?: SwissResult;
+}
+export interface PoolRow {
+  id: string;
+  points: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  played: number;
+}
+
+/** Points d'un match de poule ou de mêlée : victoire 2, nul 1, défaite 0 (barème de l'OFSPO). */
+const pointsOf = (r: SwissResult, side: 'a' | 'b') => (r === 'draw' ? 1 : r === side ? 2 : 0);
+
+/** Classement d'une poule : points, puis confrontation directe entre ex aequo, puis victoires, puis ordre de départ. */
+export function poolStandings(ids: string[], matches: ScoredMatch[]): PoolRow[] {
+  const rows: Record<string, PoolRow> = Object.fromEntries(ids.map((id) => [id, { id, points: 0, wins: 0, draws: 0, losses: 0, played: 0 }]));
+  for (const m of matches) {
+    if (!m.result || !rows[m.a] || !rows[m.b]) continue;
+    for (const side of ['a', 'b'] as const) {
+      const r = rows[m[side]];
+      r.played++;
+      r.points += pointsOf(m.result, side);
+      if (m.result === 'draw') r.draws++;
+      else if (m.result === side) r.wins++;
+      else r.losses++;
+    }
+  }
+  const direct = (x: string, group: Set<string>) =>
+    matches.reduce((t, m) => (m.result && group.has(m.a) && group.has(m.b) && (m.a === x || m.b === x) ? t + pointsOf(m.result, m.a === x ? 'a' : 'b') : t), 0);
+  const tied = (p: number) => new Set(ids.filter((id) => rows[id].points === p));
+  return ids
+    .map((id) => rows[id])
+    .sort((x, y) => y.points - x.points || direct(y.id, tied(y.points)) - direct(x.id, tied(x.points)) || y.wins - x.wins || ids.indexOf(x.id) - ids.indexOf(y.id));
+}
+
+/** Poules tirées au hasard, de tailles aussi égales que possible. */
+export function poolsStart(ids: string[], poolCount: number, rand: () => number = Math.random): string[][] {
+  const k = Math.max(1, Math.min(poolCount, Math.floor(ids.length / 2)));
+  const pools: string[][] = Array.from({ length: k }, () => []);
+  shuffle(ids, rand).forEach((id, i) => pools[i % k].push(id));
+  return pools;
+}
+
+/** Matchs d'une poule (chacun contre chacun), dans l'ordre du tourniquet : chacun joue à son tour. */
+export const poolMatches = (pool: string[]): ScoredMatch[] => allPairs(pool).map(([a, b]) => ({ a, b }));
+
+/**
+ * Qualifiés pour la phase finale, rangés pour le tableau : les premiers de chaque poule, puis les deuxièmes… Le tableau
+ * croise les poules (1er A contre 2e B) ; si deux joueurs d'une même poule se retrouvent au 1er tour, on échange.
+ */
+export function poolQualifiers(standings: string[][], perPool: number): string[] {
+  const seeds: string[] = [];
+  for (let r = 0; r < perPool; r++) for (const pool of standings) if (pool[r]) seeds.push(pool[r]);
+  return seeds;
+}
+
+// ————— Élimination directe (tableau) —————
+
+/** Ordre des têtes de série dans un tableau de `size` places (1 contre 8, 4 contre 5, 2 contre 7, 3 contre 6…). */
+function seedOrder(size: number): number[] {
+  let o = [0];
+  while (o.length < size) {
+    const n = o.length * 2;
+    o = o.flatMap((s) => [s, n - 1 - s]);
+  }
+  return o;
+}
+
+/**
+ * Places du tableau : les participants dans l'ordre des têtes de série (le premier est la tête de série 1), complétés
+ * par des places vides (`null` : l'adversaire est qualifié d'office). `poolOf` évite deux joueurs d'une même poule au
+ * premier tour quand c'est possible.
+ */
+export function knockoutSlots(seeds: string[], poolOf?: Record<string, number>): Array<string | null> {
+  let size = 2;
+  while (size < seeds.length) size *= 2;
+  const slots = seedOrder(size).map((i) => seeds[i] ?? null);
+  if (poolOf) {
+    const same = (i: number) => slots[2 * i] && slots[2 * i + 1] && poolOf[slots[2 * i] as string] === poolOf[slots[2 * i + 1] as string];
+    for (let i = 0; i < size / 2; i++) {
+      if (!same(i)) continue;
+      for (let j = 0; j < size / 2; j++) {
+        if (j === i || !slots[2 * j + 1]) continue;
+        [slots[2 * i + 1], slots[2 * j + 1]] = [slots[2 * j + 1], slots[2 * i + 1]];
+        if (!same(i) && !same(j)) break;
+        [slots[2 * i + 1], slots[2 * j + 1]] = [slots[2 * j + 1], slots[2 * i + 1]];
+      }
+    }
+  }
+  return slots;
+}
+
+/** Un match du tableau. `undefined` : pas encore connu ; `null` : personne (qualifié d'office). */
+export interface KoMatch {
+  key: string;
+  a: string | null | undefined;
+  b: string | null | undefined;
+  w: string | null | undefined;
+}
+
+/** Tours du tableau, du premier à la finale, d'après les vainqueurs donnés (`wins` : clé du match → vainqueur). */
+export function knockoutRounds(slots: Array<string | null>, wins: Record<string, string>): KoMatch[][] {
+  const rounds: KoMatch[][] = [];
+  let cur: Array<string | null | undefined> = slots;
+  for (let r = 0; cur.length > 1; r++) {
+    const matches: KoMatch[] = [];
+    for (let i = 0; i < cur.length / 2; i++) {
+      const a = cur[2 * i];
+      const b = cur[2 * i + 1];
+      const key = `${r}-${i}`;
+      let w: string | null | undefined;
+      if (a === null && b === null) w = null;
+      else if (a === null) w = b;
+      else if (b === null) w = a;
+      else if (a && b) w = wins[key] === a || wins[key] === b ? wins[key] : undefined;
+      matches.push({ key, a, b, w });
+    }
+    rounds.push(matches);
+    cur = matches.map((m) => m.w);
+  }
+  return rounds;
+}
+
+/** Perdants du premier match joué de chacun (sans les qualifiés d'office), pour le tableau de consolation. */
+export function firstRoundLosers(rounds: KoMatch[][]): string[] {
+  const out: string[] = [];
+  for (const [r, ms] of rounds.entries())
+    for (const m of ms) {
+      if (!m.a || !m.b || !m.w) continue;
+      const loser = m.w === m.a ? m.b : m.a;
+      // Premier match joué : au 1er tour, ou au 2e pour celui qui était qualifié d'office.
+      const firstMatch = r === 0 || rounds[r - 1].some((p) => p.w === loser && (p.a === null || p.b === null));
+      if (firstMatch) out.push(loser);
+    }
+  return out;
+}
+
+// ————— Défis (échelle, « tournoi du sapin ») —————
+
+export interface Challenge {
+  /** Celui qui défie (moins bien placé). */
+  c: string;
+  /** Celui qui est défié. */
+  d: string;
+  /** Vainqueur. */
+  w: string;
+}
+
+/** Classement après les défis : si celui qui défie gagne, les deux échangent leur place. */
+export function challengeOrder(start: string[], log: Challenge[]): string[] {
+  const order = [...start];
+  for (const x of log) {
+    const i = order.indexOf(x.c);
+    const j = order.indexOf(x.d);
+    if (i < 0 || j < 0 || x.w !== x.c || i < j) continue;
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+
+// ————— Double à la mêlée (« deux en un ») —————
+// À chaque tour, de nouveaux doubles sont tirés : on évite de rejouer avec le même partenaire (puis contre les mêmes
+// adversaires). Les points sont individuels : victoire 2, nul 1, défaite 0.
+
+export interface MeleeMatch {
+  a: [string, string];
+  b: [string, string];
+  result?: SwissResult;
+}
+export interface MeleeRound {
+  matches: MeleeMatch[];
+  resting: string[];
+}
+
+export function meleeRound(ids: string[], rounds: MeleeRound[], courts: number, rand: () => number = Math.random): MeleeRound {
+  const k = Math.max(0, Math.min(courts, Math.floor(ids.length / 4)));
+  const rests: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+  const partners = new Map<string, number>();
+  const opponents = new Map<string, number>();
+  const bump = (m: Map<string, number>, x: string, y: string) => m.set(pairKey(x, y), (m.get(pairKey(x, y)) ?? 0) + 1);
+  for (const r of rounds) {
+    for (const id of r.resting) if (id in rests) rests[id]++;
+    for (const m of r.matches) {
+      bump(partners, m.a[0], m.a[1]);
+      bump(partners, m.b[0], m.b[1]);
+      for (const x of m.a) for (const y of m.b) bump(opponents, x, y);
+    }
+  }
+  // Repos : ceux qui se sont le moins reposés jusque-là (au hasard entre eux).
+  const byRest = shuffle(ids, rand).sort((x, y) => rests[x] - rests[y]);
+  const resting = byRest.slice(0, ids.length - 4 * k);
+  const playing = byRest.slice(ids.length - 4 * k);
+  let best: MeleeMatch[] = [];
+  let bestCost = Infinity;
+  for (let attempt = 0; attempt < 400 && bestCost > 0; attempt++) {
+    const p = shuffle(playing, rand);
+    const matches: MeleeMatch[] = [];
+    let cost = 0;
+    for (let i = 0; i < k; i++) {
+      const [w, x, y, z] = p.slice(4 * i, 4 * i + 4);
+      matches.push({ a: [w, x], b: [y, z] });
+      cost += 10 * ((partners.get(pairKey(w, x)) ?? 0) + (partners.get(pairKey(y, z)) ?? 0));
+      for (const s of [w, x]) for (const t of [y, z]) cost += opponents.get(pairKey(s, t)) ?? 0;
+    }
+    if (cost < bestCost) {
+      best = matches;
+      bestCost = cost;
+    }
+  }
+  return { matches: best, resting };
+}
+
+/** Classement individuel de la mêlée : points (victoire 2, nul 1), puis victoires, puis moins de matchs joués. */
+export function meleeStandings(ids: string[], rounds: MeleeRound[]): PoolRow[] {
+  const rows: Record<string, PoolRow> = Object.fromEntries(ids.map((id) => [id, { id, points: 0, wins: 0, draws: 0, losses: 0, played: 0 }]));
+  for (const r of rounds)
+    for (const m of r.matches) {
+      if (!m.result) continue;
+      for (const side of ['a', 'b'] as const)
+        for (const id of m[side]) {
+          const row = rows[id];
+          if (!row) continue;
+          row.played++;
+          row.points += pointsOf(m.result, side);
+          if (m.result === 'draw') row.draws++;
+          else if (m.result === side) row.wins++;
+          else row.losses++;
+        }
+    }
+  return ids.map((id) => rows[id]).sort((x, y) => y.points - x.points || y.wins - x.wins || x.played - y.played || ids.indexOf(x.id) - ids.indexOf(y.id));
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveKey, newSalt, open, seal } from './crypto';
-import { emptyPrivate, mergePrivate, parseRoster, restorePrivate, stampGrouping, stampMarks } from './privateData';
+import { emptyPrivate, mergePrivate, parseRoster, remapStudents, restorePrivate, stampGrouping, stampMarks } from './privateData';
 
 describe('données des élèves', () => {
   it('chiffre et ne déchiffre qu\'avec le bon mot de passe', async () => {
@@ -114,5 +114,34 @@ describe('données des élèves', () => {
     const a = { ...emptyPrivate(), futur: { x: 1 } } as ReturnType<typeof emptyPrivate>;
     const m = mergePrivate(emptyPrivate(), a) as unknown as { futur: unknown };
     expect(m.futur).toEqual({ x: 1 });
+  });
+});
+
+describe('tournois enregistrés', () => {
+  const tour = (t: number, state: unknown, deleted = false) => ({ classId: 'c', name: 'Rondes', formula: 'swiss', state, t, ...(deleted ? { deleted } : {}) });
+
+  it('fusion : la version la plus récente de chaque tournoi l’emporte, une suppression passe', () => {
+    const a = { ...emptyPrivate(), tournaments: { x: tour(10, { r: 1 }), y: tour(5, { r: 1 }) } };
+    const b = { ...emptyPrivate(), tournaments: { x: tour(12, { r: 2 }), y: tour(9, null, true), z: tour(3, { r: 0 }) } };
+    const m = mergePrivate(a, b);
+    expect(m.tournaments.x.state).toEqual({ r: 2 });
+    expect(m.tournaments.y.deleted).toBe(true);
+    expect(Object.keys(m.tournaments).sort()).toEqual(['x', 'y', 'z']);
+    // Coffre d'une version qui ne connaissait pas les tournois.
+    expect(mergePrivate({ version: 1, rosters: {}, sheets: {}, groups: {}, savedGroups: {} } as never, a).tournaments.x.t).toBe(10);
+  });
+
+  it('les identifiants d’élèves du tournoi suivent le changement d’identifiant (même nom)', () => {
+    const doc = { ...emptyPrivate(), rosters: { c: { students: [{ id: 'old', name: 'Léa' }], updatedAt: 1 } }, tournaments: { x: tour(1, { order: ['old', 'autre'], wins: { old: 'old' } }) } };
+    const target = { ...emptyPrivate(), rosters: { c: { students: [{ id: 'new', name: 'Léa' }], updatedAt: 2 } } };
+    expect(remapStudents(doc, target).tournaments.x.state).toEqual({ order: ['new', 'autre'], wins: { new: 'new' } });
+  });
+
+  it('restaure un tournoi supprimé depuis', () => {
+    const old = { ...emptyPrivate(), tournaments: { x: tour(1, { r: 3 }) } };
+    const cur = { ...emptyPrivate(), tournaments: { x: tour(5, null, true) } };
+    const r = restorePrivate(cur, old, 100);
+    expect(r.tournaments).toBe(1);
+    expect(r.doc.tournaments.x).toMatchObject({ state: { r: 3 }, deleted: false, t: 100 });
   });
 });

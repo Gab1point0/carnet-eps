@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ladderNext, ladderStart, rotationsForAll, schedule, swissPairing, swissStandings, type SwissRound } from './tournament';
+import { challengeOrder, firstRoundLosers, knockoutRounds, knockoutSlots, ladderNext, ladderStart, meleeRound, meleeStandings, poolMatches, poolQualifiers, poolStandings, poolsStart, rotationsForAll, schedule, swissPairing, swissStandings, type MeleeRound, type SwissResult, type SwissRound } from './tournament';
 
 const seeded = () => {
   let x = 7;
@@ -138,5 +138,95 @@ describe('montante-descendante', () => {
       ['e', 'x', 'b'],
       ['d', 'f'],
     ]);
+  });
+});
+
+describe('poules puis phase finale', () => {
+  it('poules équilibrées, chacun contre chacun, classement avec confrontation directe', () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `j${i}`);
+    const pools = poolsStart(ids, 3);
+    expect(pools.map((p) => p.length).sort()).toEqual([3, 3, 4]);
+    const m = poolMatches(['a', 'b', 'c', 'd']);
+    expect(m.length).toBe(6);
+    // a bat b, b bat c, c bat a, d perd tout : a, b, c à 4 points ; d dernier.
+    const res: Record<string, SwissResult> = { 'a|b': 'a', 'b|c': 'a', 'a|c': 'b', 'a|d': 'a', 'b|d': 'a', 'c|d': 'a' };
+    for (const x of m) {
+      const k = [x.a, x.b].sort().join('|');
+      const r = res[k];
+      x.result = x.a < x.b ? r : r === 'a' ? 'b' : 'a';
+    }
+    const st = poolStandings(['a', 'b', 'c', 'd'], m);
+    expect(st.map((s) => s.points)).toEqual([4, 4, 4, 0]);
+    expect(st[3].id).toBe('d');
+  });
+
+  it('qualifiés croisés : le 1er d’une poule ne rencontre pas un joueur de sa poule au 1er tour', () => {
+    const seeds = poolQualifiers(
+      [
+        ['A1', 'A2'],
+        ['B1', 'B2'],
+        ['C1', 'C2'],
+      ],
+      2,
+    );
+    expect(seeds).toEqual(['A1', 'B1', 'C1', 'A2', 'B2', 'C2']);
+    const poolOf = { A1: 0, A2: 0, B1: 1, B2: 1, C1: 2, C2: 2 };
+    const slots = knockoutSlots(seeds, poolOf);
+    expect(slots.length).toBe(8);
+    for (let i = 0; i < 4; i++) {
+      const [a, b] = [slots[2 * i], slots[2 * i + 1]];
+      if (a && b) expect(poolOf[a as keyof typeof poolOf]).not.toBe(poolOf[b as keyof typeof poolOf]);
+    }
+  });
+});
+
+describe('élimination directe', () => {
+  it('têtes de série, qualifiés d’office, vainqueur et consolante', () => {
+    const slots = knockoutSlots(['s1', 's2', 's3', 's4', 's5', 's6']);
+    expect(slots).toEqual(['s1', null, 's4', 's5', 's2', null, 's3', 's6']);
+    let rounds = knockoutRounds(slots, {});
+    expect(rounds.map((r) => r.length)).toEqual([4, 2, 1]);
+    expect(rounds[0][0].w).toBe('s1');
+    const wins: Record<string, string> = { '0-1': 's5', '0-3': 's3', '1-0': 's1', '1-1': 's3', '2-0': 's3' };
+    rounds = knockoutRounds(slots, wins);
+    expect(rounds[2][0].w).toBe('s3');
+    expect(firstRoundLosers(rounds).sort()).toEqual(['s2', 's4', 's6']);
+    // Un résultat changé plus tôt invalide la suite.
+    rounds = knockoutRounds(slots, { ...wins, '0-3': 's6' });
+    expect(rounds[1][1].w).toBeUndefined();
+  });
+});
+
+describe('défis (échelle)', () => {
+  it('le vainqueur qui défiait prend la place du défié', () => {
+    expect(
+      challengeOrder(
+        ['a', 'b', 'c', 'd'],
+        [
+          { c: 'c', d: 'a', w: 'c' },
+          { c: 'd', d: 'b', w: 'b' },
+        ],
+      ),
+    ).toEqual(['c', 'b', 'a', 'd']);
+  });
+});
+
+describe('double à la mêlée', () => {
+  it('nouveaux partenaires à chaque tour, repos répartis, points individuels', () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `m${i}`);
+    const rounds: MeleeRound[] = [];
+    for (let k = 0; k < 4; k++) {
+      const r = meleeRound(ids, rounds, 5, seeded());
+      expect(r.matches.length).toBe(2);
+      expect(r.resting.length).toBe(2);
+      expect(new Set([...r.matches.flatMap((m) => [...m.a, ...m.b]), ...r.resting]).size).toBe(10);
+      r.matches.forEach((m) => (m.result = 'a'));
+      rounds.push(r);
+    }
+    const partners = rounds.flatMap((r) => r.matches.flatMap((m) => [m.a, m.b].map((t) => [...t].sort().join())));
+    expect(new Set(partners).size).toBe(partners.length);
+    expect(new Set(rounds.flatMap((r) => r.resting)).size).toBe(8);
+    const st = meleeStandings(ids, rounds);
+    expect(st.reduce((t, s) => t + s.points, 0)).toBe(4 * 2 * 2 * 2);
   });
 });

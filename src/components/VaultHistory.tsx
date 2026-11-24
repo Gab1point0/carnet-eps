@@ -80,6 +80,7 @@ function VaultHistoryModal({ onClose }: { onClose: () => void }) {
     const parts = [
       res.groups && `les groupes de ${plural(res.groups, 'fiche')}`,
       res.saved && plural(res.saved, 'groupe enregistré', 'groupes enregistrés'),
+      res.tournaments && plural(res.tournaments, 'tournoi'),
       res.rows && plural(res.rows, 'résultat d’élève', 'résultats d’élèves'),
       res.rosters && plural(res.rosters, 'liste d’élèves', 'listes d’élèves'),
     ].filter(Boolean);
@@ -99,7 +100,7 @@ function VaultHistoryModal({ onClose }: { onClose: () => void }) {
         À chaque synchronisation, une copie chiffrée des données des élèves est gardée en ligne. Choisissez une version d'avant la perte : ce qui a disparu depuis (groupes, résultats) est remis, et ce que vous avez fait ensuite est gardé.
       </p>
       <p className="small">
-        Aujourd'hui : <strong>{plural(current.grouped, 'fiche')}</strong> avec des groupes · {plural(current.saved, 'groupe enregistré', 'groupes enregistrés')} · {plural(current.filled, 'fiche remplie', 'fiches remplies')}
+        Aujourd'hui : <strong>{plural(current.grouped, 'fiche')}</strong> avec des groupes · {plural(current.saved, 'groupe enregistré', 'groupes enregistrés')} · {plural(current.tournaments, 'tournoi')} · {plural(current.filled, 'fiche remplie', 'fiches remplies')}
       </p>
       {!rows && !progress && (
         <div>
@@ -140,7 +141,7 @@ function VaultHistoryModal({ onClose }: { onClose: () => void }) {
                 <span className="muted small">
                   {' · '}
                   {r.sum
-                    ? `${plural(r.sum.grouped, 'fiche')} avec des groupes · ${plural(r.sum.saved, 'groupe enregistré', 'groupes enregistrés')} · ${plural(r.sum.filled, 'fiche remplie', 'fiches remplies')} · ${plural(r.sum.students, 'élève')}`
+                    ? `${plural(r.sum.grouped, 'fiche')} avec des groupes · ${plural(r.sum.saved, 'groupe enregistré', 'groupes enregistrés')} · ${plural(r.sum.tournaments, 'tournoi')} · ${plural(r.sum.filled, 'fiche remplie', 'fiches remplies')} · ${plural(r.sum.students, 'élève')}`
                     : r.env === undefined
                       ? '…'
                       : r.env

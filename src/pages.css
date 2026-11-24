@@ -681,3 +681,9 @@ code.formula { font-family: ui-monospace, Consolas, monospace; background: var(-
 .tourney-table th, .tourney-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; }
 .tourney-table th:nth-child(n + 3), .tourney-table td:nth-child(n + 3) { text-align: center; }
 .tourney-scroll { overflow-x: auto; }
+.tourney-champion { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--success) 14%, var(--surface)); }
+.tourney-pool-rank { margin: 6px 0 0; padding-left: 20px; }
+.tourney-qualified { font-weight: 800; }
+.tourney-ladder { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+.tourney-ladder .tourney-pick { width: 100%; justify-content: flex-start; }
+.tourney-target { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
