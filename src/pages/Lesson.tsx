@@ -6,6 +6,7 @@ import { ReviewModal, RATINGS } from '../components/ReviewModal';
 import { VoiceLessonModal } from '../components/VoiceLessonModal';
 import { EvalSheetModal } from '../components/EvalSheetModal';
 import { LessonGroupsButton } from '../components/RandomGroupsModal';
+import { LessonTournamentButton } from '../components/TournamentModal';
 import { isGradedEvaluation } from '../lib/evaluations';
 import { ProposalsPanel } from '../components/ProposalsPanel';
 import { MarkdownField } from '../components/MarkdownField';
@@ -187,6 +188,7 @@ export function LessonPage() {
               Dicter la séance
             </Button>
             {!isTemplate && <LessonGroupsButton lesson={lesson} />}
+            {!isTemplate && <LessonTournamentButton lesson={lesson} />}
             {!isTemplate && isGradedEvaluation(lesson) && (
               <Button icon={<Sheet size={17} />} onClick={() => setSheetOpen(true)}>
                 Fiche d'évaluation

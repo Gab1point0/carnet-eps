@@ -661,3 +661,9 @@ code.formula { font-family: ui-monospace, Consolas, monospace; background: var(-
 .random-group-title { color: var(--grp); display: block; margin-bottom: 4px; }
 .random-group ul { margin: 0; padding-left: 18px; }
 .random-group li { padding: 2px 0; }
+.tourney { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.tourney > p { grid-column: 1 / -1; margin: 0; }
+.tourney-rot { padding: 10px 12px; }
+.tourney-rot ul { margin: 6px 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+.tourney-team { color: var(--grp); font-weight: 800; border-bottom: 2px solid var(--grp); }
+.tourney-members { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
