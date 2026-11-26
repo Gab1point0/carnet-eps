@@ -145,3 +145,26 @@ describe('tournois enregistrés', () => {
     expect(r.doc.tournaments.x).toMatchObject({ state: { r: 3 }, deleted: false, t: 100 });
   });
 });
+
+describe('notes d’investissement', () => {
+  it('fusion élève par élève : la note la plus récente l’emporte', () => {
+    const a = { ...emptyPrivate(), investment: { c: { e1: { v: 18, t: 10 }, e2: { v: 19, t: 3 } } } };
+    const b = { ...emptyPrivate(), investment: { c: { e1: { v: 17, t: 5 }, e2: { v: 20, t: 8 }, e3: { v: 16, t: 1 } } } };
+    const m = mergePrivate(a, b);
+    expect(m.investment.c).toEqual({ e1: { v: 18, t: 10 }, e2: { v: 20, t: 8 }, e3: { v: 16, t: 1 } });
+    // Coffre d'une version qui ne connaissait pas les notes d'investissement.
+    expect(mergePrivate({ version: 1, rosters: {}, sheets: {}, groups: {}, savedGroups: {}, tournaments: {} } as never, a).investment.c.e1.v).toBe(18);
+  });
+
+  it('suit le changement d’identifiant d’un élève, et se restaure si elle a été remise à 20', () => {
+    const doc = { ...emptyPrivate(), rosters: { c: { students: [{ id: 'old', name: 'Léa' }], updatedAt: 1 } }, investment: { c: { old: { v: 15, t: 1 } } } };
+    const target = { ...emptyPrivate(), rosters: { c: { students: [{ id: 'new', name: 'Léa' }], updatedAt: 2 } }, investment: { c: { new: { v: 20, t: 9 } } } };
+    expect(remapStudents(doc, target).investment.c).toEqual({ new: { v: 15, t: 1 } });
+    const r = restorePrivate(target, doc, 100);
+    expect(r.investment).toBe(1);
+    expect(r.doc.investment.c.new).toEqual({ v: 15, t: 100 });
+    // Une note modifiée depuis n'est pas écrasée.
+    const later = { ...target, investment: { c: { new: { v: 12, t: 50 } } } };
+    expect(restorePrivate(later, doc, 100).doc.investment.c.new.v).toBe(12);
+  });
+});

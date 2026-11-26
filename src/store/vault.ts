@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import type { ID } from '../types';
 import { deriveKey, isEnvelope, newSalt, open, seal, type Envelope } from '../lib/crypto';
-import { emptyPrivate, mergePrivate, normalizePrivate, remapStudents, restorePrivate, samePrivate, stampGrouping, stampMarks, type Grouping, type PrivateDoc, type SavedGrouping, type SavedTournament, type Student, type StudentMarks } from '../lib/privateData';
+import { INVESTMENT_START, emptyPrivate, mergePrivate, normalizePrivate, remapStudents, restorePrivate, samePrivate, stampGrouping, stampMarks, type Grouping, type PrivateDoc, type SavedGrouping, type SavedTournament, type Student, type StudentMarks } from '../lib/privateData';
 import { GithubError, getFile, putFile, type GithubConfig } from '../lib/github';
 
 // Coffre des données des élèves : chiffré sur l'appareil (IndexedDB) et, si la synchronisation est réglée,
@@ -41,6 +41,8 @@ interface VaultState {
   setGroups: (lessonId: ID, groups: Omit<Grouping, 't'> | null) => void;
   saveGroups: (id: ID, g: Omit<SavedGrouping, 't'>) => void;
   saveTournament: (id: ID, x: Omit<SavedTournament, 't'>) => void;
+  /** Notes d'investissement d'une classe : élève → nouvelle note (seuls ceux donnés changent). */
+  setInvestment: (classId: ID, notes: Record<ID, number>) => void;
   /** Efface tous les élèves et résultats (fin d'année), sur tous les appareils synchronisés. */
   wipe: () => void;
 }
@@ -179,6 +181,15 @@ export const useVault = create<VaultState>((set, get) => ({
     void persist();
   },
 
+  setInvestment(classId, notes) {
+    const doc = get().doc;
+    const t = Date.now();
+    const rows = { ...(doc.investment[classId] ?? {}) };
+    for (const [sid, v] of Object.entries(notes)) rows[sid] = { v, t };
+    set({ doc: { ...doc, investment: { ...doc.investment, [classId]: rows } }, revision: get().revision + 1 });
+    void persist();
+  },
+
   wipe() {
     const doc = get().doc;
     const t = Date.now();
@@ -188,7 +199,8 @@ export const useVault = create<VaultState>((set, get) => ({
     const groups = Object.fromEntries(Object.keys(doc.groups).map((id) => [id, { assign: {}, count: 0, t }]));
     const savedGroups = Object.fromEntries(Object.entries(doc.savedGroups).map(([id, g]) => [id, { ...g, assign: {}, count: 0, deleted: true, t }]));
     const tournaments = Object.fromEntries(Object.entries(doc.tournaments).map(([id, x]) => [id, { ...x, name: '', state: null, deleted: true, t }]));
-    set({ doc: { version: 1, rosters, sheets, groups, savedGroups, tournaments }, revision: get().revision + 1 });
+    const investment = Object.fromEntries(Object.entries(doc.investment).map(([id, rows]) => [id, Object.fromEntries(Object.keys(rows).map((s) => [s, { v: INVESTMENT_START, t }]))]));
+    set({ doc: { version: 1, rosters, sheets, groups, savedGroups, tournaments, investment }, revision: get().revision + 1 });
     void persist();
   },
 }));

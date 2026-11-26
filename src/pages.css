@@ -687,3 +687,14 @@ code.formula { font-family: ui-monospace, Consolas, monospace; background: var(-
 .tourney-ladder { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 6px; }
 .tourney-ladder .tourney-pick { width: 100%; justify-content: flex-start; }
 .tourney-target { border-style: dashed; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+
+/* Note d'investissement (src/components/InvestmentModal.tsx) */
+.invest-list { display: grid; gap: 2px; }
+.invest-row { display: grid; grid-template-columns: 1fr auto 3ch auto; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--border); }
+.invest-name { min-width: 0; overflow-wrap: anywhere; }
+.invest-btn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: inherit; cursor: pointer; }
+.invest-btn:active:not(:disabled) { background: var(--surface-2); }
+.invest-btn:disabled { opacity: 0.35; cursor: default; }
+.invest-note { text-align: center; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.invest-note.is-down { color: var(--danger); }
+.invest-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border); }

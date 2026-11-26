@@ -56,6 +56,15 @@ export interface SavedTournament {
   deleted?: boolean;
 }
 
+/** Note d'investissement d'un élève : part de 20, monte ou descend d'un point ; datée pour la fusion. */
+export interface InvestmentNote {
+  v: number;
+  t: number;
+}
+
+/** Note de départ (et après « Réinitialiser »). */
+export const INVESTMENT_START = 20;
+
 export interface PrivateDoc {
   version: 1;
   /** Élèves de chaque classe. */
@@ -68,12 +77,14 @@ export interface PrivateDoc {
   savedGroups: Record<ID, SavedGrouping>;
   /** Tournois enregistrés, par identifiant. */
   tournaments: Record<ID, SavedTournament>;
+  /** Notes d'investissement : classe → élève → note. Élève absent de la liste = note de départ. */
+  investment: Record<ID, Record<ID, InvestmentNote>>;
 }
 
-export const emptyPrivate = (): PrivateDoc => ({ version: 1, rosters: {}, sheets: {}, groups: {}, savedGroups: {}, tournaments: {} });
+export const emptyPrivate = (): PrivateDoc => ({ version: 1, rosters: {}, sheets: {}, groups: {}, savedGroups: {}, tournaments: {}, investment: {} });
 
 /** Coffre d'une version précédente (sans groupes) : on complète. */
-export const normalizePrivate = (d: Partial<PrivateDoc>): PrivateDoc => ({ ...emptyPrivate(), ...d, groups: d.groups ?? {}, savedGroups: d.savedGroups ?? {}, tournaments: d.tournaments ?? {} });
+export const normalizePrivate = (d: Partial<PrivateDoc>): PrivateDoc => ({ ...emptyPrivate(), ...d, groups: d.groups ?? {}, savedGroups: d.savedGroups ?? {}, tournaments: d.tournaments ?? {}, investment: d.investment ?? {} });
 
 const newest = <T extends { t: number }>(x: T | undefined, y: T | undefined) => (!x ? y! : !y ? x : y.t > x.t ? y : x);
 
@@ -86,6 +97,11 @@ export function mergePrivate(a0: PrivateDoc, b0: PrivateDoc): PrivateDoc {
   for (const id of new Set([...Object.keys(a.groups), ...Object.keys(b.groups)])) out.groups[id] = mergeGrouping(a.groups[id], b.groups[id]);
   for (const id of new Set([...Object.keys(a.savedGroups), ...Object.keys(b.savedGroups)])) out.savedGroups[id] = newest(a.savedGroups[id], b.savedGroups[id]);
   for (const id of new Set([...Object.keys(a.tournaments), ...Object.keys(b.tournaments)])) out.tournaments[id] = newest(a.tournaments[id], b.tournaments[id]);
+  for (const id of new Set([...Object.keys(a.investment), ...Object.keys(b.investment)])) {
+    const x = a.investment[id] ?? {};
+    const y = b.investment[id] ?? {};
+    out.investment[id] = Object.fromEntries([...new Set([...Object.keys(x), ...Object.keys(y)])].map((s) => [s, newest(x[s], y[s])]));
+  }
   for (const id of new Set([...Object.keys(a.rosters), ...Object.keys(b.rosters)])) {
     const x = a.rosters[id];
     const y = b.rosters[id];
@@ -184,6 +200,8 @@ export function summarizePrivate(d: PrivateDoc) {
     grouped: Object.values(d.groups).filter((g) => g.count > 0 && Object.values(g.assign).some((x) => x > 0)).length,
     saved: Object.values(d.savedGroups).filter((g) => !g.deleted).length,
     tournaments: Object.values(d.tournaments ?? {}).filter((x) => !x.deleted).length,
+    /** Classes où au moins une note d'investissement n'est plus à 20. */
+    investment: Object.values(d.investment ?? {}).filter((rows) => Object.values(rows).some((r) => r.v !== INVESTMENT_START)).length,
   };
 }
 
@@ -216,6 +234,7 @@ export function remapStudents(doc: PrivateDoc, target: PrivateDoc): PrivateDoc {
     groups: Object.fromEntries(Object.entries(doc.groups).map(([l, g]) => [l, reG(g)])),
     savedGroups: Object.fromEntries(Object.entries(doc.savedGroups).map(([id, g]) => [id, reG(g)])),
     tournaments: Object.fromEntries(Object.entries(doc.tournaments ?? {}).map(([id, x]) => [id, { ...x, state: deep(x.state) }])),
+    investment: Object.fromEntries(Object.entries(doc.investment ?? {}).map(([c, rows]) => [c, re(rows)])),
   };
 }
 
@@ -237,8 +256,9 @@ export function restorePrivate(current0: PrivateDoc, old0: PrivateDoc, now: numb
     groups: { ...current.groups },
     savedGroups: { ...current.savedGroups },
     tournaments: { ...current.tournaments },
+    investment: { ...current.investment },
   };
-  const n = { groups: 0, saved: 0, rows: 0, rosters: 0, tournaments: 0 };
+  const n = { groups: 0, saved: 0, rows: 0, rosters: 0, tournaments: 0, investment: 0 };
   for (const [classId, r] of Object.entries(old.rosters)) {
     if (r.students.length && !doc.rosters[classId]?.students.length) {
       doc.rosters[classId] = { students: r.students, updatedAt: now };
@@ -264,6 +284,18 @@ export function restorePrivate(current0: PrivateDoc, old0: PrivateDoc, now: numb
     if (x.deleted || !x.state || (cur && !cur.deleted)) continue;
     doc.tournaments[id] = { ...x, deleted: false, t: now };
     n.tournaments++;
+  }
+  // Notes d'investissement : celles qui étaient modifiées et sont revenues à 20 depuis (réinitialisées, effacées).
+  for (const [classId, rows] of Object.entries(old.investment)) {
+    const cur = doc.investment[classId] ?? {};
+    let next: Record<ID, InvestmentNote> | null = null;
+    for (const [sid, r] of Object.entries(rows)) {
+      if (r.v === INVESTMENT_START || (cur[sid] && cur[sid].v !== INVESTMENT_START)) continue;
+      next ??= { ...cur };
+      next[sid] = { v: r.v, t: now };
+      n.investment++;
+    }
+    if (next) doc.investment[classId] = next;
   }
   for (const [lessonId, rows] of Object.entries(old.sheets)) {
     const cur = doc.sheets[lessonId] ?? {};

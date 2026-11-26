@@ -7,6 +7,7 @@ import { ClassFormModal } from '../components/ClassForm';
 import { NewCycleModal } from '../components/CycleModals';
 import { ClassYear } from '../components/ClassYear';
 import { StudentsSection } from '../components/StudentsSection';
+import { InvestmentButton } from '../components/InvestmentModal';
 import { useData } from '../store/data';
 import { classCycles, cycleLessons } from '../store/selectors';
 import { clearLessons, saveLessonAsTemplate } from '../store/actions';
@@ -108,6 +109,7 @@ export function ClassDetailPage() {
             <Button icon={<Pencil size={16} />} onClick={() => setEditing(true)}>
               Modifier / emploi du temps
             </Button>
+            <InvestmentButton klass={klass} />
             <Menu
               items={[
                 {
